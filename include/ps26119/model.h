@@ -44,7 +44,8 @@ struct Model {
   std::size_t nnz() const { return value.size(); }
 
   // 64-bit FNV-1a hash of every number in the model (sizes, sense, offset, c, bounds,
-  // CSC structure and values, integrality). Names are NOT hashed. -0.0 hashes like 0.0.
+  // matrix entries per column sorted by row, integrality). Names are NOT hashed, the order
+  // of entries inside a column does not matter, and -0.0 hashes like 0.0.
   // Two readers that produce the same Model produce the same fingerprint.
   std::uint64_t fingerprint() const;
   std::string fingerprint_hex() const;

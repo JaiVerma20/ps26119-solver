@@ -14,7 +14,7 @@ inline constexpr double kOraclePivot = 1e-11;       // smallest acceptable |pivo
 
 // Independent verifier (tools/verify.py). All three are RELATIVE:
 //   primal: max_i viol_i / (1 + |violated bound_i|)
-//   dual:   max_j sign-violation_j / (1 + |c_j|)
+//   dual:   max sign violation of y and z = c − Aᵀy, divided by (1 + ‖c‖∞)
 //   gap:    |p − d| / (1 + |p| + |d|)
 // Absolute values are reported alongside, but PASS/FAIL uses the relative ones.
 inline constexpr double kVerifyPrimal = 1e-6;

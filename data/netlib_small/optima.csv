@@ -1,0 +1,11 @@
+name,rows_incl_obj,cols,published_optimum,source
+afiro,28,32,-4.6475314286E+02,netlib lp/data readme (MINOS 5.3)
+sc50a,51,48,-6.4575077059E+01,netlib lp/data readme (MINOS 5.3)
+sc50b,51,48,-7.0000000000E+01,netlib lp/data readme (MINOS 5.3)
+kb2,44,41,-1.7499001299E+03,netlib lp/data readme (MINOS 5.3)
+adlittle,57,97,2.2549496316E+05,netlib lp/data readme (MINOS 5.3)
+blend,75,83,-3.0812149846E+01,netlib lp/data readme (MINOS 5.3)
+share2b,97,79,-4.1573224074E+02,netlib lp/data readme (MINOS 5.3)
+sc105,106,103,-5.2202061212E+01,netlib lp/data readme (MINOS 5.3)
+stocfor1,118,111,-4.1131976219E+04,netlib lp/data readme (MINOS 5.3)
+recipe,92,180,-2.6661600000E+02,netlib lp/data readme (MINOS 5.3)

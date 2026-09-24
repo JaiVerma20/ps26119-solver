@@ -24,17 +24,13 @@ jobs:
           python -m pip install cmake ninja highspy numpy
 
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPython3_EXECUTABLE=$(which python)
 
       - name: Build
         run: cmake --build build -j
 
-      - name: Unit tests
+      - name: Unit + tooling tests (ctest also runs tools/test_tools.py)
         run: ctest --test-dir build --output-on-failure
 
       - name: No foreign solver linked
         run: scripts/check_no_solver_linked.sh build
-
-      - name: Tooling tests (MPS bridge + verifier)
-        if: hashFiles('tools/test_tools.py') != ''
-        run: python tools/test_tools.py

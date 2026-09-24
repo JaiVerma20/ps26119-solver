@@ -4,6 +4,8 @@
 // Canonicalisation: doubles are hashed by bit pattern after mapping -0.0 to +0.0 (so two
 // readers that differ only in the sign of a zero agree); all NaNs map to one pattern.
 // Names are deliberately excluded — the fingerprint identifies the mathematical model.
+// tools/lpm.py implements the identical hash in Python (keep them in sync).
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -59,11 +61,21 @@ std::uint64_t Model::fingerprint() const {
   h.f64s(col_upper);
   h.f64s(row_lower);
   h.f64s(row_upper);
-  h.u64(col_start.size());
-  for (int v : col_start) h.i64(v);
-  h.u64(row_index.size());
-  for (int v : row_index) h.i64(v);
-  h.f64s(value);
+  // Matrix: per column, the (row, value) pairs sorted by row, so that two readers that
+  // store a column's entries in a different order still agree.
+  h.u64(value.size());
+  std::vector<std::pair<int, double>> col;
+  for (int j = 0; j < num_cols; ++j) {
+    col.clear();
+    for (int k = col_start[j]; k < col_start[j + 1]; ++k) col.emplace_back(row_index[k], value[k]);
+    std::sort(col.begin(), col.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+    h.i64(static_cast<std::int64_t>(col.size()));
+    for (const auto& [i, v] : col) {
+      h.i64(i);
+      h.f64(v);
+    }
+  }
   // Empty integrality == all continuous: hash n zeros either way.
   for (int j = 0; j < num_cols; ++j) {
     const bool integral = j < static_cast<int>(is_integer.size()) && is_integer[j] != 0;
