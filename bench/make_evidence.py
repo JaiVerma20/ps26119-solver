@@ -254,13 +254,18 @@ def main():
         body = []
         for inst in dict.fromkeys(r["instance"] for r in rows):
             for scen in dict.fromkeys(r["scenario"] for r in rows if r["instance"] == inst):
-                c = next(r for r in rows if r["instance"] == inst and r["scenario"] == scen and r["start"] == "cold")
-                w = next(r for r in rows if r["instance"] == inst and r["scenario"] == scen and r["start"] == "warm")
-                body.append([inst, scen, c["objective_change_vs_base"], c["iterations"], w["iterations"],
-                             w["iteration_ratio_warm_over_cold"], fnum(c["seconds"]), fnum(w["seconds"]),
-                             f"{c['verify']}/{w['verify']}"])
-        doc.append(table(["instance", "scenario", "objective change", "cold it", "warm it", "warm/cold it",
-                          "cold s", "warm s", "verify cold/warm"], body))
+                sel = {r["start"]: r for r in rows if r["instance"] == inst and r["scenario"] == scen}
+                c, w, ww = sel.get("cold"), sel.get("warm"), sel.get("warm+weight")
+                def it(r):
+                    return "–" if r is None else r["iterations"] + ("" if r["status"] == "Optimal" else f" ({r['status']})")
+                body.append([inst, scen, c["objective_change_vs_base"], it(c), it(w),
+                             w["iteration_ratio_warm_over_cold"] if w else "–", it(ww),
+                             ww["iteration_ratio_warm_over_cold"] if ww else "–",
+                             "/".join(r["verify"] for r in (c, w, ww) if r)])
+        doc.append(table(["instance", "scenario", "objective change", "cold it", "warm it", "warm/cold",
+                          "warm+ω it", "warm+ω/cold", "verify"], body))
+        doc.append("\nwarm = start from the base solution's (x, y) (default); warm+ω = also reuse its primal weight "
+                   "(opt-in `--warm-weight`). Iteration counts are deterministic; wall times are in the CSV.")
     if not warms:
         doc.append("_No committed warm-start CSV yet._")
 

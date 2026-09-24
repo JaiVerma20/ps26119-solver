@@ -7,7 +7,8 @@ Scenarios on refinery-T<T> (bench/generate_refinery_lp.py):
   price    product sale prices (sell columns) scaled by 1 ± 3% (random per product/period)
   demand   demand caps (demand rows) raised by 5%
   crude    crude availability (buy column upper bounds) cut by 5%
-Each scenario is solved cold and warm (--warm base.sol) to 1e-8; both solutions are checked
+Each scenario is solved cold, warm (--warm base.sol: x and y) and warm+weight (also the base
+run's primal weight, --warm-weight) to 1e-8; both solutions are checked
 by tools/verify.py and must agree on the objective. Iterations are deterministic; wall
 times on a laptop CPU vary run to run.
 
@@ -61,9 +62,10 @@ def perturb(m, scenario, T, seed=7):
     return m
 
 
-def solve(binary, lpm, sol, gpu, warm=None, time_limit=600):
+def solve(binary, lpm, sol, gpu, warm=None, time_limit=600, weight=False):
     cmd = [binary, "solve", lpm, "--algorithm", "r2hpdhg", "--tol", "1e-8", "--time-limit", str(time_limit),
-           "--out", sol] + (["--gpu"] if gpu else []) + (["--warm", warm] if warm else [])
+           "--out", sol] + (["--gpu"] if gpu else []) + (["--warm", warm] if warm else []) + \
+          (["--warm-weight"] if weight else [])
     subprocess.run(cmd, capture_output=True, text=True)
     return read_solution(sol).header
 
@@ -94,9 +96,10 @@ def main():
                 path = os.path.join(tmp, f"{scen}.lpm")
                 write_lpm(m, path)
                 res = {}
-                for start in ("cold", "warm"):
+                for start in ("cold", "warm", "warm+weight"):
                     sol = os.path.join(tmp, f"{scen}.{start}.sol")
-                    h = solve(a.bin, path, sol, a.gpu, base_sol if start == "warm" else None, a.time_limit)
+                    h = solve(a.bin, path, sol, a.gpu, None if start == "cold" else base_sol, a.time_limit,
+                              weight=start == "warm+weight")
                     rep = verify.verify(path, sol)
                     res[start] = h
                     rows.append({**info, "instance": side["name"], "rows": side["rows"], "cols": side["cols"],
@@ -105,15 +108,15 @@ def main():
                                  "iterations": h["iterations"], "seconds": h["seconds"], "objective": h["objective"],
                                  "objective_change_vs_base": f"{(float(h['objective']) - base_obj) / abs(base_obj):+.3e}",
                                  "verify": rep["verdict"]})
-                ratio = int(res["warm"]["iterations"]) / max(1, int(res["cold"]["iterations"]))
-                rows[-1]["iteration_ratio_warm_over_cold"] = f"{ratio:.3f}"
-                rows[-2]["iteration_ratio_warm_over_cold"] = f"{ratio:.3f}"
-                agree = abs(float(res["warm"]["objective"]) - float(res["cold"]["objective"])) / (
-                    1 + abs(float(res["cold"]["objective"])))
-                print(f"  {scen:7s} cold it {res['cold']['iterations']:>6s} t {res['cold']['seconds']:>9s}s | "
-                      f"warm it {res['warm']['iterations']:>6s} t {res['warm']['seconds']:>9s}s | "
-                      f"warm/cold {ratio:.3f} | objectives agree to {agree:.1e} | verify "
-                      f"{rows[-2]['verify']}/{rows[-1]['verify']}", flush=True)
+                cold_it = max(1, int(res["cold"]["iterations"]))
+                for k, start in enumerate(("cold", "warm", "warm+weight")):
+                    rows[-3 + k]["iteration_ratio_warm_over_cold"] = f"{int(res[start]['iterations']) / cold_it:.3f}"
+                agree = max(abs(float(res[s]["objective"]) - float(res["cold"]["objective"])) /
+                            (1 + abs(float(res["cold"]["objective"]))) for s in ("warm", "warm+weight"))
+                print(f"  {scen:7s} " + " | ".join(
+                    f"{s} it {res[s]['iterations']:>6s} t {float(res[s]['seconds']):8.3f}s {res[s]['status']}"
+                    for s in ("cold", "warm", "warm+weight")) + f" | objectives agree to {agree:.1e} | verify "
+                      f"{'/'.join(r['verify'] for r in rows[-3:])}", flush=True)
     out = a.out or os.path.join(HERE, "results", f"warm-start-{info['machine']}-{info['git_hash']}.csv")
     with open(out, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=FIELDS)

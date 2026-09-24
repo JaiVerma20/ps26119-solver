@@ -43,7 +43,9 @@ struct Options {
   // that part); a size mismatch makes solve() return NotSolved. Typical use: re-solving
   // after a small data change (what-if, SLP step, rolling horizon) from the last solution.
   std::vector<double> warm_x, warm_y;
-  double warm_primal_weight = 0.0;  // > 0: start from this ω (Solution::primal_weight)
+  // > 0: start from this ω (Solution::primal_weight). Opt-in: measured on refinery what-if
+  // re-solves it helps some scenarios and hurts others (bench/warm_start.py).
+  double warm_primal_weight = 0.0;
 };
 
 }  // namespace ps26119

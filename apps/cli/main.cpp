@@ -40,6 +40,8 @@ void usage(std::FILE* f) {
                "  --time-limit <seconds>   --iteration-limit <n>\n"
                "  --out <file>                           write the solution file (tools/verify.py reads it)\n"
                "  --warm <file>                          warm start from a previous solution file (same model shape)\n"
+               "  --warm-weight                          with --warm: also reuse its primal weight (faster on some\n"
+               "                                         re-solves, slower on others; see bench/warm_start.py)\n"
                "  -v | -vv                               verbosity\n",
                kProductName, kVersion, kProductName, kProductName);
 }
@@ -51,6 +53,7 @@ bool ends_with(const std::string& s, const char* suf) {
 
 int cmd_solve(int argc, char** argv) {
   std::string path, out, warm;
+  bool warm_weight = false;
   // numeric flags must parse completely and be positive
   auto positive = [](const char* flag, const char* s, double& v) {
     char* end = nullptr;
@@ -92,6 +95,8 @@ int cmd_solve(int argc, char** argv) {
       opt.iteration_limit = static_cast<std::int64_t>(v);
     } else if (a == "--warm") {
       warm = next();
+    } else if (a == "--warm-weight") {
+      warm_weight = true;
     } else if (a == "--out") {
       out = next();
     } else if (a == "-v") {
@@ -152,7 +157,7 @@ int cmd_solve(int argc, char** argv) {
     }
     opt.warm_x = std::move(prev.x);
     opt.warm_y = std::move(prev.y);
-    if (prev.primal_weight > 0) opt.warm_primal_weight = prev.primal_weight;
+    if (warm_weight && prev.primal_weight > 0) opt.warm_primal_weight = prev.primal_weight;
   }
   const Solution sol = solve(model, opt);
   std::printf("model      %s  rows %d  cols %d  nnz %zu  fingerprint %s\n", model.name.c_str(), model.num_rows,
