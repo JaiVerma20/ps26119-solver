@@ -2,6 +2,7 @@
 #include "pdhg/r2hpdhg.h"
 
 #include <cmath>
+#include <algorithm>
 #include <cstdio>
 #include <limits>
 
@@ -90,8 +91,13 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
 
     const bool promoted = policy.on_check(k.rel_kkt(), it);
     if (promoted) msg += std::string(msg.empty() ? "" : "; ") + "fp32 -> fp64 at iteration " + std::to_string(it);
-    const bool restart = promoted || r <= opt.restart_sufficient * r0 ||
-                         (r <= opt.restart_necessary * r0 && r > r_last) ||
+    // Ratio tests are only meaningful when both residuals are positive and finite: at an
+    // extreme primal weight one of the steps can freeze in floating point, T(z) = z exactly,
+    // and r = r0 = 0 would otherwise trigger a "sufficient decay" restart at every check.
+    const bool ratios_ok = r0 > 0 && std::isfinite(r0) && r > 0;
+    const bool restart = promoted ||
+                         (ratios_ok && (r <= opt.restart_sufficient * r0 ||
+                                        (r <= opt.restart_necessary * r0 && r > r_last))) ||
                          static_cast<double>(inner) >= opt.restart_artificial * static_cast<double>(it);
     r_last = r;
     if (!restart) continue;
@@ -106,7 +112,9 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
     if (dxn > 1e-16 && dyn > 1e-16 && dxn < 1e12 && dyn < 1e12 && ratio > 1e-8 && ratio < 1e8) {
       const double e = std::log(dyn) - std::log(dxn) - std::log(omega);
       pid_integral = opt.pid_integral_decay * pid_integral + e;
-      omega *= std::exp(opt.pid_kp * e + opt.pid_ki * pid_integral + opt.pid_kd * (e - pid_last));
+      // damped: log ω moves by at most pid_max_log_step per restart
+      const double step = opt.pid_kp * e + opt.pid_ki * pid_integral + opt.pid_kd * (e - pid_last);
+      omega *= std::exp(std::clamp(step, -opt.pid_max_log_step, opt.pid_max_log_step));
       pid_last = e;
     } else {
       omega = best_omega;

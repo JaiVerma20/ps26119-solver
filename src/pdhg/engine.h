@@ -39,6 +39,8 @@ struct EngineOptions {
   double reflection = 1.0;  // ρ
   double restart_sufficient = 0.2, restart_necessary = 0.5, restart_artificial = 0.36;
   double pid_kp = 0.99, pid_ki = 0.01, pid_kd = 0.0, pid_integral_decay = 0.3;
+  // Safeguard (ours): |Δ log ω| per restart ≤ this. log(10) ⇒ at most ×10 / ÷10 per restart.
+  double pid_max_log_step = 2.302585092994046;
   // PDLP-style (defaults: cuPDLP.jl / PDLP)
   double pdlp_restart_necessary = 0.8;
   double pdlp_primal_weight_smoothing = 0.5;  // θ

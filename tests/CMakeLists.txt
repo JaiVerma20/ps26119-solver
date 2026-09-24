@@ -4,6 +4,7 @@ set(PS26119_TEST_SOURCES
   unit/test_model.cpp
   unit/test_lpm.cpp
   unit/test_dd.cpp
+  unit/test_la.cpp
   unit/test_oracle.cpp
   unit/test_pdhg.cpp
   unit/test_c_api.cpp

@@ -6,6 +6,7 @@
 // once — deterministic and trivially parallel (and the layout the CUDA kernels use).
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <vector>
 
@@ -54,8 +55,9 @@ Csr<double> csr_from_model(const Model& m);
 // Transpose of a CSR matrix.
 Csr<double> transpose(const Csr<double>& a);
 
-// Largest singular value of A by power iteration on AᵀA (deterministic start vector).
-// Returns 0 for an all-zero matrix. `at` must be the transpose of `a`.
-double estimate_norm2(const Csr<double>& a, const Csr<double>& at, int max_iter = 5000, double rel_tol = 1e-6);
+// Largest singular value of A (Lanczos on AᵀA, deterministic start; see csr.cpp for why not
+// power iteration). Slightly OVER-estimates (×(1+1e-4)) so step sizes stay stable.
+// Returns 0 for an all-zero matrix. `at` must be the transpose of `a`. At most 400 steps.
+double estimate_norm2(const Csr<double>& a, const Csr<double>& at, int max_iter = 400, double rel_tol = 1e-12);
 
 }  // namespace ps26119::la
