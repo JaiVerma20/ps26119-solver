@@ -60,6 +60,29 @@ class PrecisionPolicy {
   std::int64_t switched_at_ = -1;
 };
 
+// Result of the ray test (infeasibility detection), computed in fp64 on the ORIGINAL problem
+// from a scaled direction (Δx, Δy) = T(z) − z (r²HPDHG) or z_k − z_{k−1} (PDLP-style).
+// When an LP is infeasible or unbounded these differences converge to the infimal
+// displacement vector, whose parts are certificates (Applegate, Lubin, Hinder,
+// "Infeasibility detection with primal-dual hybrid gradient for LP", Math. Prog. 2024;
+// approach informed by cuPDLPx src/utils.cu compute_infeasibility_information).
+//   dual ray r (min form), projected so that r_i > 0 only if rl_i is finite and r_i < 0
+//   only if ru_i is finite; λ = −Aᵀr;
+//     violation_j = λ_j⁺·[l_j = −∞] + λ_j⁻·[u_j = +∞]
+//     objective   = Σ_i (r_i>0 ? rl_i : ru_i)·r_i + Σ_j (λ_j>0 ? l_j : u_j)·λ_j (finite parts)
+//     PRIMAL INFEASIBLE if objective > 0 and max violation ≤ ε·objective (Farkas).
+//   primal ray d, projected onto the recession cone of [l,u]; row violation
+//     (A d)_i⁻·[rl_i finite] + (A d)_i⁺·[ru_i finite];
+//     DUAL INFEASIBLE if sense·cᵀd < 0 and max violation ≤ ε·(−sense·cᵀd).
+//   Both after normalising by max(‖ray‖∞, ‖violation‖∞). ε = tol::kFirstOrderInfeasible.
+struct RayTest {
+  bool primal_infeasible = false;
+  bool dual_infeasible = false;
+  double dual_ray_objective = 0, dual_ray_violation = 0;
+  double primal_ray_objective = 0, primal_ray_violation = 0;
+};
+RayTest ray_test(const ScaledProblem& sp, const std::vector<double>& dx_scaled, const std::vector<double>& dy_scaled);
+
 class EngineContext {
  public:
   EngineContext(const Model& model, const EngineOptions& opt, const char* engine_name);
@@ -75,6 +98,11 @@ class EngineContext {
   // Records the 1e-4 milestone; returns true if the target tolerance is met.
   bool record(const KktStats& k, std::int64_t iteration);
   bool out_of_time() const { return elapsed() > opt_.time_limit; }
+
+  // Ray test on backend vectors (scaled directions). Returns Infeasible / Unbounded when a
+  // certificate is found (Unbounded additionally needs a nearly primal-feasible iterate:
+  // a primal ray alone only proves "dual infeasible"), otherwise NotSolved = keep going.
+  Status check_infeasibility(int dx_scaled, int dy_scaled, const KktStats& current, std::string& message);
 
   // Builds the Solution from the scaled point (x̂, ŷ) held in backend vectors.
   Solution finish(Status status, int x_scaled, int y_scaled, std::int64_t iterations, const std::string& message);

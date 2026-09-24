@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <string>
 
 #include "ps26119/tolerances.h"
 
@@ -46,6 +47,85 @@ bool PrecisionPolicy::on_check(double rel_kkt, std::int64_t iteration) {
     return true;
   }
   return false;
+}
+
+// ------------------------------------------------------------------ infeasibility
+RayTest ray_test(const ScaledProblem& sp, const std::vector<double>& dxs, const std::vector<double>& dys) {
+  const Model& M = *sp.original;
+  RayTest t;
+  // ---- dual ray (certifies primal infeasibility)
+  std::vector<double> r(sp.m), g(sp.n);
+  double rmax = 0;
+  for (int i = 0; i < sp.m; ++i) {
+    double v = sp.row_scale[i] * dys[i] / sp.obj_scale;
+    if (!std::isfinite(M.row_lower[i])) v = std::min(v, 0.0);
+    if (!std::isfinite(M.row_upper[i])) v = std::max(v, 0.0);
+    r[i] = v;
+    rmax = std::max(rmax, std::fabs(v));
+  }
+  if (rmax > 0) {
+    sp.At_orig.multiply<double>(r.data(), g.data());
+    double obj = 0, viol = 0;
+    for (int i = 0; i < sp.m; ++i) obj += r[i] > 0 ? M.row_lower[i] * r[i] : (r[i] < 0 ? M.row_upper[i] * r[i] : 0.0);
+    for (int j = 0; j < sp.n; ++j) {
+      const double lam = -g[j], lo = M.col_lower[j], up = M.col_upper[j];
+      if (lam > 0) {
+        if (std::isfinite(lo)) obj += lo * lam;
+        else viol = std::max(viol, lam);
+      } else if (lam < 0) {
+        if (std::isfinite(up)) obj += up * lam;
+        else viol = std::max(viol, -lam);
+      }
+    }
+    const double scale = std::max(rmax, viol);
+    t.dual_ray_objective = obj / scale;
+    t.dual_ray_violation = viol / scale;
+    t.primal_infeasible = t.dual_ray_objective > 0 &&
+                          t.dual_ray_violation <= tol::kFirstOrderInfeasible * t.dual_ray_objective;
+  }
+  // ---- primal ray (certifies dual infeasibility)
+  std::vector<double> d(sp.n), ad(sp.m);
+  double dmax = 0;
+  for (int j = 0; j < sp.n; ++j) {
+    double v = sp.col_scale[j] * dxs[j] / sp.bound_scale;
+    if (std::isfinite(M.col_lower[j])) v = std::max(v, 0.0);
+    if (std::isfinite(M.col_upper[j])) v = std::min(v, 0.0);
+    d[j] = v;
+    dmax = std::max(dmax, std::fabs(v));
+  }
+  if (dmax > 0) {
+    sp.A_orig.multiply<double>(d.data(), ad.data());
+    double cd = 0, viol = 0;
+    for (int j = 0; j < sp.n; ++j) cd += M.sense * M.obj[j] * d[j];
+    for (int i = 0; i < sp.m; ++i) {
+      if (std::isfinite(M.row_lower[i])) viol = std::max(viol, -ad[i]);
+      if (std::isfinite(M.row_upper[i])) viol = std::max(viol, ad[i]);
+    }
+    const double scale = std::max(dmax, viol);
+    t.primal_ray_objective = cd / scale;
+    t.primal_ray_violation = viol / scale;
+    t.dual_infeasible = t.primal_ray_objective < 0 &&
+                        t.primal_ray_violation <= tol::kFirstOrderInfeasible * -t.primal_ray_objective;
+  }
+  return t;
+}
+
+Status EngineContext::check_infeasibility(int dx, int dy, const KktStats& current, std::string& message) {
+  std::vector<double> dxs, dys;
+  backend_->download(dx, dxs);
+  backend_->download(dy, dys);
+  const RayTest t = ray_test(sp_, dxs, dys);
+  if (t.primal_infeasible) {
+    message = "primal infeasible: dual ray certificate (objective " + std::to_string(t.dual_ray_objective) +
+              ", violation " + std::to_string(t.dual_ray_violation) + ")";
+    return Status::Infeasible;
+  }
+  if (t.dual_infeasible && current.rel_primal() <= tol::kVerifyPrimal) {
+    message = "unbounded: primal ray certificate (cᵀd " + std::to_string(t.primal_ray_objective) +
+              ", violation " + std::to_string(t.primal_ray_violation) + ") at a primal-feasible iterate";
+    return Status::Unbounded;
+  }
+  return Status::NotSolved;
 }
 
 // ------------------------------------------------------------------ context

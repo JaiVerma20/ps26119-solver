@@ -76,6 +76,11 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
     if (ctx.record(k, it)) return ctx.finish(Status::Optimal, xh, yh, it, msg);
     if (it >= opt.iteration_limit) return ctx.finish(Status::IterationLimit, xh, yh, it, msg);
     if (ctx.out_of_time()) return ctx.finish(Status::TimeLimit, xh, yh, it, msg);
+    if (it >= 4 * K) {  // dx, dy still hold T(z) − z from fixed_point_residual()
+      std::string why;
+      const Status st = ctx.check_infeasibility(dx, dy, k, why);
+      if (st != Status::NotSolved) return ctx.finish(st, xh, yh, it, why);
+    }
 
     const bool promoted = policy.on_check(k.rel_kkt(), it);
     if (promoted) msg = "fp32 -> fp64 at iteration " + std::to_string(it);

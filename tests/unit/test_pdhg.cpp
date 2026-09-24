@@ -209,3 +209,44 @@ TEST(PdhgEngines, GpuRequestWithoutCudaIsNotSolved) {
   EXPECT_NE(s.message.find("CUDA"), std::string::npos);
 #endif
 }
+
+// ------------------------------------------------------------------ infeasibility detection
+TEST_P(PdhgEngines, DetectsInfeasibleAndUnbounded) {
+  const auto [alg, prec] = GetParam();
+  struct Case {
+    const char* name;
+    Model m;
+    Status expect;
+  };
+  std::vector<Case> cases = {
+      {"x+y<=1 & x+y>=3", make_model({1, 1}, {{1, 1}, {1, 1}}, {-kInf, 3}, {1, kInf}, {0, 0}, {kInf, kInf}),
+       Status::Infeasible},
+      {"x>=5 bound, x<=3 row", make_model({1}, {{1}}, {-kInf}, {3}, {5}, {kInf}), Status::Infeasible},
+      {"equalities x+y=1, x+y=2 (free)",
+       make_model({1, 2}, {{1, 1}, {1, 1}}, {1, 2}, {1, 2}, {-kInf, -kInf}, {kInf, kInf}), Status::Infeasible},
+      {"min -x, x-y<=1", make_model({-1, 0}, {{1, -1}}, {-kInf}, {1}, {0, 0}, {kInf, kInf}), Status::Unbounded},
+      {"max x+y, x-y<=2, y<=x+1 ... x+ y unbounded",
+       make_model({1, 1}, {{1, -1}, {-1, 1}}, {-kInf, -kInf}, {2, 1}, {0, 0}, {kInf, kInf}, -1), Status::Unbounded},
+  };
+  for (auto& c : cases) {
+    Options o;
+    o.algorithm = alg;
+    o.precision = prec;
+    o.iteration_limit = 200000;
+    o.time_limit = 30;
+    auto s = solve(c.m, o);
+    EXPECT_EQ(s.status, c.expect) << c.name << ": got " << to_string(s.status) << " — " << s.message;
+    // the oracle agrees on every case
+    EXPECT_EQ(oracle(c.m).status, c.expect) << c.name;
+  }
+}
+
+TEST_P(PdhgEngines, NoFalseCertificatesOnFeasibleModels) {
+  const auto [alg, prec] = GetParam();
+  for (const char* name : {"afiro", "kb2", "share2b", "stocfor1"}) {
+    Model m;
+    ASSERT_TRUE(io::read_lpm(data(std::string("netlib_small/") + name + ".lpm"), m).ok);
+    auto s = run(m, alg, prec);
+    EXPECT_EQ(s.status, Status::Optimal) << name << ": " << s.message;
+  }
+}

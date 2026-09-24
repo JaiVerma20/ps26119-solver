@@ -70,6 +70,13 @@ Solution solve_pdlp(const Model& model, const EngineOptions& opt) {
     if (ctx.record(kk, it)) return ctx.finish(Status::Optimal, cx, cy, it, msg);
     if (it >= opt.iteration_limit) return ctx.finish(Status::IterationLimit, cx, cy, it, msg);
     if (ctx.out_of_time()) return ctx.finish(Status::TimeLimit, cx, cy, it, msg);
+    if (it >= 4 * K) {  // Δ = z_k − z_{k−1}; xn/yn hold z_{k−1} after the swap
+      b.axpby(1.0, x, -1.0, xn);  // xn ← x − xn   (xn is overwritten next step anyway)
+      b.axpby(1.0, y, -1.0, yn);
+      std::string why;
+      const Status st = ctx.check_infeasibility(xn, yn, kc, why);
+      if (st != Status::NotSolved) return ctx.finish(st, x, y, it, why);
+    }
 
     const double e = kk.rel_kkt();
     const bool promoted = policy.on_check(e, it);

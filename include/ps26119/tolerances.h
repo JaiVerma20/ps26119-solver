@@ -7,6 +7,10 @@ namespace ps26119::tol {
 // First-order engines (PDHG family): relative KKT error, see src/pdhg/termination.h.
 inline constexpr double kFirstOrderFast = 1e-4;
 inline constexpr double kFirstOrderHigh = 1e-8;
+// First-order infeasibility / unboundedness certificates (relative ray violation, see
+// src/pdhg/engine.h). A status Infeasible/Unbounded from these engines needs a ray whose
+// violation divided by its objective is below this.
+inline constexpr double kFirstOrderInfeasible = 1e-8;
 // Mixed precision: fp32 iterates are promoted to fp64 once the relative KKT error reaches
 // this level (when the target is tighter), or earlier if fp32 progress stalls.
 inline constexpr double kMixedPrecisionSwitch = 1e-6;

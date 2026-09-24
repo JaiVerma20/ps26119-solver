@@ -222,8 +222,9 @@ def main():
             "converted with `tools/mps_to_lpm.py` (highspy, tooling only, never linked).",
             "- **No sparse simplex, no crossover, no presolve** yet: first-order solutions are accurate to the stated "
             "tolerance but are not vertices; exact duals/ranging need the (planned) crossover.",
-            "- **No infeasibility / unboundedness detection in the first-order engines**: they report "
-            "IterationLimit/TimeLimit instead (the dense oracle does detect both, on small models only).",
+            "- **Infeasibility / unboundedness detection in the first-order engines is new and only lightly "
+            "tested** (ray certificates, checked in fp64 on the original problem; unit-tested on hand-made "
+            "infeasible/unbounded LPs, not yet on the Netlib infeasible set).",
             "- **No MILP, no QP** yet (branch-and-bound and PDHG-QP are post-PPT milestones).",
             "- **Generated instances**: the refinery LP has refinery structure, but its prices and inequality "
             "right-hand sides come from the KKT construction (synthetic), not from plant data; random LPs of this "
