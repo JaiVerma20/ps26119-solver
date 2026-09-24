@@ -1,6 +1,8 @@
 // solve.cpp — the solve() dispatcher. Validates the model, routes to an engine, stamps
 // provenance (fingerprint, engine, precision, wall time) into the Solution.
 #include <chrono>
+#include <exception>
+#include <new>
 
 #include "ps26119/solve.h"
 
@@ -23,22 +25,32 @@ Solution solve(const Model& model, const Options& options) {
     return sol;
   }
 
-  switch (options.algorithm) {
-    case Algorithm::Oracle: {
-      oracle::DenseSimplexOptions o;
-      o.iteration_limit = options.iteration_limit;
-      o.time_limit = options.time_limit;
-      o.verbosity = options.verbosity;
-      sol = oracle::solve_dense_simplex(model, o);
-      break;
+  try {
+    switch (options.algorithm) {
+      case Algorithm::Oracle: {
+        oracle::DenseSimplexOptions o;
+        o.iteration_limit = options.iteration_limit;
+        o.time_limit = options.time_limit;
+        o.verbosity = options.verbosity;
+        sol = oracle::solve_dense_simplex(model, o);
+        break;
+      }
+      case Algorithm::Pdlp:
+        sol = pdhg::solve_pdlp(model, pdhg::engine_options_from(options));
+        break;
+      case Algorithm::Auto:
+      case Algorithm::R2hpdhg:
+        sol = pdhg::solve_r2hpdhg(model, pdhg::engine_options_from(options));
+        break;
     }
-    case Algorithm::Pdlp:
-      sol = pdhg::solve_pdlp(model, pdhg::engine_options_from(options));
-      break;
-    case Algorithm::Auto:
-    case Algorithm::R2hpdhg:
-      sol = pdhg::solve_r2hpdhg(model, pdhg::engine_options_from(options));
-      break;
+  } catch (const std::bad_alloc&) {
+    sol = Solution{};
+    sol.status = Status::NotSolved;
+    sol.message = "out of memory";
+  } catch (const std::exception& e) {  // e.g. CUDA runtime errors; never let them escape
+    sol = Solution{};
+    sol.status = Status::NumericalError;
+    sol.message = e.what();
   }
   sol.model_fingerprint = model.fingerprint_hex();
 

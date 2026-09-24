@@ -14,12 +14,19 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 if(PS26119_ENABLE_CUDA)
+  # CMAKE_CUDA_ARCHITECTURES must be set before enable_language(CUDA).
+  # "native" (CMake >= 3.24) builds for the GPU in this machine; override with e.g.
+  # -DCMAKE_CUDA_ARCHITECTURES="75;86;89" for a portable binary.
+  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
+      set(CMAKE_CUDA_ARCHITECTURES native)
+    else()
+      set(CMAKE_CUDA_ARCHITECTURES 75 80 86 89)
+    endif()
+  endif()
   enable_language(CUDA)
   set(CMAKE_CUDA_STANDARD 17)
   set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-    set(CMAKE_CUDA_ARCHITECTURES native)
-  endif()
   find_package(CUDAToolkit REQUIRED)
 endif()
 
@@ -45,14 +52,23 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/io/mps_reader.cpp)
   set(PS26119_HAVE_MPS_READER ON)
 endif()
 
+if(PS26119_ENABLE_CUDA)
+  list(APPEND PS26119_SOURCES src/gpu/cuda_backend.cu)
+endif()
+
 add_library(ps26119_core STATIC ${PS26119_SOURCES})
 target_include_directories(ps26119_core
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 if(MSVC)
-  target_compile_options(ps26119_core PRIVATE /W4)
+  target_compile_options(ps26119_core PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/W4>)
 else()
-  target_compile_options(ps26119_core PRIVATE -Wall -Wextra -Wpedantic)
+  target_compile_options(ps26119_core PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wextra -Wpedantic>)
+endif()
+if(PS26119_ENABLE_CUDA)
+  target_compile_definitions(ps26119_core PUBLIC PS26119_HAVE_CUDA=1)
+  target_link_libraries(ps26119_core PUBLIC CUDA::cudart)
+  target_compile_options(ps26119_core PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr -lineinfo>)
 endif()
 if(PS26119_HAVE_MPS_READER)
   target_compile_definitions(ps26119_core PUBLIC PS26119_HAVE_MPS_READER=1)
