@@ -65,7 +65,7 @@ def main():
     if a.only:
         keep = set(a.only.split(","))
         models = [m for m in models if m["name"] in keep]
-    info = machine_info()
+    info = machine_info(a.bin)
     rows = []
     with tempfile.TemporaryDirectory() as tmp:
         for mdl in models:

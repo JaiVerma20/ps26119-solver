@@ -77,7 +77,7 @@ def main():
     ap.add_argument("--time-limit", type=float, default=120)
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
-    info = machine_info()
+    info = machine_info(a.bin)
     rows = []
     with tempfile.TemporaryDirectory() as tmp:
         for name, opt in optima():

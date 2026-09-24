@@ -20,6 +20,7 @@
 #include "ps26119/batch.h"
 #include "ps26119/solve.h"
 #include "ps26119/version.h"
+#include "ps26119_build_info.h"
 #ifdef PS26119_HAVE_MPS_READER
 #include "io/mps_reader.h"
 #endif
@@ -286,7 +287,7 @@ int main(int argc, char** argv) {
   }
   const std::string cmd = argv[1];
   if (cmd == "--version" || cmd == "version") {
-    std::printf("%s %s\n", kProductName, kVersion);
+    std::printf("%s %s (git %s)\n", kProductName, kVersion, PS26119_GIT_HASH);
     return 0;
   }
   if (cmd == "--help" || cmd == "-h" || cmd == "help") {

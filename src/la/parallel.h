@@ -37,29 +37,37 @@ class ThreadPool {
   int threads() const { return threads_; }
 
   // Runs f(chunk) for chunk = 0..chunks-1, spread over the pool; returns when all are done.
-  // Chunks are claimed with an atomic counter; idle workers spin briefly (then sleep), so a
-  // dispatch costs microseconds, not a condition-variable round trip per call.
+  //
+  // Hand-off protocol (race-free by construction):
+  //   * a job is PUBLISHED under m_ (job_, chunks_, counters, generation_), and only when no
+  //     worker is active and no job is published;
+  //   * a worker JOINS under m_ only if a job is published and its generation is new, and it
+  //     registers itself (active_++) inside that same critical section;
+  //   * when all chunks are done the job is RETIRED under m_ (job_ = nullptr), after which no
+  //     worker can join it; run() then waits for active_ == 0, so `f` (on the caller's stack)
+  //     outlives every use.
+  // Chunks are claimed with an atomic counter; idle workers spin briefly before sleeping.
   void run(int chunks, const std::function<void(int)>& f) {
     if (threads_ <= 1 || chunks <= 1) {
       for (int c = 0; c < chunks; ++c) f(c);
       return;
     }
-    // No worker may still be inside the previous job while we publish a new one.
-    while (active_.load(std::memory_order_acquire) != 0) std::this_thread::yield();
-    job_ = &f;
-    chunks_ = chunks;
-    next_.store(0, std::memory_order_relaxed);
-    done_.store(0, std::memory_order_relaxed);
     {
       std::lock_guard<std::mutex> lk(m_);
-      generation_.fetch_add(1, std::memory_order_release);  // publishes the job
+      job_ = &f;
+      chunks_ = chunks;
+      next_.store(0, std::memory_order_relaxed);
+      done_.store(0, std::memory_order_relaxed);
+      generation_.fetch_add(1, std::memory_order_release);
     }
     cv_.notify_all();
-    work(job_, chunks_);  // the calling thread helps
+    work(&f, chunks);  // the calling thread helps
     while (done_.load(std::memory_order_acquire) != chunks) std::this_thread::yield();
-    // f lives on the caller's stack: wait until every worker has left before returning.
+    {
+      std::lock_guard<std::mutex> lk(m_);
+      job_ = nullptr;  // retired: nobody can join any more
+    }
     while (active_.load(std::memory_order_acquire) != 0) std::this_thread::yield();
-    job_ = nullptr;
   }
 
   ~ThreadPool() { stop(); }
@@ -74,29 +82,32 @@ class ThreadPool {
       done_.fetch_add(1, std::memory_order_acq_rel);
     }
   }
-  // Worker protocol: announce yourself (active_++), THEN read the generation. The dispatcher
-  // only (re)publishes when active_ == 0, so a worker that sees a new generation sees a fully
-  // published job, and a worker that sees the old one simply backs off.
   void loop() {
-    std::uint64_t seen = generation_.load(std::memory_order_acquire);
+    std::uint64_t seen = 0;
     for (;;) {
       for (int spin = 0; spin < 20000; ++spin) {  // iterations dispatch back to back: spin briefly
         if (quit_.load(std::memory_order_acquire)) return;
         if (generation_.load(std::memory_order_acquire) != seen) break;
         if ((spin & 63) == 63) std::this_thread::yield();
       }
-      if (generation_.load(std::memory_order_acquire) == seen) {
+      const std::function<void(int)>* f = nullptr;
+      int chunks = 0;
+      {
         std::unique_lock<std::mutex> lk(m_);
-        cv_.wait(lk, [&] { return quit_.load() || generation_.load() != seen; });
+        if (generation_.load() == seen)
+          cv_.wait(lk, [&] { return quit_.load() || generation_.load() != seen; });
         if (quit_.load()) return;
+        seen = generation_.load();
+        if (job_ != nullptr) {  // join only a published, not yet retired job
+          f = job_;
+          chunks = chunks_;
+          active_.fetch_add(1, std::memory_order_acq_rel);
+        }
       }
-      active_.fetch_add(1, std::memory_order_acq_rel);
-      const std::uint64_t g = generation_.load(std::memory_order_acquire);
-      if (g != seen) {
-        seen = g;
-        work(job_, chunks_);
+      if (f) {
+        work(f, chunks);
+        active_.fetch_sub(1, std::memory_order_acq_rel);
       }
-      active_.fetch_sub(1, std::memory_order_acq_rel);
     }
   }
   void stop() {

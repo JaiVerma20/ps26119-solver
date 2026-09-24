@@ -38,6 +38,7 @@ typedef struct {
   double time_limit;      /* seconds */
   long long iteration_limit;
   int verbosity;
+  int threads;            /* CPU threads (0 = all cores); results do not depend on it */
   /* Warm start (first-order engines): previous x (num_cols) and y (num_rows), or NULL. */
   const double* warm_x;
   const double* warm_y;
@@ -50,6 +51,8 @@ typedef struct {
   double primal_residual; /* relative, see src/pdhg/termination.h */
   double dual_residual;
   double gap;
+  double certified_bound; /* rounding-proof bound on the optimum from y: lower (MIN) / upper (MAX);
+                             ±HUGE_VAL when none exists, NaN when not computed */
   long long iterations;
   double seconds;
   char engine[16];

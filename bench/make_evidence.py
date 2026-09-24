@@ -329,10 +329,12 @@ def main():
     doc += ["", "## 4c. Batched scenarios (many LPs sharing one matrix)", ""]
     batches = [p for p in paths if os.path.basename(p).startswith("batch-")]
     if batches:
-        p = latest(batches, "batch-")
-        rows = load(p)
+        newest = load(latest(batches, "batch-"))[0]["git_hash"]
+        same = [q for q in batches if load(q)[0]["git_hash"] == newest]
+        rows = [r for q in same for r in load(q)]
+        p = ", ".join(f"`{q}`" for q in same)
         r0 = rows[0]
-        doc += [f"Source: `{p}` — `{r0['machine']}` ({r0['cpu']}), commit `{r0['git_hash']}`. K price scenarios of the "
+        doc += [f"Source: {p} — `{r0['machine']}` ({r0['cpu']}), commit `{r0['git_hash']}`. K price scenarios of the "
                 "refinery LP: K separate solves vs one batched solve (one SpMM per iteration). Every batch answer "
                 "verified and compared with its separate solve.", "",
                 table(["instance", "K", "separate solves s", "batch s", "speed-up", "all optimal", "all verified",

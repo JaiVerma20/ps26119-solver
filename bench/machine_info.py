@@ -4,6 +4,8 @@ git hash, machine, CPU, GPU model, driver, CUDA version, date.
 Set PS26119_MACHINE to label the machine (e.g. "macbook-air-m4", "rtx4060-laptop",
 "uni-a100"); otherwise OS + architecture is used.
 """
+from __future__ import annotations
+
 import datetime
 import os
 import platform
@@ -20,7 +22,15 @@ def _run(cmd):
         return ""
 
 
-def git_hash() -> str:
+def git_hash(binary: str | None = None) -> str:
+    """The commit the BINARY was built from (`ps26119 --version` prints "(git <hash>)").
+    Falls back to the working tree only when no binary is given; a binary that does not
+    report a hash is labelled "unknown" rather than guessed."""
+    if binary:
+        out = _run([binary, "--version"])
+        if "(git " in out:
+            return out.split("(git ", 1)[1].split(")", 1)[0]
+        return "unknown"
     h = _run(["git", "rev-parse", "--short", "HEAD"]) or "nogit"
     dirty = _run(["git", "status", "--porcelain", "--untracked-files=no"])
     return h + ("-dirty" if dirty else "")
@@ -55,10 +65,10 @@ def gpu_info() -> dict:
     return out
 
 
-def machine_info() -> dict:
+def machine_info(binary: str | None = None) -> dict:
     g = gpu_info()
     return {
-        "git_hash": git_hash(),
+        "git_hash": git_hash(binary),
         "machine": os.environ.get("PS26119_MACHINE", f"{platform.system()}-{platform.machine()}"),
         "cpu": cpu_name(),
         "gpu": g["gpu"],

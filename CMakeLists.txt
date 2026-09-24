@@ -105,8 +105,19 @@ if(PS26119_BUILD_SHARED)
   target_include_directories(ps26119_shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 endif()
 
+# ---------------------------------------------------------------- build provenance
+# The binary reports the commit it was built from (`ps26119 --version`), so a benchmark CSV
+# is labelled with the code that actually ran, not with whatever the working tree says later.
+set(PS26119_BUILD_INFO ${CMAKE_BINARY_DIR}/generated/ps26119_build_info.h)
+add_custom_target(ps26119_git_info ALL
+  COMMAND ${CMAKE_COMMAND} -DSRC=${CMAKE_SOURCE_DIR} -DOUT=${PS26119_BUILD_INFO} -P ${CMAKE_SOURCE_DIR}/cmake/git_info.cmake
+  BYPRODUCTS ${PS26119_BUILD_INFO}
+  COMMENT "git hash for --version")
+
 # ---------------------------------------------------------------- CLI
 add_executable(ps26119_cli apps/cli/main.cpp)
+add_dependencies(ps26119_cli ps26119_git_info)
+target_include_directories(ps26119_cli PRIVATE ${CMAKE_BINARY_DIR}/generated)
 set_target_properties(ps26119_cli PROPERTIES OUTPUT_NAME ps26119)
 target_link_libraries(ps26119_cli PRIVATE ps26119_core)
 target_include_directories(ps26119_cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)

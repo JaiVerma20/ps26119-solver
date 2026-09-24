@@ -29,14 +29,14 @@ _PREC = {"fp64": 0, "mixed": 1}
 class _Options(ctypes.Structure):
     _fields_ = [("algorithm", ctypes.c_int), ("precision", ctypes.c_int), ("use_gpu", ctypes.c_int),
                 ("tolerance", ctypes.c_double), ("time_limit", ctypes.c_double),
-                ("iteration_limit", ctypes.c_longlong), ("verbosity", ctypes.c_int),
+                ("iteration_limit", ctypes.c_longlong), ("verbosity", ctypes.c_int), ("threads", ctypes.c_int),
                 ("warm_x", ctypes.POINTER(ctypes.c_double)), ("warm_y", ctypes.POINTER(ctypes.c_double))]
 
 
 class _Result(ctypes.Structure):
     _fields_ = [("status", ctypes.c_int), ("objective", ctypes.c_double), ("dual_objective", ctypes.c_double),
                 ("primal_residual", ctypes.c_double), ("dual_residual", ctypes.c_double), ("gap", ctypes.c_double),
-                ("iterations", ctypes.c_longlong), ("seconds", ctypes.c_double), ("engine", ctypes.c_char * 16),
+                ("certified_bound", ctypes.c_double), ("iterations", ctypes.c_longlong), ("seconds", ctypes.c_double), ("engine", ctypes.c_char * 16),
                 ("message", ctypes.c_char * 160)]
 
 
@@ -90,6 +90,7 @@ class Result:
     primal_residual: float
     dual_residual: float
     gap: float
+    certified_bound: float
     iterations: int
     seconds: float
     engine: str
@@ -126,7 +127,7 @@ def _ptr(a, ctype=ctypes.c_double):
 
 def solve_lp(c, A, row_lower, row_upper, col_lower=None, col_upper=None, sense=1, offset=0.0, algorithm="auto",
              precision="fp64", gpu=False, tolerance=1e-8, time_limit=3600.0, iteration_limit=0, warm_x=None,
-             warm_y=None, verbosity=0) -> Result:
+             warm_y=None, verbosity=0, threads=1) -> Result:
     """min (sense=+1) or max (sense=−1) cᵀx + offset  s.t. row_lower ≤ A x ≤ row_upper, bounds."""
     c = np.ascontiguousarray(c, dtype=np.float64)
     n = c.size
@@ -146,6 +147,7 @@ def solve_lp(c, A, row_lower, row_upper, col_lower=None, col_upper=None, sense=1
     opt.time_limit = time_limit
     opt.iteration_limit = iteration_limit
     opt.verbosity = verbosity
+    opt.threads = threads
     wx = None if warm_x is None else np.ascontiguousarray(warm_x, dtype=np.float64)
     wy = None if warm_y is None else np.ascontiguousarray(warm_y, dtype=np.float64)
     opt.warm_x = _ptr(wx)
@@ -157,6 +159,6 @@ def solve_lp(c, A, row_lower, row_upper, col_lower=None, col_upper=None, sense=1
                               ctypes.byref(res), _ptr(x), _ptr(y), _ptr(z))
     have = st in (OPTIMAL, ITERATION_LIMIT, TIME_LIMIT)
     return Result(st, _STATUS[st] if 0 <= st < len(_STATUS) else str(st), res.objective, res.dual_objective,
-                  res.primal_residual, res.dual_residual, res.gap, res.iterations, res.seconds,
+                  res.primal_residual, res.dual_residual, res.gap, res.certified_bound, res.iterations, res.seconds,
                   res.engine.decode(), res.message.decode(), x if have else None, y if have else None,
                   z if have else None)

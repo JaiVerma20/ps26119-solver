@@ -37,6 +37,7 @@ void ps26119_default_options(ps26119_options* opt) {
   opt->time_limit = d.time_limit;
   opt->iteration_limit = d.iteration_limit;
   opt->verbosity = 0;
+  opt->threads = 1;
   opt->warm_x = nullptr;
   opt->warm_y = nullptr;
 }
@@ -91,6 +92,7 @@ int ps26119_solve_lp(int num_rows, int num_cols, int sense, double obj_offset, c
       if (opt->time_limit > 0) o.time_limit = opt->time_limit;
       if (opt->iteration_limit > 0) o.iteration_limit = opt->iteration_limit;
       o.verbosity = opt->verbosity;
+      o.threads = opt->threads;
       if (opt->warm_x) o.warm_x.assign(opt->warm_x, opt->warm_x + num_cols);
       if (opt->warm_y) o.warm_y.assign(opt->warm_y, opt->warm_y + num_rows);
     }
@@ -101,6 +103,7 @@ int ps26119_solve_lp(int num_rows, int num_cols, int sense, double obj_offset, c
     result->primal_residual = s.primal_residual;
     result->dual_residual = s.dual_residual;
     result->gap = s.gap;
+    result->certified_bound = s.certified_bound;
     result->iterations = s.iterations;
     result->seconds = s.seconds;
     set_text(result->engine, sizeof result->engine, s.engine);

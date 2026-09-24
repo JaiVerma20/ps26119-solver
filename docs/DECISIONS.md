@@ -66,3 +66,18 @@ Newest last. Each entry: what, why, evidence, how to undo.
     85/93 with the same geomean — and no 20–25% slowdown on the refinery/random models, which
     are well scaled (10^2.5 / 10^1.8). Tuned on Netlib: a simple, explainable rule, but a
     threshold is still a tuned constant (knob `geometric_mean_min_log10_range`).
+18. **Thread-pool race (found by the benchmark, fixed).** With 10 threads, 1 run in ~6 crashed
+    (exit 139): a late worker could join a job while the dispatcher rewrote it. Publishing,
+    joining and retiring a job now all happen under one mutex; 42 stress runs + 20 repeats
+    of the determinism test pass. Scaling runs made with the buggy binary were discarded.
+19. **Benchmark provenance from the binary.** `ps26119 --version` prints the commit it was
+    built from (`-dirty` if the tree had uncommitted changes); every bench labels its CSV
+    with that, not with the working tree at run time.
+20. **Batch = identical algorithm per scenario.** r⁰ is measured right after the epoch's first
+    step (one shared SpMM when any scenario restarts); finished scenarios are compacted out.
+    T=365 price scenarios: identical iterations to single solves; K=4 1.12× faster, K=8 0.83×
+    — the T=365 matrix is cache-resident, so SpMM has little to save on CPU.
+21. **Hard Netlib models are chaotic.** perold/nesm solve in ~0.45M iterations with one
+    rounding pattern of the reductions and need > 8M with another (fixed 64-chunk sums vs one
+    running sum). Counts of solved hard models within a time limit carry ± a few models of
+    this kind of noise.

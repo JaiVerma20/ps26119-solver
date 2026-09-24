@@ -21,6 +21,8 @@ class Binding(unittest.TestCase):
             self.assertAlmostEqual(r.objective, 36, delta=1e-6)
             np.testing.assert_allclose(r.x, [2, 6], atol=1e-5)
             np.testing.assert_allclose(r.y, [0, 1.5, 1], atol=1e-5)
+            self.assertGreaterEqual(r.certified_bound, 36 - 1e-9)  # MAX: certified upper bound
+            self.assertLess(r.certified_bound, 36 + 1e-4)
 
     def test_csc_input_and_warm_start(self):
         cs, ri, v = [0, 2, 4], [0, 2, 1, 2], [1.0, 3.0, 2.0, 2.0]

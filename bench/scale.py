@@ -186,7 +186,7 @@ def main():
         with open(a.replot, newline="") as f:
             plot(list(csv.DictReader(f)), os.path.splitext(a.replot)[0] + ".png")
         return
-    info = machine_info()
+    info = machine_info(a.bin)
     instances = [ensure_instance("rand", int(float(s))) for s in a.sizes.split(",") if s] + \
                 [ensure_instance("refinery", int(float(t))) for t in a.refinery.split(",") if t]
     backends = [False, True] if a.gpu else [False]

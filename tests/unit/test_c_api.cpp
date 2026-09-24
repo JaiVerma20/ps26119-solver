@@ -42,6 +42,8 @@ TEST(CApi, SolvesWyndorWithEveryAlgorithm) {
     EXPECT_NEAR(x[1], 6, 1e-5);
     EXPECT_NEAR(y[1], 1.5, 1e-5);
     EXPECT_NEAR(y[2], 1.0, 1e-5);
+    EXPECT_GE(r.certified_bound, 36 - 1e-9);  // MAX model: certified upper bound on the optimum
+    EXPECT_LT(r.certified_bound, 36 + 1e-4);
     EXPECT_GT(std::strlen(r.engine), 0u);
   }
 }

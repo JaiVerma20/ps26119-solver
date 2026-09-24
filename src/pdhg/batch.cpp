@@ -9,10 +9,10 @@
 // Layout: an n×K block is stored row-major, x[j·K + k], so the SpMM inner loop over the K
 // scenarios is contiguous (vectorises) and each nonzero of Ã is read once per iteration.
 //
-// Difference from the single-LP engine (documented, not hidden): the epoch's reference
-// residual r⁰_k is taken at the first check after a restart (K_check iterations later)
-// instead of right after the restart, so that all scenarios share the extra SpMM that the
-// residual needs. Restart criteria are otherwise identical.
+// The epoch's reference residual r⁰_k is measured right after the first step of the epoch,
+// exactly as in the single-LP engine: whenever any scenario has just (re)started, one extra
+// SpMM (shared by all scenarios) computes the fixed-point residuals. (A first version took
+// r⁰ at the next check instead; on refinery price scenarios that cost 1.7× the iterations.)
 //
 // Invariants: frozen (converged / failed) scenarios are never updated again; every reported
 // Optimal passed KktStats::converged(tolerance) on the ORIGINAL scenario data in fp64.
@@ -35,23 +35,67 @@ namespace {
 
 using la::Csr;
 
-// Y (rows × K) = M · X (cols × K), interleaved layout.
-void spmm(const Csr<double>& M, const std::vector<double>& X, std::vector<double>& Y, int K) {
+// Y (rows × W) = M · X (cols × W), interleaved layout; W known at compile time.
+template <int W>
+void spmm_fixed(const Csr<double>& M, const double* X, double* Y) {
   la::parallel_for(
       M.rows,
       [&](std::int64_t b, std::int64_t e) {
-        std::vector<double> acc(K);
+        for (std::int64_t i = b; i < e; ++i) {
+          double acc[W] = {};
+          for (std::int64_t p = M.row_ptr[i]; p < M.row_ptr[i + 1]; ++p) {
+            const double a = M.val[p];
+            const double* x = X + static_cast<std::size_t>(M.col[p]) * W;
+            for (int k = 0; k < W; ++k) acc[k] += a * x[k];
+          }
+          double* y = Y + static_cast<std::size_t>(i) * W;
+          for (int k = 0; k < W; ++k) y[k] = acc[k];
+        }
+      },
+      1024);
+}
+
+void spmm_generic(const Csr<double>& M, const double* X, double* Y, int W) {
+  la::parallel_for(
+      M.rows,
+      [&](std::int64_t b, std::int64_t e) {
+        std::vector<double> acc(W);
         for (std::int64_t i = b; i < e; ++i) {
           std::fill(acc.begin(), acc.end(), 0.0);
           for (std::int64_t p = M.row_ptr[i]; p < M.row_ptr[i + 1]; ++p) {
             const double a = M.val[p];
-            const double* x = &X[static_cast<std::size_t>(M.col[p]) * K];
-            for (int k = 0; k < K; ++k) acc[k] += a * x[k];
+            const double* x = X + static_cast<std::size_t>(M.col[p]) * W;
+            for (int k = 0; k < W; ++k) acc[k] += a * x[k];
           }
-          std::copy(acc.begin(), acc.end(), &Y[static_cast<std::size_t>(i) * K]);
+          std::copy(acc.begin(), acc.end(), Y + static_cast<std::size_t>(i) * W);
         }
       },
       1024);
+}
+
+void spmm(const Csr<double>& M, const std::vector<double>& X, std::vector<double>& Y, int W) {
+  switch (W) {
+    case 1: return spmm_fixed<1>(M, X.data(), Y.data());
+    case 2: return spmm_fixed<2>(M, X.data(), Y.data());
+    case 3: return spmm_fixed<3>(M, X.data(), Y.data());
+    case 4: return spmm_fixed<4>(M, X.data(), Y.data());
+    case 5: return spmm_fixed<5>(M, X.data(), Y.data());
+    case 6: return spmm_fixed<6>(M, X.data(), Y.data());
+    case 7: return spmm_fixed<7>(M, X.data(), Y.data());
+    case 8: return spmm_fixed<8>(M, X.data(), Y.data());
+    case 12: return spmm_fixed<12>(M, X.data(), Y.data());
+    case 16: return spmm_fixed<16>(M, X.data(), Y.data());
+    default: return spmm_generic(M, X.data(), Y.data(), W);
+  }
+}
+
+// Keeps the slots listed in `keep` (in order) of an interleaved rows × W array.
+void compact(std::vector<double>& v, std::size_t rows, int W, const std::vector<int>& keep) {
+  const int W2 = static_cast<int>(keep.size());
+  std::vector<double> nv(rows * W2);
+  for (std::size_t r = 0; r < rows; ++r)
+    for (int t = 0; t < W2; ++t) nv[r * W2 + t] = v[r * W + keep[t]];
+  v.swap(nv);
 }
 
 inline double clampd(double v, double lo, double hi) { return v < lo ? lo : (v > hi ? hi : v); }
@@ -147,30 +191,46 @@ std::vector<Solution> solve_batch(const Model& base, const std::vector<Scenario>
     }
   }
 
-  // ---- iterates
-  std::vector<double> X(NK), X0(NK), XH(NK), XB(NK), ATY(NK), DX(NK);
-  std::vector<double> Y(MK, 0.0), Y0(MK, 0.0), YH(MK, 0.0), YB(MK, 0.0), AX(MK), DY(MK), ADX(MK);
-  for (std::size_t q = 0; q < NK; ++q) X[q] = clampd(0.0, L[q], U[q]);
+  // ---- iterates, in SLOTS: only unfinished scenarios occupy a column of the interleaved
+  // arrays; when scenarios finish, the arrays are compacted so later iterations only pay
+  // for the scenarios still running. slot → scenario id: sid[t].
+  std::vector<int> sid;
+  for (int k = 0; k < K; ++k)
+    if (out[k].message.empty()) sid.push_back(k);  // invalid scenarios carry a message
+  {
+    std::vector<int> keep(sid.begin(), sid.end());
+    for (auto* v : {&C, &L, &U}) compact(*v, n, K, keep);
+    for (auto* v : {&RL, &RU}) compact(*v, m, K, keep);
+  }
+  int W = static_cast<int>(sid.size());
+  std::vector<double> X(static_cast<std::size_t>(n) * W), X0, XH, XB(X.size()), ATY(X.size()), DX(X.size());
+  std::vector<double> Y(static_cast<std::size_t>(m) * W, 0.0), Y0, YH, YB(Y.size()), AX(Y.size()), DY(Y.size()),
+      ADX(Y.size());
+  for (std::size_t q = 0; q < X.size(); ++q) X[q] = clampd(0.0, L[q], U[q]);
   X0 = X;
   XH = X;
+  Y0 = Y;
+  YH = Y;
 
+  // per-scenario state (indexed by scenario id)
   std::vector<double> omega(K, 1.0), best_omega(K, 1.0), best_balance(K, 1e300), pid_int(K, 0.0), pid_last(K, 0.0);
   std::vector<double> r0(K, -1.0), r_last(K, std::numeric_limits<double>::infinity());
   std::vector<std::int64_t> inner(K, 0), fast_it(K, -1);
   std::vector<double> fast_s(K, -1.0);
-  std::vector<char> active(K);
-  for (int k = 0; k < K; ++k) active[k] = out[k].message.empty();  // invalid scenarios carry a message
   const double rho = eo.reflection, a2 = 2 * rho, b2 = 1 - 2 * rho;
   const int Kc = eo.check_every;
   std::int64_t it = 0;
+  // per-slot step coefficients, refreshed every iteration
+  std::vector<double> ctau, csig, cw;
 
-  // Extract scenario k as original-space x, y_min.
-  auto unscale = [&](int k, std::vector<double>& x, std::vector<double>& y) {
+  // Extract the scenario in slot t as original-space x, y_min.
+  auto unscale = [&](int t, std::vector<double>& x, std::vector<double>& y) {
+    const int k = sid[t];
     x.resize(n);
     y.resize(m);
     for (int j = 0; j < n; ++j)
-      x[j] = clampd(sp.col_scale[j] * XH[static_cast<std::size_t>(j) * K + k] / bs[k], D[k].cl[j], D[k].cu[j]);
-    for (int i = 0; i < m; ++i) y[i] = sp.row_scale[i] * YH[static_cast<std::size_t>(i) * K + k] / os[k];
+      x[j] = clampd(sp.col_scale[j] * XH[static_cast<std::size_t>(j) * W + t] / bs[k], D[k].cl[j], D[k].cu[j]);
+    for (int i = 0; i < m; ++i) y[i] = sp.row_scale[i] * YH[static_cast<std::size_t>(i) * W + t] / os[k];
   };
   auto finish = [&](int k, Status st, const pdhg::KktStats& kk, const std::vector<double>& x,
                     const std::vector<double>& ymin, const std::string& msg) {
@@ -197,58 +257,82 @@ std::vector<Solution> solve_batch(const Model& base, const std::vector<Scenario>
     s.iterations_to_fast = fast_it[k];
     s.seconds_to_fast = fast_s[k];
     s.primal_weight = omega[k];
-    active[k] = 0;
+  };
+
+  // Fixed-point residuals of all slots from the last step's x̄, x̂, ȳ, ŷ (one SpMM).
+  std::vector<double> resid;
+  auto compute_residuals = [&]() {
+    for (std::size_t q = 0; q < X.size(); ++q) DX[q] = XB[q] - XH[q];
+    for (std::size_t q = 0; q < Y.size(); ++q) DY[q] = YB[q] - YH[q];
+    spmm(sp.A, DX, ADX, W);
+    std::vector<double> px(W, 0.0), py(W, 0.0), cr(W, 0.0);
+    for (std::size_t q = 0; q < X.size(); ++q) px[q % W] += DX[q] * DX[q];
+    for (std::size_t q = 0; q < Y.size(); ++q) py[q % W] += DY[q] * DY[q], cr[q % W] += DY[q] * ADX[q];
+    resid.assign(W, 0.0);
+    for (int t = 0; t < W; ++t) {
+      const double om = omega[sid[t]];
+      resid[t] = std::sqrt(std::max(om * px[t] + py[t] / om + 2.0 * eta * cr[t], 0.0));
+    }
   };
 
   std::vector<double> xk, yk;
-  while (std::any_of(active.begin(), active.end(), [](char a) { return a != 0; })) {
-    for (int s = 0; s < Kc; ++s) {
-      spmm(sp.At, Y, ATY, K);
-      for (int j = 0; j < n; ++j) {
-        const std::size_t base_q = static_cast<std::size_t>(j) * K;
-        for (int k = 0; k < K; ++k) {
-          if (!active[k]) continue;
-          const std::size_t q = base_q + k;
-          const double tau = eta / omega[k];
-          const double w = static_cast<double>(inner[k] + 1) / static_cast<double>(inner[k] + 2);
-          const double h = clampd(X[q] - tau * (C[q] - ATY[q]), L[q], U[q]);
-          XH[q] = h;
-          XB[q] = 2 * h - X[q];
-          X[q] = w * (a2 * h + b2 * X[q]) + (1 - w) * X0[q];
-        }
+  while (W > 0) {
+    for (int step = 0; step < Kc; ++step) {
+      ctau.resize(W);
+      csig.resize(W);
+      cw.resize(W);
+      for (int t = 0; t < W; ++t) {
+        const int k = sid[t];
+        ctau[t] = eta / omega[k];
+        csig[t] = eta * omega[k];
+        cw[t] = static_cast<double>(inner[k] + 1) / static_cast<double>(inner[k] + 2);
       }
-      spmm(sp.A, XB, AX, K);
-      for (int i = 0; i < m; ++i) {
-        const std::size_t base_q = static_cast<std::size_t>(i) * K;
-        for (int k = 0; k < K; ++k) {
-          if (!active[k]) continue;
-          const std::size_t q = base_q + k;
-          const double sigma = eta * omega[k];
-          const double w = static_cast<double>(inner[k] + 1) / static_cast<double>(inner[k] + 2);
-          const double v = AX[q] - Y[q] / sigma;
-          const double h = Y[q] - sigma * AX[q] + sigma * clampd(v, RL[q], RU[q]);
-          YH[q] = h;
-          YB[q] = 2 * h - Y[q];
-          Y[q] = w * (a2 * h + b2 * Y[q]) + (1 - w) * Y0[q];
+      spmm(sp.At, Y, ATY, W);
+      la::parallel_for(n, [&](std::int64_t jb, std::int64_t je) {
+        for (std::int64_t j = jb; j < je; ++j) {
+          const std::size_t base_q = static_cast<std::size_t>(j) * W;
+          for (int t = 0; t < W; ++t) {
+            const std::size_t q = base_q + t;
+            const double h = clampd(X[q] - ctau[t] * (C[q] - ATY[q]), L[q], U[q]);
+            XH[q] = h;
+            XB[q] = 2 * h - X[q];
+            X[q] = cw[t] * (a2 * h + b2 * X[q]) + (1 - cw[t]) * X0[q];
+          }
         }
+      });
+      spmm(sp.A, XB, AX, W);
+      la::parallel_for(m, [&](std::int64_t ib, std::int64_t ie) {
+        for (std::int64_t i = ib; i < ie; ++i) {
+          const std::size_t base_q = static_cast<std::size_t>(i) * W;
+          for (int t = 0; t < W; ++t) {
+            const std::size_t q = base_q + t;
+            const double sg = csig[t];
+            const double v = AX[q] - Y[q] / sg;
+            const double h = Y[q] - sg * AX[q] + sg * clampd(v, RL[q], RU[q]);
+            YH[q] = h;
+            YB[q] = 2 * h - Y[q];
+            Y[q] = cw[t] * (a2 * h + b2 * Y[q]) + (1 - cw[t]) * Y0[q];
+          }
+        }
+      });
+      // epoch start: reference residual r⁰ right after the first step (as in r2hpdhg.cpp)
+      bool any_new = false;
+      for (int t = 0; t < W; ++t) any_new = any_new || inner[sid[t]] == 0;
+      if (any_new) {
+        compute_residuals();
+        for (int t = 0; t < W; ++t)
+          if (inner[sid[t]] == 0) r0[sid[t]] = resid[t];
       }
-      for (int k = 0; k < K; ++k)
-        if (active[k]) ++inner[k];
+      for (int t = 0; t < W; ++t) ++inner[sid[t]];
     }
     it += Kc;
 
-    // ---- fixed-point residuals of all scenarios (one shared SpMM)
-    for (std::size_t q = 0; q < NK; ++q) DX[q] = XB[q] - XH[q];
-    for (std::size_t q = 0; q < MK; ++q) DY[q] = YB[q] - YH[q];
-    spmm(sp.A, DX, ADX, K);
-    std::vector<double> px(K, 0.0), py(K, 0.0), cr(K, 0.0);
-    for (std::size_t q = 0; q < NK; ++q) px[q % K] += DX[q] * DX[q];
-    for (std::size_t q = 0; q < MK; ++q) py[q % K] += DY[q] * DY[q], cr[q % K] += DY[q] * ADX[q];
-
+    compute_residuals();  // at the check
     const bool over_iter = it >= eo.iteration_limit, over_time = elapsed() > eo.time_limit;
-    for (int k = 0; k < K; ++k) {
-      if (!active[k]) continue;
-      unscale(k, xk, yk);
+    std::vector<int> keep;
+    for (int t = 0; t < W; ++t) {
+      const int k = sid[t];
+      unscale(t, xk, yk);
       const pdhg::LpView lp{m, n, base.sense, D[k].c.data(), D[k].cl.data(), D[k].cu.data(), D[k].rl.data(),
                             D[k].ru.data()};
       const pdhg::KktStats kk = pdhg::kkt_general(sp.A_orig, sp.At_orig, lp, xk, yk);
@@ -265,13 +349,8 @@ std::vector<Solution> solve_batch(const Model& base, const std::vector<Scenario>
         finish(k, over_iter ? Status::IterationLimit : Status::TimeLimit, kk, xk, yk, "");
         continue;
       }
-      const double r2 = omega[k] * px[k] + py[k] / omega[k] + 2.0 * eta * cr[k];
-      const double r = std::sqrt(std::max(r2, 0.0));
-      if (r0[k] < 0) {  // first check of the epoch: reference residual
-        r0[k] = r;
-        r_last[k] = r;
-        if (!(static_cast<double>(inner[k]) >= eo.restart_artificial * static_cast<double>(it))) continue;
-      }
+      keep.push_back(t);
+      const double r = resid[t];
       const bool ratios_ok = r0[k] > 0 && std::isfinite(r0[k]) && r > 0;
       const bool restart = (ratios_ok && (r <= eo.restart_sufficient * r0[k] ||
                                           (r <= eo.restart_necessary * r0[k] && r > r_last[k]))) ||
@@ -281,11 +360,11 @@ std::vector<Solution> solve_batch(const Model& base, const std::vector<Scenario>
       // PID primal weight (same rule as r2hpdhg.cpp)
       double dxn = 0, dyn = 0;
       for (int j = 0; j < n; ++j) {
-        const std::size_t q = static_cast<std::size_t>(j) * K + k;
+        const std::size_t q = static_cast<std::size_t>(j) * W + t;
         dxn += (XH[q] - X0[q]) * (XH[q] - X0[q]);
       }
       for (int i = 0; i < m; ++i) {
-        const std::size_t q = static_cast<std::size_t>(i) * K + k;
+        const std::size_t q = static_cast<std::size_t>(i) * W + t;
         dyn += (YH[q] - Y0[q]) * (YH[q] - Y0[q]);
       }
       dxn = std::sqrt(dxn);
@@ -295,8 +374,8 @@ std::vector<Solution> solve_batch(const Model& base, const std::vector<Scenario>
       if (dxn > 1e-16 && dyn > 1e-16 && dxn < 1e12 && dyn < 1e12 && ratio > 1e-8 && ratio < 1e8) {
         const double e = std::log(dyn) - std::log(dxn) - std::log(omega[k]);
         pid_int[k] = eo.pid_integral_decay * pid_int[k] + e;
-        const double step = eo.pid_kp * e + eo.pid_ki * pid_int[k] + eo.pid_kd * (e - pid_last[k]);
-        omega[k] *= std::exp(std::clamp(step, -eo.pid_max_log_step, eo.pid_max_log_step));
+        const double stp = eo.pid_kp * e + eo.pid_ki * pid_int[k] + eo.pid_kd * (e - pid_last[k]);
+        omega[k] *= std::exp(std::clamp(stp, -eo.pid_max_log_step, eo.pid_max_log_step));
         pid_last[k] = e;
       } else {
         omega[k] = best_omega[k];
@@ -307,22 +386,27 @@ std::vector<Solution> solve_batch(const Model& base, const std::vector<Scenario>
         best_omega[k] = omega[k];
       }
       for (int j = 0; j < n; ++j) {
-        const std::size_t q = static_cast<std::size_t>(j) * K + k;
+        const std::size_t q = static_cast<std::size_t>(j) * W + t;
         X[q] = X0[q] = XH[q];
       }
       for (int i = 0; i < m; ++i) {
-        const std::size_t q = static_cast<std::size_t>(i) * K + k;
+        const std::size_t q = static_cast<std::size_t>(i) * W + t;
         Y[q] = Y0[q] = YH[q];
       }
       inner[k] = 0;
-      r0[k] = -1.0;
       r_last[k] = std::numeric_limits<double>::infinity();
     }
-    if (eo.verbosity >= 2) {
-      int act = 0;
-      for (char a : active) act += a;
-      std::fprintf(stderr, "batch it %lld  t %.2fs  active %d/%d\n", static_cast<long long>(it), elapsed(), act, K);
+    if (static_cast<int>(keep.size()) != W) {  // some scenarios finished: compact
+      const std::size_t nn = static_cast<std::size_t>(n), mm = static_cast<std::size_t>(m);
+      for (auto* v : {&C, &L, &U, &X, &X0, &XH, &XB, &ATY, &DX}) compact(*v, nn, W, keep);
+      for (auto* v : {&RL, &RU, &Y, &Y0, &YH, &YB, &AX, &DY, &ADX}) compact(*v, mm, W, keep);
+      std::vector<int> nsid;
+      for (int t : keep) nsid.push_back(sid[t]);
+      sid.swap(nsid);
+      W = static_cast<int>(sid.size());
     }
+    if (eo.verbosity >= 2)
+      std::fprintf(stderr, "batch it %lld  t %.2fs  running %d/%d\n", static_cast<long long>(it), elapsed(), W, K);
   }
   return out;
 }
