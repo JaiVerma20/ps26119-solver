@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "la/parallel.h"
 #include "ps26119/model.h"
 
 namespace ps26119::la {
@@ -24,16 +25,21 @@ struct Csr {
   std::int64_t nnz() const { return row_ptr.empty() ? 0 : row_ptr.back(); }
 
   // out = this · x   (row-parallel; accumulates in Acc)
+  // Row-parallel over the shared thread pool (la/parallel.h); each out[i] is computed by one
+  // thread in a fixed order, so the result does not depend on the thread count.
   template <class Acc = T, class X, class Out>
   void multiply(const X* x, Out* out) const {
-#if defined(PS26119_HAVE_OPENMP)
-#pragma omp parallel for schedule(static)
-#endif
-    for (int i = 0; i < rows; ++i) {
-      Acc s = 0;
-      for (std::int64_t k = row_ptr[i]; k < row_ptr[i + 1]; ++k) s += static_cast<Acc>(val[k]) * static_cast<Acc>(x[col[k]]);
-      out[i] = static_cast<Out>(s);
-    }
+    parallel_for(
+        rows,
+        [&](std::int64_t b, std::int64_t e) {
+          for (std::int64_t i = b; i < e; ++i) {
+            Acc s = 0;
+            for (std::int64_t k = row_ptr[i]; k < row_ptr[i + 1]; ++k)
+              s += static_cast<Acc>(val[k]) * static_cast<Acc>(x[col[k]]);
+            out[i] = static_cast<Out>(s);
+          }
+        },
+        4096);
   }
 
   template <class U>

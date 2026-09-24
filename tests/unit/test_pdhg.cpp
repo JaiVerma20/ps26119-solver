@@ -314,3 +314,27 @@ TEST(PdhgEngineParams, KnownAndUnknownNames) {
   EXPECT_EQ(s.status, Status::NotSolved);
   EXPECT_NE(s.message.find("no_such_knob"), std::string::npos);
 }
+
+TEST(PdhgScaling, GeometricMeanIsAdaptive) {
+  // afiro: entries span ~10^1.4 → not applied by default; forced with threshold 0
+  Model m;
+  ASSERT_TRUE(io::read_lpm(data("netlib_small/afiro.lpm"), m).ok);
+  pdhg::ScalingOptions so;
+  auto sp = pdhg::make_scaled_problem(m, so);
+  EXPECT_FALSE(sp.geometric_mean_applied);
+  EXPECT_NEAR(sp.log10_range, 1.4, 0.1);
+  so.geometric_mean_min_log10_range = 0;
+  auto sp2 = pdhg::make_scaled_problem(m, so);
+  EXPECT_TRUE(sp2.geometric_mean_applied);
+  // still a valid scaling: Ã = R A C
+  auto A = la::csr_from_model(m);
+  for (int i = 0; i < sp2.m; ++i)
+    for (std::int64_t k = A.row_ptr[i]; k < A.row_ptr[i + 1]; ++k)
+      EXPECT_NEAR(sp2.A.val[k], sp2.row_scale[i] * A.val[k] * sp2.col_scale[A.col[k]], 1e-12 * (1 + std::fabs(sp2.A.val[k])));
+  // and solving with it forced still gives the optimum
+  Options o;
+  o.engine_params = {{"geometric_mean_min_log10_range", 0}};
+  auto s = solve(m, o);
+  ASSERT_EQ(s.status, Status::Optimal);
+  EXPECT_NEAR(s.objective, -464.75314286, 1e-6);
+}

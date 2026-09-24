@@ -6,6 +6,8 @@
 
 #include "ps26119/solve.h"
 
+#include "core/safe_bound.h"
+#include "la/parallel.h"
 #include "oracle/dense_simplex.h"
 #include "pdhg/pdlp.h"
 #include "pdhg/r2hpdhg.h"
@@ -32,6 +34,7 @@ Solution solve(const Model& model, const Options& options) {
     return sol;
   }
 
+  la::ThreadPool::instance().set_threads(options.threads);
   try {
     switch (options.algorithm) {
       case Algorithm::Oracle: {
@@ -65,6 +68,8 @@ Solution solve(const Model& model, const Options& options) {
     sol.message = e.what();
   }
   sol.model_fingerprint = model.fingerprint_hex();
+  if (static_cast<int>(sol.y.size()) == model.num_rows && model.num_rows + model.num_cols > 0)
+    sol.certified_bound = certified_dual_bound(model, sol.y).bound;
 
   sol.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
   return sol;

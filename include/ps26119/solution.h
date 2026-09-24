@@ -50,6 +50,10 @@ struct Solution {
   // tolerance (1e-4) while continuing to the requested one. -1 = never reached / not tracked.
   std::int64_t iterations_to_fast = -1;
   double seconds_to_fast = -1.0;
+  // Certified bound on the optimal objective from y (src/core/safe_bound.h): a guaranteed
+  // lower bound for MIN models, upper bound for MAX, immune to rounding. ±inf when the
+  // multipliers point at an infinite bound; NaN when not computed (no y).
+  double certified_bound = std::numeric_limits<double>::quiet_NaN();
   // First-order engines: primal weight ω at the end (pass it back as
   // Options::warm_primal_weight when warm-starting a re-solve). NaN for other engines.
   double primal_weight = std::numeric_limits<double>::quiet_NaN();

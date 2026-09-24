@@ -36,6 +36,8 @@ set(PS26119_SOURCES
   src/core/status.cpp
   src/core/solve.cpp
   src/core/c_api.cpp
+  src/core/safe_bound.cpp
+  src/core/implied_bounds.cpp
   src/io/lpm_reader.cpp
   src/io/solution_writer.cpp
   src/io/solution_reader.cpp
@@ -46,6 +48,7 @@ set(PS26119_SOURCES
   src/pdhg/engine.cpp
   src/pdhg/pdlp.cpp
   src/pdhg/r2hpdhg.cpp
+  src/pdhg/batch.cpp
 )
 
 # The MPS reader belongs to a teammate (CLAUDE.md §2). Compile it only once it exists.

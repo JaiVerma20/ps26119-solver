@@ -35,6 +35,7 @@ struct Options {
   double time_limit = 3600.0;                         // seconds, wall clock
   std::int64_t iteration_limit = 100'000'000;         // engine iterations
   int verbosity = 0;                                  // 0 silent, 1 summary, 2 progress
+  int threads = 1;  // CPU threads for first-order engines (0 = all cores); results do not depend on it
   // First-order engine knobs (defaults follow the cited papers; see src/pdhg/*.h).
   int ruiz_iterations = 10;
   bool pock_chambolle = true;
@@ -50,7 +51,8 @@ struct Options {
   // Expert / research knobs for the first-order engines, by name (see
   // pdhg::EngineOptions: reflection, restart_sufficient, restart_necessary,
   // restart_artificial, pid_kp, pid_ki, pid_kd, pid_integral_decay, pid_max_log_step,
-  // bound_objective_rescaling, geometric_mean_iterations, ruiz_iterations, pock_chambolle).
+  // bound_objective_rescaling, geometric_mean_iterations, geometric_mean_min_log10_range,
+  // ruiz_iterations, pock_chambolle).
   // An unknown name makes solve() return NotSolved.
   std::vector<std::pair<std::string, double>> engine_params;
 };

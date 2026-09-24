@@ -46,3 +46,23 @@ Newest last. Each entry: what, why, evidence, how to undo.
     the engine keeps iterating to its limit rather than guess.
 13. **GitHub:** the repo is ready for a private GitHub remote (`scripts/setup_github.sh`),
     but it was NOT created: that needs the owner's `gh auth login`.
+
+## 2026-09-25 (overnight)
+
+14. **Certified bound (Neumaier–Shcherbina) with two rigorous repairs**: multipliers that
+    point at an infinite row bound are zeroed first (the bound is valid for ANY y), and
+    columns bounded on one side get rigorous implied bounds by bound propagation
+    (`src/core/implied_bounds.*`, outward-rounded). On the small Netlib set with optimal duals
+    the bound is finite and tight (≤ 1e-9) for 7/10; the other 3 have a basic column with no
+    finite implied bound, where no rounding-proof certificate exists — reported as −∞.
+15. **Batched scenarios** use the same r²HPDHG per scenario, but the epoch reference residual
+    r⁰ is taken at the first check after a restart (so all scenarios share one extra SpMM).
+16. **Threads**: CPU kernels run on a small deterministic pool (no OpenMP; Apple clang lacks
+    libomp). Results are bit-identical for any thread count (fixed chunking, fixed-order
+    reductions); default is 1 thread. Reductions changed from one running sum to 64 fixed
+    chunks, which changes rounding slightly vs. earlier CSVs.
+17. **Adaptive geometric-mean scaling** (12 sweeps when max|a|/min|a| ≥ 10^4.5, else off).
+    Full-Netlib A/B at 4f0db8c: off 81/93, always 85/93 (geomean −24% iterations), adaptive
+    85/93 with the same geomean — and no 20–25% slowdown on the refinery/random models, which
+    are well scaled (10^2.5 / 10^1.8). Tuned on Netlib: a simple, explainable rule, but a
+    threshold is still a tuned constant (knob `geometric_mean_min_log10_range`).

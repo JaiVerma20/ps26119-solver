@@ -47,7 +47,16 @@ ScaledProblem make_scaled_problem(const Model& model, const ScalingOptions& opt)
   sp.col_scale.assign(sp.n, 1.0);
 
   std::vector<double> rn, cn, rf(sp.m), cf(sp.n);
-  if (opt.geometric_mean_iterations > 0) {
+  double log10_range = 0.0;
+  {
+    double amin = kInf, amax = 0.0;
+    for (double v : sp.A_orig.val)
+      if (v != 0.0) amin = std::min(amin, std::fabs(v)), amax = std::max(amax, std::fabs(v));
+    if (amax > 0) log10_range = std::log10(amax / amin);
+  }
+  sp.log10_range = log10_range;
+  sp.geometric_mean_applied = opt.geometric_mean_iterations > 0 && log10_range >= opt.geometric_mean_min_log10_range;
+  if (sp.geometric_mean_applied) {
     // factors are recomputed from the ORIGINAL entries each sweep (Gauss–Seidel between
     // rows and columns), then applied once
     const la::Csr<double>& A0 = sp.A_orig;

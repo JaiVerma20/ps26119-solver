@@ -30,10 +30,16 @@
 namespace ps26119::pdhg {
 
 struct ScalingOptions {
-  // Geometric-mean equilibration first (cuPDLPx default: 12): row factor
+  // Geometric-mean equilibration first (cuPDLPx: 12 sweeps, always): row factor
   // r_i = 1/sqrt(min_j |a_ij c_j| · max_j |a_ij c_j|), then columns likewise, alternating.
-  // It evens out entries spanning many orders of magnitude before Ruiz. 0 = off.
-  int geometric_mean_iterations = 0;
+  // ADAPTIVE (ours): applied only when the entries of A span at least
+  // 10^geometric_mean_min_log10_range. Evidence (bench/results/netlib-full-*-{gm12,gm4}-*
+  // vs the untagged run at f10527c, 93 Netlib LPs, 60 s each): always-on solves 85 vs 81
+  // and cuts geomean iterations 24%, but costs 20–25% on the well-scaled refinery models
+  // (range 10^2.5) and most small Netlib models; the threshold 10^4.5 keeps all 85 and
+  // the geomean (17,375 vs 17,274) while leaving well-scaled models untouched.
+  int geometric_mean_iterations = 12;
+  double geometric_mean_min_log10_range = 4.5;  // 0 = always apply
   int ruiz_iterations = 10;
   bool pock_chambolle = true;
   bool bound_objective_rescaling = true;
@@ -47,6 +53,8 @@ struct ScaledProblem {
   std::vector<double> c, col_lower, col_upper, row_lower, row_upper;  // scaled data
   std::vector<double> row_scale, col_scale;                           // R, C
   double bound_scale = 1.0, obj_scale = 1.0;                          // bs, os
+  double log10_range = 0.0;             // log10(max|a| / min|a|) of the original matrix
+  bool geometric_mean_applied = false;  // adaptive decision, see ScalingOptions
 
   // Original (unscaled) data, kept for fp64 KKT evaluation in the original space.
   const Model* original = nullptr;

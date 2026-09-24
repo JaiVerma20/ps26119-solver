@@ -20,6 +20,7 @@ bool write_solution(const std::string& path, const Model& m, const Solution& s, 
   std::fprintf(f, "precision %s\n", s.precision.c_str());
   std::fprintf(f, "objective %.17g\n", s.objective);
   std::fprintf(f, "dual_objective %.17g\n", s.dual_objective);
+  if (s.certified_bound == s.certified_bound) std::fprintf(f, "certified_bound %.17g\n", s.certified_bound);
   std::fprintf(f, "primal_residual %.6g\n", s.primal_residual);
   std::fprintf(f, "dual_residual %.6g\n", s.dual_residual);
   std::fprintf(f, "gap %.6g\n", s.gap);

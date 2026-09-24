@@ -106,6 +106,13 @@ def netlib_full_section(path):
              f"- **{len(solved)} of {len(rows)}** Netlib LPs solved to relative KKT 1e-8 and verified PASS by "
              f"`tools/verify.py`; **{len(match)}** of those agree with HiGHS to 1e-6 relative.",
              f"- {len(limit)} hit the time/iteration limit (listed below, not hidden); {len(other)} other outcomes."]
+    if "certified_gap" in r0:
+        fin = [r for r in solved if r["certified_gap"] not in ("", "inf")]
+        if fin:
+            worst = max(float(r["certified_gap"]) for r in fin)
+            lines.append(f"- Certified (rounding-proof, Neumaier–Shcherbina) bound from the returned duals: finite for "
+                         f"**{len(fin)} of {len(solved)}** solved models; worst certified gap |obj − bound|/(1+|obj|) "
+                         f"= {worst:.1e}. Infinite where a dual points at an infinite bound (reported, not faked).")
     unsolved = limit + other
     if unsolved:
         lines += ["", table(["model", "rows", "cols", "nnz", "status", "iterations", "rel. err vs HiGHS at stop"],
@@ -181,6 +188,19 @@ def gpu_vs_cpu(paths):
     return "\n".join(out)
 
 
+def fulls_all_untagged_before(ablations, fulls_all):
+    """Untagged full-Netlib runs from the same commits as the ablations (the 'off' baseline)."""
+    hashes = {os.path.splitext(os.path.basename(p))[0].rsplit("-", 1)[1] for p in ablations}
+    out = []
+    for p in fulls_all:
+        if p in ablations:
+            continue
+        rows = load(p)
+        if rows and (rows[0]["git_hash"] in hashes or rows[0]["git_hash"] == "f10527c"):
+            out.append(p)
+    return out
+
+
 def main():
     paths = committed_csvs()
     if not paths:
@@ -203,7 +223,10 @@ def main():
     if net_gpu:
         doc += ["", "### Same set on GPU", "", netlib_section(net_gpu)]
 
-    fulls = [p for p in paths if os.path.basename(p).startswith("netlib-full-")]
+    fulls_all = [p for p in paths if os.path.basename(p).startswith("netlib-full-")]
+    # tagged runs (e.g. -gm12-) are ablations, not the default configuration
+    ablations = [p for p in fulls_all if any(f"-{t}-" in os.path.basename(p) for t in ("gm12", "gm4", "gm0"))]
+    fulls = [p for p in fulls_all if p not in ablations]
     # latest run per configuration tag (engine-precision[-gpu]-machine)
     by_tag = {}
     for p in fulls:
@@ -212,6 +235,17 @@ def main():
     fulls = [latest(v, "netlib-full-") for v in by_tag.values()]
     doc += ["", "## 1b. Full Netlib LP set (first-order engine)", ""]
     doc += [netlib_full_section(p) + "\n" for p in fulls] or ["_No committed full-Netlib CSV yet._"]
+
+    if ablations:
+        doc += ["### 1c. Ablation: geometric-mean scaling (full Netlib, 60 s per model)", ""]
+        body = []
+        for p in sorted(ablations) + sorted(fulls_all_untagged_before(ablations, fulls_all)):
+            rows = load(p)
+            solved = [r for r in rows if r["status"] == "Optimal" and r["verify"] == "PASS"]
+            body.append([f"`{os.path.basename(p)}`", rows[0].get("settings", "") or "default of that commit",
+                         f"{len(solved)}/{len(rows)}"])
+        doc += [table(["CSV", "settings", "solved + verified"], body), "",
+                "Decision (docs/DECISIONS.md #17): apply 12 sweeps only when max|a|/min|a| ≥ 10^4.5.", ""]
 
     doc += ["", "## 2. Scaling on generated LPs with known optimum (CPU)", ""]
     if cpu_scales:
@@ -292,6 +326,22 @@ def main():
     if not warms:
         doc.append("_No committed warm-start CSV yet._")
 
+    doc += ["", "## 4c. Batched scenarios (many LPs sharing one matrix)", ""]
+    batches = [p for p in paths if os.path.basename(p).startswith("batch-")]
+    if batches:
+        p = latest(batches, "batch-")
+        rows = load(p)
+        r0 = rows[0]
+        doc += [f"Source: `{p}` — `{r0['machine']}` ({r0['cpu']}), commit `{r0['git_hash']}`. K price scenarios of the "
+                "refinery LP: K separate solves vs one batched solve (one SpMM per iteration). Every batch answer "
+                "verified and compared with its separate solve.", "",
+                table(["instance", "K", "separate solves s", "batch s", "speed-up", "all optimal", "all verified",
+                       "max objective disagreement"],
+                      [[r["instance"], r["K"], fnum(r["sequential_seconds"]), fnum(r["batch_seconds"]), r["speedup"],
+                        r["all_optimal"], r["all_verified"], r["max_objective_disagreement"]] for r in rows])]
+    else:
+        doc.append("_No committed batch CSV yet._")
+
     doc += ["", "## 5. What we do NOT do yet (honest list)", "",
             "- **No GPU number is claimed** unless a GPU CSV appears in §3. The CUDA backend has not yet been "
             "compiled by nvcc or run at the time this list was written.",
@@ -306,8 +356,9 @@ def main():
             "- **Generated instances**: the refinery LP has refinery structure, but its prices and inequality "
             "right-hand sides come from the KKT construction (synthetic), not from plant data; random LPs of this "
             "kind are friendly to first-order methods. Netlib / Mittelmann large models are the next evidence step.",
-            "- **Batched scenarios and certified dual bounds** (CLAUDE.md §9 items 4–5) are not implemented; warm "
-            "start (item 3) exists for the first-order engines (see §4b) but not yet in the C API.",
+            "- Batched scenarios (§4c) run on the CPU only (no GPU SpMM kernel yet) and without infeasibility "
+            "detection; certified bounds are −∞ whenever a dual multiplier points at an infinite bound (no bound "
+            "tightening yet to repair this).",
             "- Laptop timings vary run to run (a fanless MacBook Air throttles and macOS moves threads between "
             "performance and efficiency cores): the same 1e6-row run has taken 294 s and 539 s for identical "
             "iteration counts. Iteration counts are deterministic; compare those first.",

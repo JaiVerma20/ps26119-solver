@@ -31,7 +31,7 @@ from machine_info import machine_info  # noqa: E402
 
 GEN = os.path.join(HERE, "generated")
 FIELDS = ["git_hash", "machine", "cpu", "gpu", "driver", "cuda", "date", "instance", "family", "rows", "cols", "nnz",
-          "engine", "backend", "precision", "tolerance", "status", "iterations", "seconds", "setup_seconds",
+          "engine", "backend", "threads", "precision", "tolerance", "status", "iterations", "seconds", "setup_seconds",
           "ms_per_iteration", "iterations_to_1e-4", "seconds_to_1e-4", "seconds_to_1e-8", "objective",
           "known_optimum", "rel_err_known", "verify", "verify_primal_rel", "verify_dual_rel", "verify_gap_rel",
           "message"]
@@ -51,17 +51,18 @@ def ensure_instance(kind, size, seed=1):
     return path
 
 
-def run(binary, path, engine, precision, gpu, time_limit, tmp, verify_max_nnz):
+def run(binary, path, engine, precision, gpu, time_limit, tmp, verify_max_nnz, threads=1):
     info = lpgen.read_sidecar(path)
     sol = os.path.join(tmp, "s.sol")
     if os.path.exists(sol):
         os.remove(sol)
     cmd = [binary, "solve", path, "--algorithm", engine, "--precision", precision, "--tol", "1e-8",
-           "--time-limit", str(time_limit), "--out", sol] + (["--gpu"] if gpu else [])
+           "--time-limit", str(time_limit), "--out", sol, "--threads", str(threads)] + (["--gpu"] if gpu else [])
     p = subprocess.run(cmd, capture_output=True, text=True)
     row = {"instance": info["name"], "family": "refinery" if "refinery" in info["generator"] else "random",
            "rows": info["rows"], "cols": info["cols"], "nnz": info["nnz"], "engine": engine,
-           "backend": "gpu" if gpu else "cpu", "precision": precision, "tolerance": "1e-8",
+           "backend": "gpu" if gpu else "cpu", "threads": threads if not gpu else "", "precision": precision,
+           "tolerance": "1e-8",
            "known_optimum": repr(info["optimum"])}
     if not os.path.exists(sol):
         row.update(status="NoOutput", message=(p.stderr or p.stdout).strip()[-200:])
@@ -130,6 +131,9 @@ def plot(rows, png):
         print("matplotlib not available: no PNG")
         return
     fig, axes = plt.subplots(1, 3, figsize=(16, 4.8))
+    for r in rows:  # a CPU thread count is part of the configuration
+        if r.get("threads") not in (None, "", "1") and r["backend"] == "cpu":
+            r["backend"] = f"cpu{r['threads']}t"
     configs = sorted({(r["engine"], r["backend"], r["precision"]) for r in rows})
     # one fixed colour per configuration so every panel matches the legend
     palette = plt.rcParams["axes.prop_cycle"].by_key()["color"]
@@ -174,6 +178,7 @@ def main():
     ap.add_argument("--time-limit", type=float, default=600)
     ap.add_argument("--verify-max-nnz", type=float, default=3e6)
     ap.add_argument("--highs", action="store_true")
+    ap.add_argument("--threads", default="1", help="comma list of CPU thread counts, e.g. 1,4,10 (0 = all cores)")
     ap.add_argument("--out", default=None)
     ap.add_argument("--replot", default=None, help="only redraw the PNG from an existing CSV")
     a = ap.parse_args()
@@ -189,12 +194,12 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         for path in instances:
             for engine in a.engines.split(","):
-                for gpu in backends:
+                for gpu, th in [(g, t) for g in backends for t in (["1"] if g else a.threads.split(","))]:
                     for prec in a.precisions.split(","):
-                        r = run(a.bin, path, engine, prec, gpu, a.time_limit, tmp, a.verify_max_nnz)
+                        r = run(a.bin, path, engine, prec, gpu, a.time_limit, tmp, a.verify_max_nnz, int(th))
                         r.update(info)
                         rows.append(r)
-                        print(f"{r['instance']:22s} {engine:8s} {r['backend']:3s} {prec:5s} {str(r.get('status')):14s} "
+                        print(f"{r['instance']:22s} {engine:8s} {r['backend']:3s}{str(r.get('threads', '')):>3s} {prec:5s} {str(r.get('status')):14s} "
                               f"it {str(r.get('iterations', '')):>8s} t {str(r.get('seconds', '')):>9s}s "
                               f"(1e-4: {str(r.get('seconds_to_1e-4', '')):>9s}s) ms/it {str(r.get('ms_per_iteration', '')):>8s} "
                               f"err {r.get('rel_err_known', '')} verify {r.get('verify', '')}", flush=True)

@@ -8,6 +8,8 @@ set(PS26119_TEST_SOURCES
   unit/test_oracle.cpp
   unit/test_pdhg.cpp
   unit/test_c_api.cpp
+  unit/test_batch.cpp
+  unit/test_safe_bound.cpp
 )
 
 if(PS26119_ENABLE_CUDA)

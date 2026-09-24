@@ -35,7 +35,7 @@ DATA = os.path.join(ROOT, "data", "netlib")
 FIELDS = ["git_hash", "machine", "cpu", "gpu", "driver", "cuda", "date", "settings", "instance", "rows", "cols", "nnz", "engine",
           "backend", "precision", "tolerance", "time_limit", "status", "iterations", "seconds", "seconds_to_1e-4",
           "objective", "published_optimum", "highs_objective", "rel_err_highs", "rel_err_published", "verify",
-          "verify_primal_rel", "verify_dual_rel", "verify_gap_rel", "message"]
+          "verify_primal_rel", "verify_dual_rel", "verify_gap_rel", "certified_bound", "certified_gap", "message"]
 
 
 def rel(a, b):
@@ -89,6 +89,15 @@ def main():
                 r.update(status=h.get("status"), iterations=h.get("iterations"), seconds=h.get("seconds"),
                          objective=h.get("objective"), message=h.get("message", ""))
                 r["seconds_to_1e-4"] = h.get("seconds_to_fast", "")
+                cb = h.get("certified_bound", "")
+                r["certified_bound"] = cb
+                try:
+                    cbv = float(cb)
+                    r["certified_gap"] = (f"{abs(float(r['objective']) - cbv) / (1 + abs(float(r['objective']))):.2e}"
+                                          if abs(cbv) != float("inf") else "inf")
+                except ValueError:
+                    r["certified_gap"] = ""
+
                 r["rel_err_highs"] = f"{rel(r['objective'], mdl['highs_objective']):.2e}" if mdl["highs_objective"] else ""
                 r["rel_err_published"] = (f"{rel(r['objective'], mdl['published_optimum']):.2e}"
                                           if mdl["published_optimum"] else "")

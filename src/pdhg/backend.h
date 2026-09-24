@@ -69,6 +69,15 @@ class Backend {
 };
 
 std::unique_ptr<Backend> make_cpu_backend();
+// Plain view of an LP's vectors (original space, original sense), for KKT evaluation of
+// data that is not a Model (e.g. one scenario of a batch sharing A).
+struct LpView {
+  int m, n, sense;
+  const double *c, *col_lower, *col_upper, *row_lower, *row_upper;
+};
+// fp64 KKT statistics (termination.h) of (x, y_min) for the LP (A, lp); At = Aᵀ.
+KktStats kkt_general(const la::Csr<double>& A, const la::Csr<double>& At, const LpView& lp, const std::vector<double>& x,
+                     const std::vector<double>& y_min);
 // fp64 KKT statistics of an ORIGINAL-space point (x, y in min form); see termination.h.
 KktStats kkt_on_original(const ScaledProblem& sp, const std::vector<double>& x, const std::vector<double>& y_min);
 #if defined(PS26119_HAVE_CUDA)

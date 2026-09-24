@@ -4,7 +4,8 @@
 // are held in the working type T; all reductions accumulate in double; kkt() maps the
 // iterate back to the original space and evaluates it in double on the original matrix.
 // This is the reference implementation of every GPU kernel's math (CLAUDE.md §3).
-// Loops are sequential by default (deterministic); OpenMP only when enabled.
+// Loops use the deterministic thread pool (la/parallel.h): identical results for any
+// thread count; Options::threads = 1 (default) runs everything inline.
 #include <cmath>
 #include <type_traits>
 
@@ -74,7 +75,9 @@ class CpuBackend final : public Backend {
       auto& Y = S.vecs[y];
       const auto& X = S.vecs[x];
       const T ta = static_cast<T>(a), tb = static_cast<T>(b);
-      for (std::size_t i = 0; i < Y.size(); ++i) Y[i] = ta * X[i] + tb * Y[i];
+      la::parallel_for(static_cast<std::int64_t>(Y.size()), [&](std::int64_t lo, std::int64_t hi) {
+        for (std::int64_t i = lo; i < hi; ++i) Y[i] = ta * X[i] + tb * Y[i];
+      });
     });
   }
   void spmv(int x, int out) override {
@@ -87,7 +90,8 @@ class CpuBackend final : public Backend {
     double s = 0;
     with([&](auto& S) {
       const auto &A = S.vecs[a], &B = S.vecs[b];
-      for (std::size_t i = 0; i < A.size(); ++i) s += static_cast<double>(A[i]) * static_cast<double>(B[i]);
+      s = la::parallel_sum(static_cast<std::int64_t>(A.size()),
+                           [&](std::int64_t i) { return static_cast<double>(A[i]) * static_cast<double>(B[i]); });
     });
     return s;
   }
@@ -96,10 +100,10 @@ class CpuBackend final : public Backend {
     double s = 0;
     with([&](auto& S) {
       const auto &A = S.vecs[a], &B = S.vecs[b];
-      for (std::size_t i = 0; i < A.size(); ++i) {
+      s = la::parallel_sum(static_cast<std::int64_t>(A.size()), [&](std::int64_t i) {
         const double d = static_cast<double>(A[i]) - static_cast<double>(B[i]);
-        s += d * d;
-      }
+        return d * d;
+      });
     });
     return std::sqrt(s);
   }
@@ -110,7 +114,9 @@ class CpuBackend final : public Backend {
       const T t = static_cast<T>(tau);
       const auto &X = S.vecs[x], &G = S.vecs[aty];
       auto& H = S.vecs[xhat];
-      for (std::size_t j = 0; j < X.size(); ++j) H[j] = clamp<T>(X[j] - t * (S.c[j] - G[j]), S.l[j], S.u[j]);
+      la::parallel_for(static_cast<std::int64_t>(X.size()), [&](std::int64_t lo, std::int64_t hi) {
+        for (std::int64_t j = lo; j < hi; ++j) H[j] = clamp<T>(X[j] - t * (S.c[j] - G[j]), S.l[j], S.u[j]);
+      });
     });
   }
 
@@ -120,10 +126,12 @@ class CpuBackend final : public Backend {
       const T s = static_cast<T>(sigma);
       const auto &Y = S.vecs[y], &AX = S.vecs[ax];
       auto& H = S.vecs[yhat];
-      for (std::size_t i = 0; i < Y.size(); ++i) {
-        const T v = AX[i] - Y[i] / s;
-        H[i] = Y[i] - s * AX[i] + s * clamp<T>(v, S.rl[i], S.ru[i]);
-      }
+      la::parallel_for(static_cast<std::int64_t>(Y.size()), [&](std::int64_t lo, std::int64_t hi) {
+        for (std::int64_t i = lo; i < hi; ++i) {
+          const T v = AX[i] - Y[i] / s;
+          H[i] = Y[i] - s * AX[i] + s * clamp<T>(v, S.rl[i], S.ru[i]);
+        }
+      });
     });
   }
 
@@ -135,12 +143,14 @@ class CpuBackend final : public Backend {
       auto& X = S.vecs[x];
       const auto &X0 = S.vecs[x0], &G = S.vecs[aty];
       auto &H = S.vecs[xhat], &B = S.vecs[xbar];
-      for (std::size_t j = 0; j < X.size(); ++j) {
-        const T h = clamp<T>(X[j] - t * (S.c[j] - G[j]), S.l[j], S.u[j]);
-        H[j] = h;
-        B[j] = 2 * h - X[j];
-        X[j] = tw * (a * h + b * X[j]) + (1 - tw) * X0[j];
-      }
+      la::parallel_for(static_cast<std::int64_t>(X.size()), [&](std::int64_t lo, std::int64_t hi) {
+        for (std::int64_t j = lo; j < hi; ++j) {
+          const T h = clamp<T>(X[j] - t * (S.c[j] - G[j]), S.l[j], S.u[j]);
+          H[j] = h;
+          B[j] = 2 * h - X[j];
+          X[j] = tw * (a * h + b * X[j]) + (1 - tw) * X0[j];
+        }
+      });
     });
   }
 
@@ -153,13 +163,15 @@ class CpuBackend final : public Backend {
       const auto &Y0 = S.vecs[y0], &AX = S.vecs[ax];
       auto& H = S.vecs[yhat];
       T* B = ybar >= 0 ? S.vecs[ybar].data() : nullptr;
-      for (std::size_t i = 0; i < Y.size(); ++i) {
-        const T v = AX[i] - Y[i] / s;
-        const T h = Y[i] - s * AX[i] + s * clamp<T>(v, S.rl[i], S.ru[i]);
-        H[i] = h;
-        if (B) B[i] = 2 * h - Y[i];
-        Y[i] = tw * (a * h + b * Y[i]) + (1 - tw) * Y0[i];
-      }
+      la::parallel_for(static_cast<std::int64_t>(Y.size()), [&](std::int64_t lo, std::int64_t hi) {
+        for (std::int64_t i = lo; i < hi; ++i) {
+          const T v = AX[i] - Y[i] / s;
+          const T h = Y[i] - s * AX[i] + s * clamp<T>(v, S.rl[i], S.ru[i]);
+          H[i] = h;
+          if (B) B[i] = 2 * h - Y[i];
+          Y[i] = tw * (a * h + b * Y[i]) + (1 - tw) * Y0[i];
+        }
+      });
     });
   }
 
@@ -202,18 +214,28 @@ class CpuBackend final : public Backend {
 
 KktStats CpuBackend::kkt_original(const ScaledProblem& sp, const std::vector<double>& x, const std::vector<double>& y) {
   const Model& M = *sp.original;
+  const LpView lp{sp.m, sp.n, M.sense, M.obj.data(), M.col_lower.data(), M.col_upper.data(), M.row_lower.data(),
+                  M.row_upper.data()};
+  return kkt_general(sp.A_orig, sp.At_orig, lp, x, y);
+}
+
+}  // namespace
+
+KktStats kkt_general(const la::Csr<double>& A, const la::Csr<double>& At, const LpView& M, const std::vector<double>& x,
+                     const std::vector<double>& y) {
   const double sense = M.sense;
+  const int m = M.m, n = M.n;
   KktStats k;
-  std::vector<double> ax(sp.m), aty(sp.n);
-  sp.A_orig.multiply<double>(x.data(), ax.data());
-  sp.At_orig.multiply<double>(y.data(), aty.data());
+  std::vector<double> ax(m), aty(n);
+  A.multiply<double>(x.data(), ax.data());
+  At.multiply<double>(y.data(), aty.data());
   double rp2 = 0, rd2 = 0, b2 = 0, c2 = 0, p = 0, d = 0, cinf = 0, pmax = 0, dmax = 0;
   auto elem_viol = [](double v, double lo, double up) {
     if (v < lo) return (lo - v) / (1.0 + std::fabs(lo));
     if (v > up) return (v - up) / (1.0 + std::fabs(up));
     return 0.0;
   };
-  for (int i = 0; i < sp.m; ++i) {
+  for (int i = 0; i < m; ++i) {
     const double lo = M.row_lower[i], up = M.row_upper[i];
     const double viol = ax[i] < lo ? lo - ax[i] : (ax[i] > up ? ax[i] - up : 0.0);
     rp2 += viol * viol;
@@ -230,8 +252,8 @@ KktStats CpuBackend::kkt_original(const ScaledProblem& sp, const std::vector<dou
       else rd2 += y[i] * y[i], dmax = std::max(dmax, -y[i]);
     }
   }
-  for (int j = 0; j < sp.n; ++j) {
-    const double cj = sense * M.obj[j];
+  for (int j = 0; j < n; ++j) {
+    const double cj = sense * M.c[j];
     c2 += cj * cj;
     cinf = std::max(cinf, std::fabs(cj));
     p += cj * x[j];
@@ -259,7 +281,6 @@ KktStats CpuBackend::kkt_original(const ScaledProblem& sp, const std::vector<dou
   return k;
 }
 
-}  // namespace
 
 std::unique_ptr<Backend> make_cpu_backend() { return std::make_unique<CpuBackend>(); }
 

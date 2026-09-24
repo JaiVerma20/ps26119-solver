@@ -12,10 +12,12 @@
 #include <cstring>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "io/lpm_reader.h"
 #include "io/solution_reader.h"
 #include "io/solution_writer.h"
+#include "ps26119/batch.h"
 #include "ps26119/solve.h"
 #include "ps26119/version.h"
 #ifdef PS26119_HAVE_MPS_READER
@@ -32,10 +34,13 @@ void usage(std::FILE* f) {
                "usage:\n"
                "  %s --version\n"
                "  %s solve <file.lpm|file.mps> [options]\n"
+               "  %s batch <base.lpm> <scenario.lpm>... [--out-dir d] [--tol e] [--time-limit s] [--set k=v]\n"
+               "        scenarios share the base matrix; their objective and bounds may differ\n"
                "options:\n"
                "  --algorithm auto|oracle|pdlp|r2hpdhg   (default auto)\n"
                "  --precision fp64|mixed                 (first-order engines, default fp64)\n"
                "  --gpu                                  use the CUDA backend (CUDA builds only)\n"
+               "  --threads <n>                          CPU threads (default 1, 0 = all cores; same results)\n"
                "  --tol <eps>                            relative KKT tolerance (default 1e-8)\n"
                "  --time-limit <seconds>   --iteration-limit <n>\n"
                "  --out <file>                           write the solution file (tools/verify.py reads it)\n"
@@ -44,7 +49,7 @@ void usage(std::FILE* f) {
                "                                         re-solves, slower on others; see bench/warm_start.py)\n"
                "  --set name=value                       expert engine knob (see Options::engine_params), repeatable\n"
                "  -v | -vv                               verbosity\n",
-               kProductName, kVersion, kProductName, kProductName);
+               kProductName, kVersion, kProductName, kProductName, kProductName);
 }
 
 bool ends_with(const std::string& s, const char* suf) {
@@ -96,6 +101,8 @@ int cmd_solve(int argc, char** argv) {
       opt.iteration_limit = static_cast<std::int64_t>(v);
     } else if (a == "--warm") {
       warm = next();
+    } else if (a == "--threads") {
+      opt.threads = std::atoi(next());
     } else if (a == "--warm-weight") {
       warm_weight = true;
     } else if (a == "--set") {
@@ -177,6 +184,9 @@ int cmd_solve(int argc, char** argv) {
   std::printf("engine     %s (%s)\n", sol.engine.c_str(), sol.precision.c_str());
   std::printf("objective  %.12g\n", sol.objective);
   std::printf("residuals  primal %.2e  dual %.2e  gap %.2e\n", sol.primal_residual, sol.dual_residual, sol.gap);
+  if (sol.certified_bound == sol.certified_bound)
+    std::printf("certified  %s %.12g  (rounding-proof %s bound from y)\n", model.sense > 0 ? "optimum >=" : "optimum <=",
+                sol.certified_bound, model.sense > 0 ? "lower" : "upper");
   std::printf("iterations %lld   seconds %.3f   (setup %.3f)\n", static_cast<long long>(sol.iterations), sol.seconds,
               sol.setup_seconds);
   if (sol.iterations_to_fast >= 0)
@@ -191,6 +201,80 @@ int cmd_solve(int argc, char** argv) {
     }
   }
   return exit_code(sol.status);
+}
+
+int cmd_batch(int argc, char** argv) {
+  std::vector<std::string> files;
+  std::string out_dir;
+  Options opt;
+  for (int i = 0; i < argc; ++i) {
+    const std::string a = argv[i];
+    auto next = [&]() -> const char* {
+      if (i + 1 >= argc) {
+        std::fprintf(stderr, "missing value for %s\n", a.c_str());
+        std::exit(2);
+      }
+      return argv[++i];
+    };
+    if (a == "--out-dir") out_dir = next();
+    else if (a == "--tol") opt.tolerance = std::atof(next());
+    else if (a == "--time-limit") opt.time_limit = std::atof(next());
+    else if (a == "--iteration-limit") opt.iteration_limit = std::atoll(next());
+    else if (a == "-vv") opt.verbosity = 2;
+    else if (a == "--threads") opt.threads = std::atoi(next());
+    else if (a == "--set") {
+      const std::string kv = next();
+      const auto eq = kv.find('=');
+      if (eq == std::string::npos) return 2;
+      opt.engine_params.emplace_back(kv.substr(0, eq), std::atof(kv.c_str() + eq + 1));
+    } else if (!a.empty() && a[0] == '-') {
+      std::fprintf(stderr, "unknown option %s\n", a.c_str());
+      return 2;
+    } else {
+      files.push_back(a);
+    }
+  }
+  if (files.size() < 2 || !(opt.tolerance > 0) || !(opt.time_limit > 0)) {
+    usage(stderr);
+    return 2;
+  }
+  Model base;
+  if (auto r = io::read_lpm(files[0], base); !r.ok) {
+    std::fprintf(stderr, "read error: %s\n", r.error.c_str());
+    return kExitReadError;
+  }
+  std::vector<Scenario> sc;
+  std::vector<std::string> names;
+  for (std::size_t f = 1; f < files.size(); ++f) {
+    Model s;
+    if (auto r = io::read_lpm(files[f], s); !r.ok) {
+      std::fprintf(stderr, "read error (%s): %s\n", files[f].c_str(), r.error.c_str());
+      return kExitReadError;
+    }
+    if (s.num_rows != base.num_rows || s.num_cols != base.num_cols || s.sense != base.sense ||
+        s.col_start != base.col_start || s.row_index != base.row_index || s.value != base.value) {
+      std::fprintf(stderr, "%s: matrix or sense differs from the base model (batch needs a shared A)\n",
+                   files[f].c_str());
+      return 2;
+    }
+    sc.push_back(Scenario{s.obj, s.col_lower, s.col_upper, s.row_lower, s.row_upper});
+    const auto slash = files[f].find_last_of('/');
+    std::string nm = files[f].substr(slash == std::string::npos ? 0 : slash + 1);
+    names.push_back(nm.substr(0, nm.rfind('.')));
+  }
+  const auto sols = solve_batch(base, sc, opt);
+  int worst = 0;
+  for (std::size_t k = 0; k < sols.size(); ++k) {
+    const Solution& s = sols[k];
+    std::printf("%-28s %-14s obj %.12g  it %lld  t %.3fs%s%s\n", names[k].c_str(), to_string(s.status), s.objective,
+                static_cast<long long>(s.iterations), s.seconds, s.message.empty() ? "" : "  ", s.message.c_str());
+    worst = std::max(worst, exit_code(s.status));
+    if (!out_dir.empty()) {
+      std::string err;
+      if (!io::write_solution(out_dir + "/" + names[k] + ".sol", base, s, err)) std::fprintf(stderr, "%s\n", err.c_str());
+    }
+  }
+  return worst;
 }
 
 }  // namespace
@@ -210,6 +294,7 @@ int main(int argc, char** argv) {
     return 0;
   }
   if (cmd == "solve") return cmd_solve(argc - 2, argv + 2);
+  if (cmd == "batch") return cmd_batch(argc - 2, argv + 2);
   usage(stderr);
   return 2;
 }
