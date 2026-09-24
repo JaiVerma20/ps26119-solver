@@ -38,7 +38,10 @@ struct Options {
   // Termination normalization overrides (set internally by presolve so that a reduced model
   // is judged with the ORIGINAL model's ‖b‖₂, ‖c‖₂ and objective magnitude; −1 = own norms).
   double kkt_b_norm = -1, kkt_c_norm = -1, kkt_obj_shift = 0;
-  bool presolve = false;  // safe reductions + postsolve (src/core/presolve.h); result re-checked on the original
+  // Safe reductions + postsolve (src/core/presolve.h); the result is re-checked on the
+  // original model. Default ON since 01f2eec: full Netlib 85 vs 83 solved, no losses,
+  // −6% geomean iterations (bench/results/netlib-full-*-presolve-*-01f2eec.csv).
+  bool presolve = true;
   int threads = 1;  // CPU threads for first-order engines (0 = all cores); results do not depend on it
   // First-order engine knobs (defaults follow the cited papers; see src/pdhg/*.h).
   int ruiz_iterations = 10;

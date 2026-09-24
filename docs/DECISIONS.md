@@ -89,3 +89,6 @@ Newest last. Each entry: what, why, evidence, how to undo.
     postsolved point still misses on the original: re-solve the reduced model 100× tighter,
     then fall back to solving the original without presolve. A warm-started polish of the
     original was tried first and was fragile (stocfor2 4.8M vs 39k iterations) — removed.
+    Result at 01f2eec (full Netlib, 60 s): presolve 85 vs 83 solved, no losses, geomean
+    iterations −6%, total time −5%; safety net used on 4 models. **Presolve is ON by default**
+    (`--no-presolve` to disable).

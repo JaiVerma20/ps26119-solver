@@ -39,7 +39,11 @@ pdhg::KktStats original_kkt(const Model& M, const Solution& s) {
 // ORIGINAL model; if a first-order answer misses the tolerance there, polish it by a
 // warm-started solve of the original (so presolve never weakens what "Optimal" means).
 Solution solve(const Model& model, const Options& options) {
-  if (!options.presolve || !model.validate().empty()) return solve_direct(model, options);
+  // Invalid input (model or warm-start sizes) is reported by solve_direct before any
+  // presolve work touches it (mapping a wrong-sized warm start would read out of bounds).
+  const bool bad_warm = (!options.warm_x.empty() && static_cast<int>(options.warm_x.size()) != model.num_cols) ||
+                        (!options.warm_y.empty() && static_cast<int>(options.warm_y.size()) != model.num_rows);
+  if (!options.presolve || bad_warm || !model.validate().empty()) return solve_direct(model, options);
   const auto t0 = std::chrono::steady_clock::now();
   PresolveResult pr = presolve(model);
   if (pr.outcome == PresolveResult::Outcome::Unchanged) return solve_direct(model, options);

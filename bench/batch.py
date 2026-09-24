@@ -59,8 +59,9 @@ def main():
                 seq_t, seq_it, seq_obj = 0.0, 0, []
                 for p in paths:
                     sol = p[:-4] + ".seq.sol"
-                    subprocess.run([a.bin, "solve", p, "--tol", "1e-8", "--time-limit", str(a.time_limit), "--out", sol],
-                                   capture_output=True)
+                    # --no-presolve: the batch engine has no presolve, so compare the same algorithm
+                    subprocess.run([a.bin, "solve", p, "--tol", "1e-8", "--time-limit", str(a.time_limit), "--out", sol,
+                                    "--no-presolve"], capture_output=True)
                     h = read_solution(sol).header
                     seq_t += float(h["seconds"])
                     seq_it = max(seq_it, int(h["iterations"]))
