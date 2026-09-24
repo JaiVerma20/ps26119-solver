@@ -190,6 +190,12 @@ def main(argv=None) -> int:
     ap.add_argument("--expected", type=float, default=None, help="published optimal objective")
     ap.add_argument("--json", default=None, help="write the report as JSON here")
     ap.add_argument("--quiet", action="store_true")
+    argv = list(sys.argv[1:] if argv is None else argv)
+    # allow `--expected -464.75` (argparse would read the negative number as an option)
+    for k in range(len(argv) - 1):
+        if argv[k] == "--expected":
+            argv[k : k + 2] = [f"--expected={argv[k + 1]}"]
+            break
     a = ap.parse_args(argv)
     try:
         rep = verify(a.model, a.solution, a.expected)

@@ -1,0 +1,34 @@
+LPM 1
+# source max_ranged.mps
+# fingerprint 3ebaf6aa7bf71926
+NAME max_ranged
+SENSE MAX
+ROWS 3
+COLS 3
+NNZ 7
+OFFSET 7.5
+OBJ
+3.0 2.0 -1.0
+COL_LOWER
+0.0 -inf -1.0
+COL_UPPER
+3.0 inf 5.0
+ROW_LOWER
+-inf -1.0 1.0
+ROW_UPPER
+4.0 2.0 inf
+COL_START
+0 3 6 7
+ROW_INDEX
+0 1 2 0 1 2 0
+VALUE
+1.0 1.0 1.0 1.0 -1.0 3.0 1.0
+ROW_NAMES
+c1
+c2
+c3
+COL_NAMES
+x
+y
+z
+END

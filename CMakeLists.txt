@@ -30,6 +30,7 @@ set(PS26119_SOURCES
   src/core/solve.cpp
   src/io/lpm_reader.cpp
   src/io/solution_writer.cpp
+  src/oracle/dense_simplex.cpp
 )
 
 # The MPS reader belongs to a teammate (CLAUDE.md §2). Compile it only once it exists.

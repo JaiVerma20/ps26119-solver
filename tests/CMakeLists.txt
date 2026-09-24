@@ -4,6 +4,7 @@ set(PS26119_TEST_SOURCES
   unit/test_model.cpp
   unit/test_lpm.cpp
   unit/test_dd.cpp
+  unit/test_oracle.cpp
 )
 
 add_executable(ps26119_tests ${PS26119_TEST_SOURCES})
