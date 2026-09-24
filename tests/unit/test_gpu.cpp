@@ -115,3 +115,67 @@ TEST(Gpu, EnginesMatchCpuOnSmallNetlib) {
     }
   }
 }
+
+// Long rows (> 1024 nonzeros) take the block-per-row SpMV path; the Netlib set has none,
+// so build a model with a dense linking row (and a dense column, for Aᵀ).
+TEST(Gpu, LongRowKernelMatchesCpu) {
+  const int m = 1500, n = 3000;  // row 0 has 3000 entries, column 0 has 1500 (both > 1024)
+  Model mod;
+  mod.num_rows = m;
+  mod.num_cols = n;
+  mod.obj.resize(n);
+  mod.col_lower.assign(n, 0.0);
+  mod.col_upper.assign(n, 10.0);
+  mod.row_lower.assign(m, -kInf);
+  mod.row_upper.assign(m, 50.0);
+  mod.col_start.push_back(0);
+  for (int j = 0; j < n; ++j) {
+    mod.obj[j] = -1.0 - (j % 13) * 0.1;
+    mod.row_index.push_back(0);  // row 0 is dense: n = 3000 entries
+    mod.value.push_back(1.0 + (j % 5) * 0.25);
+    const int i = 1 + j % (m - 1);
+    mod.row_index.push_back(i);
+    mod.value.push_back(0.5 + (j % 7) * 0.1);
+    if (j == 0)  // column 0 is dense too (touches every row) ⇒ long row in Aᵀ
+      for (int r = 1; r < m; ++r)
+        if (r != i) mod.row_index.push_back(r), mod.value.push_back(0.3);
+    mod.col_start.push_back(static_cast<int>(mod.value.size()));
+  }
+  // column 0 entries must be unique and the col_start consistent
+  ASSERT_EQ(mod.validate(), "");
+  auto sp = pdhg::make_scaled_problem(mod, {});
+  std::string err;
+  auto cpu = pdhg::make_cpu_backend();
+  auto gpu = pdhg::make_backend(true, err);
+  ASSERT_TRUE(gpu) << err;
+  for (Precision prec : {Precision::Fp64, Precision::Mixed}) {
+    std::vector<double> out[2][2];
+    for (int t = 0; t < 2; ++t) {
+      pdhg::Backend& b = t ? *gpu : *cpu;
+      b.setup(sp);
+      b.set_precision(prec);
+      int x = b.create(pdhg::Space::Primal), g = b.create(pdhg::Space::Primal);
+      int y = b.create(pdhg::Space::Dual), ax = b.create(pdhg::Space::Dual);
+      std::vector<double> xi(n), yi(m);
+      for (int j = 0; j < n; ++j) xi[j] = std::sin(0.1 * j);
+      for (int i = 0; i < m; ++i) yi[i] = std::cos(0.3 * i);
+      b.upload(x, xi);
+      b.upload(y, yi);
+      b.spmv(x, ax);
+      b.spmv_t(y, g);
+      b.download(ax, out[t][0]);
+      b.download(g, out[t][1]);
+    }
+    const double tol = prec == Precision::Fp64 ? 1e-12 : 1e-4;
+    EXPECT_LT(max_rel_diff(out[0][0], out[1][0]), tol);
+    EXPECT_LT(max_rel_diff(out[0][1], out[1][1]), tol);
+  }
+  Options o;
+  o.algorithm = Algorithm::R2hpdhg;
+  auto c = solve(mod, o);
+  o.use_gpu = true;
+  auto gsol = solve(mod, o);
+  ASSERT_EQ(c.status, Status::Optimal) << c.message;
+  ASSERT_EQ(gsol.status, Status::Optimal) << gsol.message;
+  EXPECT_NEAR(gsol.objective, c.objective, 1e-6 * (1 + std::fabs(c.objective)));
+}

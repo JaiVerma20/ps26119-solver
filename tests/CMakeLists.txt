@@ -6,6 +6,7 @@ set(PS26119_TEST_SOURCES
   unit/test_dd.cpp
   unit/test_oracle.cpp
   unit/test_pdhg.cpp
+  unit/test_c_api.cpp
 )
 
 if(PS26119_ENABLE_CUDA)
@@ -17,6 +18,12 @@ target_link_libraries(ps26119_tests PRIVATE ps26119_core GTest::gtest_main)
 target_include_directories(ps26119_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(ps26119_tests PRIVATE PS26119_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 gtest_discover_tests(ps26119_tests DISCOVERY_TIMEOUT 60)
+
+# The C API header must compile as plain C.
+add_executable(c_api_smoke c_api_smoke.c)
+set_target_properties(c_api_smoke PROPERTIES C_STANDARD 99 LINKER_LANGUAGE CXX)
+target_link_libraries(c_api_smoke PRIVATE ps26119_core)
+add_test(NAME c_api.smoke COMMAND c_api_smoke)
 
 # Python tooling tests (MPS bridge + verifier) run under ctest when highspy is available.
 find_package(Python3 COMPONENTS Interpreter)

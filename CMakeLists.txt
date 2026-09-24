@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(ps26119 VERSION 0.1.0 LANGUAGES CXX)
+project(ps26119 VERSION 0.1.0 LANGUAGES C CXX)
 
 option(PS26119_ENABLE_CUDA "Build the CUDA backend (GPU machines only)" OFF)
 option(PS26119_ENABLE_OPENMP "Use OpenMP in CPU kernels" OFF)
@@ -35,6 +35,7 @@ set(PS26119_SOURCES
   src/core/model.cpp
   src/core/status.cpp
   src/core/solve.cpp
+  src/core/c_api.cpp
   src/io/lpm_reader.cpp
   src/io/solution_writer.cpp
   src/oracle/dense_simplex.cpp

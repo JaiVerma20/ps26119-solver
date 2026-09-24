@@ -90,17 +90,34 @@ def run(binary, path, engine, precision, gpu, time_limit, tmp, verify_max_nnz):
 
 
 def run_highs(path, time_limit, tmp):
-    from highs_ref import solve_with_highs
+    """HiGHS as a separate process with a HARD wall-clock kill: HiGHS's own time_limit is
+    not checked in every phase (seen on the T=8760 refinery LP, which ran far past it)."""
+    import json
+    import time
 
     info = lpgen.read_sidecar(path)
-    r = solve_with_highs(path, os.path.join(tmp, "h.sol"), time_limit)
-    return {"instance": info["name"], "family": "refinery" if "refinery" in info["generator"] else "random",
+    out_json = os.path.join(tmp, "h.json")
+    code = ("import json,sys; sys.path.insert(0, %r); from highs_ref import solve_with_highs; "
+            "r = solve_with_highs(%r, %r, %r); json.dump(r, open(%r, 'w'))"
+            % (os.path.join(ROOT, "tools"), path, os.path.join(tmp, "h.sol"), float(time_limit), out_json))
+    t0 = time.perf_counter()
+    try:
+        subprocess.run([sys.executable, "-c", code], timeout=time_limit + 30, capture_output=True)
+        with open(out_json) as f:
+            r = json.load(f)
+    except (subprocess.TimeoutExpired, OSError, ValueError):
+        r = {"status": "TimeLimit", "iterations": "", "seconds": time.perf_counter() - t0, "objective": float("nan")}
+    if os.path.exists(out_json):
+        os.remove(out_json)
+    base = {"instance": info["name"], "family": "refinery" if "refinery" in info["generator"] else "random",
             "rows": info["rows"], "cols": info["cols"], "nnz": info["nnz"], "engine": "highs", "backend": "cpu",
-            "precision": "fp64", "tolerance": "simplex/ipm default", "status": r["status"],
-            "iterations": r["iterations"], "seconds": f"{r['seconds']:.4f}", "objective": repr(r["objective"]),
-            "known_optimum": repr(info["optimum"]),
-            "rel_err_known": f"{abs(r['objective'] - info['optimum']) / (1 + abs(info['optimum'])):.2e}",
-            "seconds_to_1e-8": f"{r['seconds']:.4f}" if r["status"] == "Optimal" else "", "verify": "reference"}
+            "precision": "fp64", "tolerance": "HiGHS default", "status": r["status"],
+            "iterations": r["iterations"], "seconds": f"{r['seconds']:.4f}", "known_optimum": repr(info["optimum"]),
+            "verify": "reference"}
+    if r["status"] == "Optimal":
+        base.update({"objective": repr(r["objective"]), "seconds_to_1e-8": f"{r['seconds']:.4f}",
+                     "rel_err_known": f"{abs(r['objective'] - info['optimum']) / (1 + abs(info['optimum'])):.2e}"})
+    return base
 
 
 def plot(rows, png):

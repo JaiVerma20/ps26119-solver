@@ -1,0 +1,75 @@
+/* ps26119.h — C API (stable, exception-free boundary for C, Python ctypes, Fortran, ...).
+ *
+ * The model is passed in the same form as the C++ Model contract (CLAUDE.md §6):
+ *     minimise / maximise   cᵀx + obj_offset
+ *     subject to            row_lower ≤ A x ≤ row_upper,   col_lower ≤ x ≤ col_upper
+ * A in CSC: col_start[n+1], row_index[nnz], value[nnz]. Infinity = HUGE_VAL (IEEE inf).
+ * Dual convention as in solution.h (z = c − Aᵀy, HiGHS signs).
+ *
+ * No function throws or aborts: every error is returned as a status code.
+ */
+#ifndef PS26119_C_API_H
+#define PS26119_C_API_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* Status codes (same meaning and order as ps26119::Status). */
+enum {
+  PS26119_OPTIMAL = 0,
+  PS26119_INFEASIBLE = 1,
+  PS26119_UNBOUNDED = 2,
+  PS26119_ITERATION_LIMIT = 3,
+  PS26119_TIME_LIMIT = 4,
+  PS26119_NUMERICAL_ERROR = 5,
+  PS26119_NOT_SOLVED = 6,
+  PS26119_INVALID_ARGUMENT = 7 /* C API only: null pointer, bad size, invalid model */
+};
+
+enum { PS26119_ALG_AUTO = 0, PS26119_ALG_ORACLE = 1, PS26119_ALG_PDLP = 2, PS26119_ALG_R2HPDHG = 3 };
+enum { PS26119_PREC_FP64 = 0, PS26119_PREC_MIXED = 1 };
+
+typedef struct {
+  int algorithm;          /* PS26119_ALG_* */
+  int precision;          /* PS26119_PREC_* */
+  int use_gpu;            /* 0/1 (needs a CUDA build) */
+  double tolerance;       /* relative KKT target for first-order engines */
+  double time_limit;      /* seconds */
+  long long iteration_limit;
+  int verbosity;
+} ps26119_options;
+
+typedef struct {
+  int status;             /* PS26119_* */
+  double objective;       /* cᵀx + obj_offset */
+  double dual_objective;
+  double primal_residual; /* relative, see src/pdhg/termination.h */
+  double dual_residual;
+  double gap;
+  long long iterations;
+  double seconds;
+  char engine[16];
+  char message[160];
+} ps26119_result;
+
+/* Library version string, e.g. "0.1.0". */
+const char* ps26119_version(void);
+
+/* Fills *opt with the library defaults (r2hpdhg, fp64, CPU, tolerance 1e-8). */
+void ps26119_default_options(ps26119_options* opt);
+
+/* Solves the LP. x (n), y (m), z (n) may be NULL; when non-NULL they receive the primal
+ * point, row duals and reduced costs. is_integer may be NULL (all continuous).
+ * sense: +1 minimise, −1 maximise. opt may be NULL (defaults). Returns result->status. */
+int ps26119_solve_lp(int num_rows, int num_cols, int sense, double obj_offset, const double* c,
+                     const double* col_lower, const double* col_upper, const double* row_lower,
+                     const double* row_upper, const int* col_start, const int* row_index,
+                     const double* value, const ps26119_options* opt, ps26119_result* result,
+                     double* x, double* y, double* z);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* PS26119_C_API_H */
