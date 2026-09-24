@@ -5,6 +5,8 @@
 #include "ps26119/solve.h"
 
 #include "oracle/dense_simplex.h"
+#include "pdhg/pdlp.h"
+#include "pdhg/r2hpdhg.h"
 
 namespace ps26119 {
 
@@ -30,9 +32,12 @@ Solution solve(const Model& model, const Options& options) {
       sol = oracle::solve_dense_simplex(model, o);
       break;
     }
-    default:
-      sol.status = Status::NotSolved;
-      sol.message = std::string("engine not implemented: ") + to_string(options.algorithm);
+    case Algorithm::Pdlp:
+      sol = pdhg::solve_pdlp(model, pdhg::engine_options_from(options));
+      break;
+    case Algorithm::Auto:
+    case Algorithm::R2hpdhg:
+      sol = pdhg::solve_r2hpdhg(model, pdhg::engine_options_from(options));
       break;
   }
   sol.model_fingerprint = model.fingerprint_hex();
