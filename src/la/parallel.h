@@ -10,6 +10,7 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <condition_variable>
 #include <cstdint>
 #include <functional>
@@ -31,28 +32,33 @@ class ThreadPool {
     if (t == threads_) return;
     stop();
     threads_ = t;
-    for (int i = 1; i < threads_; ++i) workers_.emplace_back([this, i] { loop(i); });
+    for (int i = 1; i < threads_; ++i) workers_.emplace_back([this] { loop(); });
   }
   int threads() const { return threads_; }
 
   // Runs f(chunk) for chunk = 0..chunks-1, spread over the pool; returns when all are done.
+  // Chunks are claimed with an atomic counter; idle workers spin briefly (then sleep), so a
+  // dispatch costs microseconds, not a condition-variable round trip per call.
   void run(int chunks, const std::function<void(int)>& f) {
     if (threads_ <= 1 || chunks <= 1) {
       for (int c = 0; c < chunks; ++c) f(c);
       return;
     }
+    // No worker may still be inside the previous job while we publish a new one.
+    while (active_.load(std::memory_order_acquire) != 0) std::this_thread::yield();
+    job_ = &f;
+    chunks_ = chunks;
+    next_.store(0, std::memory_order_relaxed);
+    done_.store(0, std::memory_order_relaxed);
     {
-      std::unique_lock<std::mutex> lk(m_);
-      job_ = &f;
-      chunks_ = chunks;
-      next_ = 0;
-      done_ = 0;
-      ++generation_;
+      std::lock_guard<std::mutex> lk(m_);
+      generation_.fetch_add(1, std::memory_order_release);  // publishes the job
     }
     cv_.notify_all();
-    work();  // the calling thread helps
-    std::unique_lock<std::mutex> lk(m_);
-    finished_.wait(lk, [&] { return done_ == chunks_; });
+    work(job_, chunks_);  // the calling thread helps
+    while (done_.load(std::memory_order_acquire) != chunks) std::this_thread::yield();
+    // f lives on the caller's stack: wait until every worker has left before returning.
+    while (active_.load(std::memory_order_acquire) != 0) std::this_thread::yield();
     job_ = nullptr;
   }
 
@@ -60,54 +66,59 @@ class ThreadPool {
 
  private:
   ThreadPool() = default;
-  void work() {
+  void work(const std::function<void(int)>* f, int chunks) {
     for (;;) {
-      int c;
-      const std::function<void(int)>* f;
-      {
-        std::lock_guard<std::mutex> lk(m_);
-        if (!job_ || next_ >= chunks_) return;
-        c = next_++;
-        f = job_;
-      }
+      const int c = next_.fetch_add(1, std::memory_order_acq_rel);
+      if (c >= chunks) return;
       (*f)(c);
-      {
-        std::lock_guard<std::mutex> lk(m_);
-        if (++done_ == chunks_) finished_.notify_all();
-      }
+      done_.fetch_add(1, std::memory_order_acq_rel);
     }
   }
-  void loop(int) {
-    std::uint64_t seen = 0;
+  // Worker protocol: announce yourself (active_++), THEN read the generation. The dispatcher
+  // only (re)publishes when active_ == 0, so a worker that sees a new generation sees a fully
+  // published job, and a worker that sees the old one simply backs off.
+  void loop() {
+    std::uint64_t seen = generation_.load(std::memory_order_acquire);
     for (;;) {
-      {
-        std::unique_lock<std::mutex> lk(m_);
-        cv_.wait(lk, [&] { return quit_ || (generation_ != seen && job_ != nullptr); });
-        if (quit_) return;
-        seen = generation_;
+      for (int spin = 0; spin < 20000; ++spin) {  // iterations dispatch back to back: spin briefly
+        if (quit_.load(std::memory_order_acquire)) return;
+        if (generation_.load(std::memory_order_acquire) != seen) break;
+        if ((spin & 63) == 63) std::this_thread::yield();
       }
-      work();
+      if (generation_.load(std::memory_order_acquire) == seen) {
+        std::unique_lock<std::mutex> lk(m_);
+        cv_.wait(lk, [&] { return quit_.load() || generation_.load() != seen; });
+        if (quit_.load()) return;
+      }
+      active_.fetch_add(1, std::memory_order_acq_rel);
+      const std::uint64_t g = generation_.load(std::memory_order_acquire);
+      if (g != seen) {
+        seen = g;
+        work(job_, chunks_);
+      }
+      active_.fetch_sub(1, std::memory_order_acq_rel);
     }
   }
   void stop() {
     {
       std::lock_guard<std::mutex> lk(m_);
-      quit_ = true;
+      quit_.store(true);
     }
     cv_.notify_all();
     for (auto& w : workers_) w.join();
     workers_.clear();
-    quit_ = false;
+    quit_.store(false);
   }
 
   int threads_ = 1;
   std::vector<std::thread> workers_;
   std::mutex m_;
-  std::condition_variable cv_, finished_;
+  std::condition_variable cv_;
   const std::function<void(int)>* job_ = nullptr;
-  int chunks_ = 0, next_ = 0, done_ = 0;
-  std::uint64_t generation_ = 0;
-  bool quit_ = false;
+  int chunks_ = 0;
+  std::atomic<int> next_{0}, done_{0}, active_{0};
+  std::atomic<std::uint64_t> generation_{0};
+  std::atomic<bool> quit_{false};
 };
 
 // Fixed chunk count for reductions (independent of the thread count ⇒ same rounding).

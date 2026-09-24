@@ -338,3 +338,43 @@ TEST(PdhgScaling, GeometricMeanIsAdaptive) {
   ASSERT_EQ(s.status, Status::Optimal);
   EXPECT_NEAR(s.objective, -464.75314286, 1e-6);
 }
+
+// Determinism across thread counts (la/parallel.h): identical iterations and bit-identical
+// solutions for 1 and 4 threads, on a model large enough to actually use the pool. Also a
+// stress test of the pool's dispatch protocol (many short parallel calls).
+TEST(PdhgThreads, BitIdenticalForAnyThreadCount) {
+  Model m;
+  ASSERT_TRUE(io::read_lpm(data("netlib_small/stocfor1.lpm"), m).ok);
+  // replicate stocfor1 block-diagonally so vectors exceed the parallel thresholds
+  const int copies = 400;
+  Model big;
+  big.num_rows = m.num_rows * copies;
+  big.num_cols = m.num_cols * copies;
+  big.col_start = {0};
+  for (int c = 0; c < copies; ++c) {
+    for (int j = 0; j < m.num_cols; ++j) {
+      big.obj.push_back(m.obj[j] * (1.0 + 0.001 * c));
+      big.col_lower.push_back(m.col_lower[j]);
+      big.col_upper.push_back(m.col_upper[j]);
+      for (int p = m.col_start[j]; p < m.col_start[j + 1]; ++p) {
+        big.row_index.push_back(m.row_index[p] + c * m.num_rows);
+        big.value.push_back(m.value[p]);
+      }
+      big.col_start.push_back(static_cast<int>(big.value.size()));
+    }
+    big.row_lower.insert(big.row_lower.end(), m.row_lower.begin(), m.row_lower.end());
+    big.row_upper.insert(big.row_upper.end(), m.row_upper.begin(), m.row_upper.end());
+  }
+  ASSERT_EQ(big.validate(), "");
+  Options o;
+  o.tolerance = 1e-6;
+  o.threads = 1;
+  auto a = solve(big, o);
+  o.threads = 4;
+  auto b = solve(big, o);
+  ASSERT_EQ(a.status, Status::Optimal) << a.message;
+  EXPECT_EQ(a.iterations, b.iterations);
+  EXPECT_EQ(a.x, b.x);
+  EXPECT_EQ(a.y, b.y);
+  EXPECT_EQ(a.objective, b.objective);
+}
