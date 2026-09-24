@@ -1,0 +1,9 @@
+# Third-party material
+
+Rules: CLAUDE.md §4. Solver core (`src/`) contains only our own code — papers and public
+repositories that informed an algorithm are cited in the file header, never pasted.
+This table lists third-party code or tools used in `tools/`, `bench/`, `tests/` and the build.
+
+| What | Licence | Source URL | Where used | What was used |
+|---|---|---|---|---|
+| GoogleTest v1.15.2 | BSD-3-Clause | https://github.com/google/googletest | tests (FetchContent, not in the binary) | test framework |
