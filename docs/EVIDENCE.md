@@ -36,28 +36,6 @@ Iterations to 1e-8 (fp64): r²HPDHG needs fewer than PDLP-style PDHG on 10 of 10
 
 ## 1b. Full Netlib LP set (first-order engine)
 
-Source: `bench/results/netlib-full-r2hpdhg-fp64-macbook-air-m4-5649634.csv` — r2hpdhg fp64 on cpu (`macbook-air-m4`, Apple M4), commit `5649634`, time limit 60.0 s per model.
-
-- **79 of 93** Netlib LPs solved to relative KKT 1e-8 and verified PASS by `tools/verify.py`; **79** of those agree with HiGHS to 1e-6 relative.
-- 14 hit the time/iteration limit (listed below, not hidden); 0 other outcomes.
-
-| model | rows | cols | nnz | status | iterations | rel. err vs HiGHS at stop |
-|---|---|---|---|---|---|---|
-| bnl1 | 643 | 1175 | 5121 | TimeLimit | 9924800 | 7.33e-06 |
-| d2q06c | 2171 | 5167 | 32417 | TimeLimit | 1753216 | 1.03e-08 |
-| fit1d | 24 | 1026 | 13404 | TimeLimit | 3700672 | 2.24e-06 |
-| fit2d | 25 | 10500 | 129018 | TimeLimit | 342592 | 1.87e-04 |
-| greenbea | 2392 | 5405 | 30877 | TimeLimit | 1592768 | 1.25e-03 |
-| greenbeb | 2392 | 5405 | 30877 | TimeLimit | 1615360 | 1.44e-11 |
-| nesm | 662 | 2923 | 13288 | TimeLimit | 3791552 | 3.76e-05 |
-| perold | 625 | 1376 | 6018 | TimeLimit | 7291648 | 7.89e-07 |
-| pilot.ja | 940 | 1988 | 14698 | TimeLimit | 3131328 | 6.79e-04 |
-| pilot | 1441 | 3652 | 43167 | TimeLimit | 1132800 | 1.55e-04 |
-| pilot.we | 722 | 2789 | 9126 | TimeLimit | 4180288 | 3.12e-04 |
-| pilot4 | 410 | 1000 | 5141 | TimeLimit | 9221824 | 1.48e-06 |
-| pilot87 | 2030 | 4883 | 73152 | TimeLimit | 720512 | 1.14e-06 |
-| scrs8 | 490 | 1169 | 3182 | TimeLimit | 12984512 | 6.50e+03 |
-
 Source: `bench/results/netlib-full-r2hpdhg-fp64-macbook-air-m4-f10527c.csv` — r2hpdhg fp64 on cpu (`macbook-air-m4`, Apple M4), commit `f10527c`, time limit 60.0 s per model.
 
 - **81 of 93** Netlib LPs solved to relative KKT 1e-8 and verified PASS by `tools/verify.py`; **81** of those agree with HiGHS to 1e-6 relative.
@@ -81,33 +59,6 @@ Source: `bench/results/netlib-full-r2hpdhg-fp64-macbook-air-m4-f10527c.csv` — 
 
 ## 2. Scaling on generated LPs with known optimum (CPU)
 
-Source: `bench/results/scale-macbook-air-m4-62a13f2.csv` — machine `macbook-air-m4` (Apple M4; GPU: none), commit `62a13f2`.
-
-| instance | rows | nnz | engine | backend | prec | status | iterations | s to 1e-4 | s to 1e-8 | ms/iter | rel. err vs known opt | verify |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| rand-10000-s1 | 10000 | 60024 | r2hpdhg | cpu | fp64 | Optimal | 1472 | 0.0637 | 0.192 | 0.115 | 8.59e-10 | PASS |
-| rand-10000-s1 | 10000 | 60024 | r2hpdhg | cpu | mixed | Optimal | 1664 | 0.0635 | 0.204 | 0.108 | 8.26e-10 | PASS |
-| rand-10000-s1 | 10000 | 60024 | highs | cpu | fp64 | Optimal | 57659 | – | 46.4 | – | 6.46e-15 | reference |
-| rand-100000-s1 | 100000 | 600228 | r2hpdhg | cpu | fp64 | Optimal | 2944 | 1.35 | 6.78 | 2.23 | 2.13e-10 | PASS |
-| rand-100000-s1 | 100000 | 600228 | r2hpdhg | cpu | mixed | Optimal | 3008 | 0.717 | 4.04 | 1.31 | 2.89e-10 | PASS |
-| rand-100000-s1 | 100000 | 600228 | highs | cpu | fp64 | TimeLimit | 109027 | – | – | – | – | reference |
-| rand-1000000-s1 | 1000000 | 6002453 | r2hpdhg | cpu | fp64 | Optimal | 18048 | 9.73 | 294 | 16.1 | 1.35e-11 | skipped |
-| rand-1000000-s1 | 1000000 | 6002453 | r2hpdhg | cpu | mixed | Optimal | 20608 | 9.08 | 327 | 15.7 | 5.12e-12 | skipped |
-| rand-1000000-s1 | 1000000 | 6002453 | highs | cpu | fp64 | TimeLimit | 371692 | – | – | – | – | reference |
-| refinery-T12-s1 | 588 | 2065 | r2hpdhg | cpu | fp64 | Optimal | 960 | 0.0028 | 0.0041 | 0.0027 | 1.59e-10 | PASS |
-| refinery-T12-s1 | 588 | 2065 | r2hpdhg | cpu | mixed | Optimal | 1920 | 0.0026 | 0.006 | 0.0024 | 6.31e-10 | PASS |
-| refinery-T12-s1 | 588 | 2065 | highs | cpu | fp64 | Optimal | 540 | – | 0.0073 | – | 7.50e-16 | reference |
-| refinery-T365-s1 | 17885 | 63134 | r2hpdhg | cpu | fp64 | Optimal | 1728 | 0.1 | 0.2 | 0.0906 | 1.87e-12 | PASS |
-| refinery-T365-s1 | 17885 | 63134 | r2hpdhg | cpu | mixed | Optimal | 2176 | 0.0899 | 0.222 | 0.0818 | 3.53e-11 | PASS |
-| refinery-T365-s1 | 17885 | 63134 | highs | cpu | fp64 | Optimal | 31115 | – | 3.38 | – | 1.38e-15 | reference |
-| refinery-T8760-s1 | 429240 | 1515469 | r2hpdhg | cpu | fp64 | Optimal | 2752 | 2.54 | 7.38 | 2.27 | 5.41e-13 | PASS |
-| refinery-T8760-s1 | 429240 | 1515469 | r2hpdhg | cpu | mixed | Optimal | 2688 | 2.42 | 6.9 | 2.15 | 6.09e-13 | PASS |
-| refinery-T8760-s1 | 429240 | 1515469 | highs | cpu | fp64 | TimeLimit | – | – | – | – | – | reference |
-
-![scaling chart](../bench/results/scale-macbook-air-m4-62a13f2.png)
-
-Reference: HiGHS (simplex/IPM default, run as a separate Python process, returns a vertex/high-accuracy solution — not the same accuracy target as a 1e-8 relative-KKT first-order stop). Rows marked TimeLimit did not finish within the cap.
-
 Source: `bench/results/scale-macbook-air-m4-f10527c.csv` — machine `macbook-air-m4` (Apple M4; GPU: none), commit `f10527c`.
 
 | instance | rows | nnz | engine | backend | prec | status | iterations | s to 1e-4 | s to 1e-8 | ms/iter | rel. err vs known opt | verify |
@@ -126,6 +77,19 @@ Source: `bench/results/scale-macbook-air-m4-f10527c.csv` — machine `macbook-ai
 | refinery-T8760-s1 | 429240 | 1515469 | r2hpdhg | cpu | mixed | Optimal | 2688 | 2.13 | 6.64 | 2.16 | 6.10e-13 | PASS |
 
 ![scaling chart](../bench/results/scale-macbook-air-m4-f10527c.png)
+
+### 2b. Reference: HiGHS on the same instances
+
+Source: `bench/results/scale-macbook-air-m4-62a13f2.csv` (same run, same machine). HiGHS default algorithm, separate process, hard-killed at the cap. HiGHS returns a vertex solution at simplex accuracy; our column is time to relative KKT 1e-8 with verifier-grade feasibility — not the identical accuracy target.
+
+| instance | rows | nnz | r²HPDHG fp64 s→1e-8 | HiGHS s |
+|---|---|---|---|---|
+| rand-10000-s1 | 10000 | 60024 | 0.192 | 46.4 |
+| rand-100000-s1 | 100000 | 600228 | 6.78 | > 600 (TimeLimit) |
+| rand-1000000-s1 | 1000000 | 6002453 | 294 | > 600 (TimeLimit) |
+| refinery-T12-s1 | 588 | 2065 | 0.0041 | 0.0073 |
+| refinery-T365-s1 | 17885 | 63134 | 0.2 | 3.38 |
+| refinery-T8760-s1 | 429240 | 1515469 | 7.38 | > 630 (TimeLimit) |
 
 
 ## 3. CPU vs GPU

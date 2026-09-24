@@ -204,15 +204,38 @@ def main():
         doc += ["", "### Same set on GPU", "", netlib_section(net_gpu)]
 
     fulls = [p for p in paths if os.path.basename(p).startswith("netlib-full-")]
+    # latest run per configuration tag (engine-precision[-gpu]-machine)
+    by_tag = {}
+    for p in fulls:
+        tag = os.path.basename(p).rsplit("-", 1)[0]
+        by_tag.setdefault(tag, []).append(p)
+    fulls = [latest(v, "netlib-full-") for v in by_tag.values()]
     doc += ["", "## 1b. Full Netlib LP set (first-order engine)", ""]
     doc += [netlib_full_section(p) + "\n" for p in fulls] or ["_No committed full-Netlib CSV yet._"]
 
     doc += ["", "## 2. Scaling on generated LPs with known optimum (CPU)", ""]
     if cpu_scales:
-        for p in cpu_scales:
-            doc += [scale_section(p), ""]
+        doc += [scale_section(latest(cpu_scales, "scale-")), ""]
     else:
         doc.append("_No committed CPU scaling CSV yet._")
+    # established-solver comparison: runs that include HiGHS, with our engine from the SAME run
+    with_highs = [p for p in cpu_scales if any(r["engine"] == "highs" for r in load(p))]
+    if with_highs:
+        p = latest(with_highs, "scale-")
+        rows = load(p)
+        body = []
+        for inst in dict.fromkeys(r["instance"] for r in rows):
+            h = next((r for r in rows if r["instance"] == inst and r["engine"] == "highs"), None)
+            o = next((r for r in rows if r["instance"] == inst and r["engine"] == "r2hpdhg" and r["precision"] == "fp64"),
+                     None)
+            if h and o:
+                body.append([inst, o["rows"], o["nnz"], fnum(o["seconds_to_1e-8"]),
+                             fnum(h["seconds_to_1e-8"]) if h["status"] == "Optimal" else f"> {fnum(h['seconds'])} ({h['status']})"])
+        doc += ["### 2b. Reference: HiGHS on the same instances", "",
+                f"Source: `{p}` (same run, same machine). HiGHS default algorithm, separate process, hard-killed "
+                "at the cap. HiGHS returns a vertex solution at simplex accuracy; our column is time to relative "
+                "KKT 1e-8 with verifier-grade feasibility — not the identical accuracy target.", "",
+                table(["instance", "rows", "nnz", "r²HPDHG fp64 s→1e-8", "HiGHS s"], body), ""]
 
     doc += ["", "## 3. CPU vs GPU", ""]
     if gpu_scales or net_gpu:
