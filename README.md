@@ -26,6 +26,7 @@ python3 tools/verify.py data/netlib_small/afiro.mps afiro.sol --expected -464.75
 Warm start from a previous solution (what-if re-solves): `--warm previous.sol`.
 Many scenarios sharing one matrix in one pass: `build/ps26119 batch base.lpm s1.lpm s2.lpm ... --out-dir out/`.
 Every solve reports a **certified** (rounding-proof) bound on the optimum computed from its duals.
+Presolve (safe reductions + postsolve) runs by default; `--no-presolve` disables it.
 Multi-core CPU: `--threads 0` (results are identical for any thread count).
 
 Python (ctypes over the C API; build first):

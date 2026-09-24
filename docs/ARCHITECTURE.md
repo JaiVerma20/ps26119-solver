@@ -12,7 +12,8 @@ simplex beside it. Library first; the CLI and Python layers are thin.
    readers:  io/lpm_reader  |  io/mps_reader (TEAMMATE)     io/solution_writer
                  │   Model (CSC, row bounds, col bounds)        ▲
                  ▼                                              │ Solution
-          core/solve()  ── validate ── dispatch ──────────────────┘
+          core/solve()  ── validate ── presolve ── dispatch ── postsolve ── re-check on original ──┘
+             │              (core/presolve: empty rows, fixed/empty cols, singleton rows)
              │               │                 │
        oracle/dense_simplex  pdhg/ (PDLP, r²HPDHG)   (later) simplex/, mip/
        double-double, tiny    │ engine logic in fp64 on host
@@ -21,6 +22,18 @@ simplex beside it. Library first; the CLI and Python layers are thin.
                       ├── CPU backend  (fp64 or fp32 iterate, fp64 residuals)
                       └── gpu/ CUDA backend (same interface; compiled with PS26119_ENABLE_CUDA)
 ```
+
+**Every solution carries a certified bound** (`core/safe_bound`, Neumaier–Shcherbina):
+a rounding-proof bound on the optimum from the returned duals, using rigorous implied
+column bounds (`core/implied_bounds`, bound propagation with outward rounding) where the
+model leaves a column unbounded.
+
+**Batched scenarios** (`include/ps26119/batch.h`, `pdhg/batch.cpp`): K LPs sharing A run the
+same r²HPDHG per scenario in lockstep; each iteration multiplies A with K vectors (SpMM);
+finished scenarios are compacted out. CPU only so far.
+
+**Threads** (`la/parallel.h`): a small deterministic pool (fixed chunking, fixed-order
+reductions) — bit-identical results for any thread count.
 
 **Contracts.** `include/ps26119/model.h` (shared with the MPS reader author, CLAUDE.md §6)
 and `solution.h` (§7). Tolerances live only in `tolerances.h`. Every Solution carries the
