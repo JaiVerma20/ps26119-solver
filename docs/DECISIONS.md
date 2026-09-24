@@ -39,7 +39,8 @@ Newest last. Each entry: what, why, evidence, how to undo.
     and divergence. Lanczos + ×(1+1e-4) safety. scrs8, bnl1, greenbeb now solve.
 11. **r²HPDHG safeguards (ours, beyond cuPDLPx):** restart ratio tests only with positive
     finite residuals; PID step |Δ log ω| ≤ ln 10 per restart. Net −6% iterations on small
-    Netlib; within a few % on generated models.
+    Netlib; within a few % on generated models. Isolated with `--set pid_max_log_step=1e9`:
+    neutral on most models, bnl1 6.45M vs 9.69M iterations with the clamp (kept).
 12. **Infeasible/Unbounded only from checked certificates.** A primal ray alone proves only
     dual infeasibility, so Unbounded additionally needs a primal-feasible iterate; otherwise
     the engine keeps iterating to its limit rather than guess.

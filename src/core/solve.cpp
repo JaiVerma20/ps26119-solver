@@ -43,12 +43,17 @@ Solution solve(const Model& model, const Options& options) {
         break;
       }
       case Algorithm::Pdlp:
-        sol = pdhg::solve_pdlp(model, pdhg::engine_options_from(options));
-        break;
       case Algorithm::Auto:
-      case Algorithm::R2hpdhg:
-        sol = pdhg::solve_r2hpdhg(model, pdhg::engine_options_from(options));
+      case Algorithm::R2hpdhg: {
+        pdhg::EngineOptions eo = pdhg::engine_options_from(options);
+        if (auto bad = pdhg::apply_engine_params(options, eo); !bad.empty()) {
+          sol.status = Status::NotSolved;
+          sol.message = "unknown engine parameter '" + bad + "'";
+          break;
+        }
+        sol = options.algorithm == Algorithm::Pdlp ? pdhg::solve_pdlp(model, eo) : pdhg::solve_r2hpdhg(model, eo);
         break;
+      }
     }
   } catch (const std::bad_alloc&) {
     sol = Solution{};

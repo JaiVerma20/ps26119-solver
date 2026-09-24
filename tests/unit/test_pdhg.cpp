@@ -301,3 +301,16 @@ TEST(PdhgWarmStart, PerturbedObjectiveNeedsFewerIterations) {
   EXPECT_NEAR(warm.objective, cold.objective, 1e-6 * (1 + std::fabs(cold.objective)));
   EXPECT_LT(warm.iterations, cold.iterations);
 }
+
+TEST(PdhgEngineParams, KnownAndUnknownNames) {
+  Options o;
+  o.algorithm = Algorithm::R2hpdhg;
+  o.engine_params = {{"reflection", 0.5}, {"pid_max_log_step", 1e9}};
+  auto s = solve(wyndor(), o);
+  EXPECT_EQ(s.status, Status::Optimal) << s.message;
+  EXPECT_NEAR(s.objective, 36, 1e-6);
+  o.engine_params = {{"no_such_knob", 1}};
+  s = solve(wyndor(), o);
+  EXPECT_EQ(s.status, Status::NotSolved);
+  EXPECT_NE(s.message.find("no_such_knob"), std::string::npos);
+}

@@ -42,6 +42,7 @@ void usage(std::FILE* f) {
                "  --warm <file>                          warm start from a previous solution file (same model shape)\n"
                "  --warm-weight                          with --warm: also reuse its primal weight (faster on some\n"
                "                                         re-solves, slower on others; see bench/warm_start.py)\n"
+               "  --set name=value                       expert engine knob (see Options::engine_params), repeatable\n"
                "  -v | -vv                               verbosity\n",
                kProductName, kVersion, kProductName, kProductName);
 }
@@ -97,6 +98,16 @@ int cmd_solve(int argc, char** argv) {
       warm = next();
     } else if (a == "--warm-weight") {
       warm_weight = true;
+    } else if (a == "--set") {
+      const std::string kv = next();
+      const auto eq = kv.find('=');
+      char* end = nullptr;
+      const double v = eq == std::string::npos ? 0 : std::strtod(kv.c_str() + eq + 1, &end);
+      if (eq == std::string::npos || end == kv.c_str() + eq + 1 || *end != '\0') {
+        std::fprintf(stderr, "--set expects name=number, got '%s'\n", kv.c_str());
+        return 2;
+      }
+      opt.engine_params.emplace_back(kv.substr(0, eq), v);
     } else if (a == "--out") {
       out = next();
     } else if (a == "-v") {

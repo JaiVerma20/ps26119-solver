@@ -47,6 +47,8 @@ struct EngineOptions {
 };
 
 EngineOptions engine_options_from(const Options& o);
+// Applies Options::engine_params; returns the first unknown name, or "" if all are known.
+std::string apply_engine_params(const Options& o, EngineOptions& e);
 
 class PrecisionPolicy {
  public:

@@ -26,6 +26,23 @@ EngineOptions engine_options_from(const Options& o) {
   return e;
 }
 
+std::string apply_engine_params(const Options& o, EngineOptions& e) {
+  for (const auto& [name, v] : o.engine_params) {
+    if (name == "reflection") e.reflection = v;
+    else if (name == "restart_sufficient") e.restart_sufficient = v;
+    else if (name == "restart_necessary") e.restart_necessary = v;
+    else if (name == "restart_artificial") e.restart_artificial = v;
+    else if (name == "pid_kp") e.pid_kp = v;
+    else if (name == "pid_ki") e.pid_ki = v;
+    else if (name == "pid_kd") e.pid_kd = v;
+    else if (name == "pid_integral_decay") e.pid_integral_decay = v;
+    else if (name == "pid_max_log_step") e.pid_max_log_step = v;
+    else if (name == "bound_objective_rescaling") e.scaling.bound_objective_rescaling = v != 0;
+    else return name;
+  }
+  return {};
+}
+
 // ------------------------------------------------------------------ precision policy
 PrecisionPolicy::PrecisionPolicy(Backend& b, const EngineOptions& opt)
     : b_(b), mixed_(opt.precision == Precision::Mixed), target_(opt.tolerance) {

@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "ps26119/tolerances.h"
@@ -46,6 +47,11 @@ struct Options {
   // > 0: start from this ω (Solution::primal_weight). Opt-in: measured on refinery what-if
   // re-solves it helps some scenarios and hurts others (bench/warm_start.py).
   double warm_primal_weight = 0.0;
+  // Expert / research knobs for the first-order engines, by name (see
+  // pdhg::EngineOptions: reflection, restart_sufficient, restart_necessary,
+  // restart_artificial, pid_kp, pid_ki, pid_kd, pid_integral_decay, pid_max_log_step,
+  // bound_objective_rescaling). An unknown name makes solve() return NotSolved.
+  std::vector<std::pair<std::string, double>> engine_params;
 };
 
 }  // namespace ps26119
