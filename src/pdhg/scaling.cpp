@@ -47,6 +47,37 @@ ScaledProblem make_scaled_problem(const Model& model, const ScalingOptions& opt)
   sp.col_scale.assign(sp.n, 1.0);
 
   std::vector<double> rn, cn, rf(sp.m), cf(sp.n);
+  if (opt.geometric_mean_iterations > 0) {
+    // factors are recomputed from the ORIGINAL entries each sweep (Gauss–Seidel between
+    // rows and columns), then applied once
+    const la::Csr<double>& A0 = sp.A_orig;
+    std::vector<double> r(sp.m, 1.0), c(sp.n, 1.0), lo, hi;
+    auto clampf = [](double v) { return std::min(std::max(v, 1e-20), 1e20); };
+    for (int it = 0; it < opt.geometric_mean_iterations; ++it) {
+      lo.assign(sp.m, kInf);
+      hi.assign(sp.m, 0.0);
+      for (int i = 0; i < sp.m; ++i)
+        for (std::int64_t k = A0.row_ptr[i]; k < A0.row_ptr[i + 1]; ++k) {
+          const double v = std::fabs(A0.val[k]) * c[A0.col[k]];
+          if (v > 0 && std::isfinite(v)) lo[i] = std::min(lo[i], v), hi[i] = std::max(hi[i], v);
+        }
+      for (int i = 0; i < sp.m; ++i)
+        if (hi[i] > 0) r[i] = clampf(1.0 / (std::sqrt(lo[i]) * std::sqrt(hi[i])));
+      lo.assign(sp.n, kInf);
+      hi.assign(sp.n, 0.0);
+      for (int i = 0; i < sp.m; ++i)
+        for (std::int64_t k = A0.row_ptr[i]; k < A0.row_ptr[i + 1]; ++k) {
+          const int j = A0.col[k];
+          const double v = std::fabs(A0.val[k]) * r[i];
+          if (v > 0 && std::isfinite(v)) lo[j] = std::min(lo[j], v), hi[j] = std::max(hi[j], v);
+        }
+      for (int j = 0; j < sp.n; ++j)
+        if (hi[j] > 0) c[j] = clampf(1.0 / (std::sqrt(lo[j]) * std::sqrt(hi[j])));
+    }
+    apply(sp.A, r, c);
+    sp.row_scale = r;
+    sp.col_scale = c;
+  }
   for (int it = 0; it < opt.ruiz_iterations; ++it) {
     norms(sp.A, true, rn, cn);
     for (int i = 0; i < sp.m; ++i) rf[i] = safe_inv_sqrt(rn[i]);

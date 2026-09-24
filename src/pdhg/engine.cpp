@@ -38,6 +38,9 @@ std::string apply_engine_params(const Options& o, EngineOptions& e) {
     else if (name == "pid_integral_decay") e.pid_integral_decay = v;
     else if (name == "pid_max_log_step") e.pid_max_log_step = v;
     else if (name == "bound_objective_rescaling") e.scaling.bound_objective_rescaling = v != 0;
+    else if (name == "geometric_mean_iterations") e.scaling.geometric_mean_iterations = static_cast<int>(v);
+    else if (name == "ruiz_iterations") e.scaling.ruiz_iterations = static_cast<int>(v);
+    else if (name == "pock_chambolle") e.scaling.pock_chambolle = v != 0;
     else return name;
   }
   return {};

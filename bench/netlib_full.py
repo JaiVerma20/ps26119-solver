@@ -32,7 +32,7 @@ from lpm import read_solution  # noqa: E402
 from machine_info import machine_info  # noqa: E402
 
 DATA = os.path.join(ROOT, "data", "netlib")
-FIELDS = ["git_hash", "machine", "cpu", "gpu", "driver", "cuda", "date", "instance", "rows", "cols", "nnz", "engine",
+FIELDS = ["git_hash", "machine", "cpu", "gpu", "driver", "cuda", "date", "settings", "instance", "rows", "cols", "nnz", "engine",
           "backend", "precision", "tolerance", "time_limit", "status", "iterations", "seconds", "seconds_to_1e-4",
           "objective", "published_optimum", "highs_objective", "rel_err_highs", "rel_err_published", "verify",
           "verify_primal_rel", "verify_dual_rel", "verify_gap_rel", "message"]
@@ -53,6 +53,8 @@ def main():
     ap.add_argument("--time-limit", type=float, default=60)
     ap.add_argument("--gpu", action="store_true")
     ap.add_argument("--only", default="")
+    ap.add_argument("--set", action="append", default=[], help="engine knob name=value (repeatable)")
+    ap.add_argument("--tag", default="", help="suffix for the CSV name, e.g. gm12")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
     optima = os.path.join(DATA, "optima.csv")
@@ -73,8 +75,10 @@ def main():
                    a.precision, "--tol", "1e-8", "--time-limit", str(a.time_limit), "--out", sol]
             if a.gpu:
                 cmd.append("--gpu")
+            for kv in a.set:
+                cmd += ["--set", kv]
             subprocess.run(cmd, capture_output=True, text=True)
-            r = {"instance": name, "rows": mdl["rows"], "cols": mdl["cols"], "nnz": mdl["nnz"], "engine": a.engine,
+            r = {"settings": " ".join(a.set), "instance": name, "rows": mdl["rows"], "cols": mdl["cols"], "nnz": mdl["nnz"], "engine": a.engine,
                  "backend": "gpu" if a.gpu else "cpu", "precision": a.precision, "tolerance": "1e-8",
                  "time_limit": a.time_limit, "published_optimum": mdl["published_optimum"],
                  "highs_objective": mdl["highs_objective"]}
@@ -97,7 +101,7 @@ def main():
             print(f"{name:10s} {r['status']:15s} it {str(r.get('iterations', '')):>8s} "
                   f"t {str(r.get('seconds', '')):>10s}  obj {str(r.get('objective', '')):>22s}  "
                   f"errHiGHS {r.get('rel_err_highs', ''):>9s}  verify {r['verify']}", flush=True)
-    tag = f"{a.engine}-{a.precision}" + ("-gpu" if a.gpu else "")
+    tag = f"{a.engine}-{a.precision}" + ("-gpu" if a.gpu else "") + (f"-{a.tag}" if a.tag else "")
     out = a.out or os.path.join(HERE, "results", f"netlib-full-{tag}-{info['machine']}-{info['git_hash']}.csv")
     with open(out, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=FIELDS)

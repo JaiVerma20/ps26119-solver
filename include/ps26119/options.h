@@ -50,7 +50,8 @@ struct Options {
   // Expert / research knobs for the first-order engines, by name (see
   // pdhg::EngineOptions: reflection, restart_sufficient, restart_necessary,
   // restart_artificial, pid_kp, pid_ki, pid_kd, pid_integral_decay, pid_max_log_step,
-  // bound_objective_rescaling). An unknown name makes solve() return NotSolved.
+  // bound_objective_rescaling, geometric_mean_iterations, ruiz_iterations, pock_chambolle).
+  // An unknown name makes solve() return NotSolved.
   std::vector<std::pair<std::string, double>> engine_params;
 };
 

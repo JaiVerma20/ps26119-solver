@@ -7,6 +7,9 @@
 //     (ICCV 2011) — α = 1: rows by 1/sqrt(‖row‖₁), columns by 1/sqrt(‖col‖₁).
 //   D. Applegate et al., "Practical large-scale linear programming using primal-dual hybrid
 //     gradient" (PDLP, NeurIPS 2021) — Ruiz(10) then Pock-Chambolle(α=1).
+//   A. R. Curtis, J. K. Reid, "On the automatic scaling of matrices for Gaussian elimination"
+//     (JIMA 1972) — geometric-mean scaling; used as a first stage by cuPDLPx
+//     (src/preconditioner.cu, geometric_mean_rescaling).
 //   H. Lu, Z. Peng, J. Yang, "cuPDLPx" (arXiv 2507.14051) — additional bound/objective
 //     rescaling so that ‖b̃‖ ≈ ‖c̃‖ ≈ 1 (approach informed by MIT-Lu-Lab/cuPDLPx
 //     src/preconditioner.cu; our own code).
@@ -27,6 +30,10 @@
 namespace ps26119::pdhg {
 
 struct ScalingOptions {
+  // Geometric-mean equilibration first (cuPDLPx default: 12): row factor
+  // r_i = 1/sqrt(min_j |a_ij c_j| · max_j |a_ij c_j|), then columns likewise, alternating.
+  // It evens out entries spanning many orders of magnitude before Ruiz. 0 = off.
+  int geometric_mean_iterations = 0;
   int ruiz_iterations = 10;
   bool pock_chambolle = true;
   bool bound_objective_rescaling = true;
