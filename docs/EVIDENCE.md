@@ -11,6 +11,7 @@ Files used:
 - `bench/results/netlib-small-f10527c.csv` (committed 2026-09-25)
 - `bench/results/scale-macbook-air-m4-62a13f2.csv` (committed 2026-09-24)
 - `bench/results/scale-macbook-air-m4-f10527c.csv` (committed 2026-09-25)
+- `bench/results/warm-start-macbook-air-m4-bd4e174.csv` (committed )
 - `bench/results/warm-start-macbook-air-m4-d699097.csv` (committed 2026-09-25)
 
 ## 1. Correctness on small Netlib (oracle, PDLP-style PDHG, r²HPDHG; fp64 and mixed)
@@ -110,6 +111,18 @@ Hourly year, T = 8760 periods: 429240 rows, 516840 columns, 1515469 nonzeros (ge
 
 ## 4b. Warm-started re-solves (what-if scenarios on the refinery LP)
 
+Source: `bench/results/warm-start-macbook-air-m4-bd4e174.csv` — `macbook-air-m4` (Apple M4), commit `bd4e174`. Each scenario solved cold and warm-started from the base-case solution, both to 1e-8, both verified.
+
+| instance | scenario | objective change | cold it | warm it | warm/cold | warm+ω it | warm+ω/cold | verify |
+|---|---|---|---|---|---|---|---|---|
+| refinery-T365-s1 | price | +3.180e-03 | 11328 | 15232 | 1.345 | 41472 | 3.661 | PASS/PASS/PASS |
+| refinery-T365-s1 | demand | +3.068e-02 | 1856 | 1984 | 1.069 | 1408 | 0.759 | PASS/PASS/PASS |
+| refinery-T365-s1 | crude | -1.124e-02 | 1664 | 1280 | 0.769 | 1280 | 0.769 | PASS/PASS/PASS |
+| refinery-T8760-s1 | price | +3.596e-03 | 94848 | 57792 | 0.609 | 53632 | 0.565 | PASS/PASS/PASS |
+| refinery-T8760-s1 | demand | +2.946e-02 | 3136 | 1984 | 0.633 | 1792 | 0.571 | PASS/PASS/PASS |
+| refinery-T8760-s1 | crude | -9.681e-03 | 2816 | 1792 | 0.636 | 1600 | 0.568 | PASS/PASS/PASS |
+
+warm = start from the base solution's (x, y) (default); warm+ω = also reuse its primal weight (opt-in `--warm-weight`). Iteration counts are deterministic; wall times are in the CSV.
 Source: `bench/results/warm-start-macbook-air-m4-d699097.csv` — `macbook-air-m4` (Apple M4), commit `d699097`. Each scenario solved cold and warm-started from the base-case solution, both to 1e-8, both verified.
 
 | instance | scenario | objective change | cold it | warm it | warm/cold | warm+ω it | warm+ω/cold | verify |
