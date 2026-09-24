@@ -78,3 +78,20 @@ TEST(CApi, InvalidArgumentsNeverCrash) {
 }
 
 TEST(CApi, Version) { EXPECT_STRNE(ps26119_version(), ""); }
+
+TEST(CApi, WarmStartFromOptimum) {
+  ps26119_options o;
+  ps26119_default_options(&o);
+  o.algorithm = PS26119_ALG_R2HPDHG;
+  ps26119_result cold, warm;
+  double x[2], y[3];
+  ASSERT_EQ(ps26119_solve_lp(3, 2, -1, 0, kC, kCl, kCu, kRl, kRu, kStart, kIdx, kVal, &o, &cold, x, y, nullptr),
+            PS26119_OPTIMAL);
+  o.warm_x = x;
+  o.warm_y = y;
+  ASSERT_EQ(ps26119_solve_lp(3, 2, -1, 0, kC, kCl, kCu, kRl, kRu, kStart, kIdx, kVal, &o, &warm, nullptr, nullptr,
+                             nullptr),
+            PS26119_OPTIMAL);
+  EXPECT_LE(warm.iterations, cold.iterations);
+  EXPECT_NEAR(warm.objective, 36, 1e-6);
+}

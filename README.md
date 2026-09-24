@@ -23,6 +23,16 @@ python3 tools/mps_to_lpm.py data/netlib_small/afiro.mps          # until the MPS
 build/ps26119 solve data/netlib_small/afiro.lpm --algorithm r2hpdhg --tol 1e-8 --out afiro.sol
 python3 tools/verify.py data/netlib_small/afiro.mps afiro.sol --expected -464.75314286
 ```
+Warm start from a previous solution (what-if re-solves): `--warm previous.sol`.
+
+Python (ctypes over the C API; build first):
+```python
+import sys; sys.path.insert(0, "python"); import ps26119, numpy as np
+r = ps26119.solve_lp([3, 5], [[1, 0], [0, 2], [3, 2]], [-np.inf]*3, [4, 12, 18], sense=-1)
+print(r.status_name, r.objective, r.x, r.y)
+```
+C: `include/ps26119/ps26119.h` (`ps26119_solve_lp`), library `build/libps26119.{dylib,so}`.
+
 Algorithms: `oracle` (dense double-double simplex, small models), `pdlp` (restarted PDHG),
 `r2hpdhg` (default). Options: `--precision fp64|mixed`, `--gpu`, `--time-limit`,
 `--iteration-limit`. Exit codes: 0 optimal, 1 limit/infeasible/unbounded, 3 read error,
@@ -30,6 +40,9 @@ Algorithms: `oracle` (dense double-double simplex, small models), `pdlp` (restar
 
 ## Status
 Done: Model/Solution contracts, `.lpm` bridge, independent verifier, double-double oracle,
-CPU PDLP-style PDHG and r²HPDHG (fp64 + mixed), CUDA backend (written; awaiting GPU runs),
-generators with known optimum (random + multi-period refinery), benchmark harness.
+CPU PDLP-style PDHG and r²HPDHG (fp64 + mixed) with infeasibility/unboundedness
+certificates and warm start, C API + Python binding, CUDA backend (written; awaiting GPU
+runs — see `docs/GPU_VERIFICATION.md`), generators with known optimum (random +
+multi-period refinery), benchmark harness (small + full Netlib, scaling, warm start).
+Team workflow: `docs/CONTRIBUTING.md`.
 Not yet: see "What we do NOT do yet" in `docs/EVIDENCE.md`.

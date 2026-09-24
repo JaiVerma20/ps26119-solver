@@ -11,8 +11,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <utility>
 
 #include "io/lpm_reader.h"
+#include "io/solution_reader.h"
 #include "io/solution_writer.h"
 #include "ps26119/solve.h"
 #include "ps26119/version.h"
@@ -37,6 +39,7 @@ void usage(std::FILE* f) {
                "  --tol <eps>                            relative KKT tolerance (default 1e-8)\n"
                "  --time-limit <seconds>   --iteration-limit <n>\n"
                "  --out <file>                           write the solution file (tools/verify.py reads it)\n"
+               "  --warm <file>                          warm start from a previous solution file (same model shape)\n"
                "  -v | -vv                               verbosity\n",
                kProductName, kVersion, kProductName, kProductName);
 }
@@ -47,7 +50,16 @@ bool ends_with(const std::string& s, const char* suf) {
 }
 
 int cmd_solve(int argc, char** argv) {
-  std::string path, out;
+  std::string path, out, warm;
+  // numeric flags must parse completely and be positive
+  auto positive = [](const char* flag, const char* s, double& v) {
+    char* end = nullptr;
+    v = std::strtod(s, &end);
+    if (end == s || *end != '\0' || !(v > 0)) {
+      std::fprintf(stderr, "%s needs a positive number, got '%s'\n", flag, s);
+      std::exit(2);
+    }
+  };
   Options opt;
   for (int i = 0; i < argc; ++i) {
     const std::string a = argv[i];
@@ -71,11 +83,15 @@ int cmd_solve(int argc, char** argv) {
     } else if (a == "--gpu") {
       opt.use_gpu = true;
     } else if (a == "--tol") {
-      opt.tolerance = std::atof(next());
+      positive("--tol", next(), opt.tolerance);
     } else if (a == "--time-limit") {
-      opt.time_limit = std::atof(next());
+      positive("--time-limit", next(), opt.time_limit);
     } else if (a == "--iteration-limit") {
-      opt.iteration_limit = std::atoll(next());
+      double v;
+      positive("--iteration-limit", next(), v);
+      opt.iteration_limit = static_cast<std::int64_t>(v);
+    } else if (a == "--warm") {
+      warm = next();
     } else if (a == "--out") {
       out = next();
     } else if (a == "-v") {
@@ -123,6 +139,21 @@ int cmd_solve(int argc, char** argv) {
     return kExitReadError;
   }
 
+  if (!warm.empty()) {
+    Solution prev;
+    std::string err;
+    if (!io::read_solution(warm, prev, err)) {
+      std::fprintf(stderr, "read error (warm start): %s\n", err.c_str());
+      return kExitReadError;
+    }
+    if (static_cast<int>(prev.x.size()) != model.num_cols || static_cast<int>(prev.y.size()) != model.num_rows) {
+      std::fprintf(stderr, "warm start %s does not match the model's size\n", warm.c_str());
+      return 2;
+    }
+    opt.warm_x = std::move(prev.x);
+    opt.warm_y = std::move(prev.y);
+    if (prev.primal_weight > 0) opt.warm_primal_weight = prev.primal_weight;
+  }
   const Solution sol = solve(model, opt);
   std::printf("model      %s  rows %d  cols %d  nnz %zu  fingerprint %s\n", model.name.c_str(), model.num_rows,
               model.num_cols, model.nnz(), sol.model_fingerprint.c_str());

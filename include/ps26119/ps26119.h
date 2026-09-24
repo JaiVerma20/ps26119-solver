@@ -38,6 +38,9 @@ typedef struct {
   double time_limit;      /* seconds */
   long long iteration_limit;
   int verbosity;
+  /* Warm start (first-order engines): previous x (num_cols) and y (num_rows), or NULL. */
+  const double* warm_x;
+  const double* warm_y;
 } ps26119_options;
 
 typedef struct {

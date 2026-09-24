@@ -83,3 +83,31 @@ TEST(Lpm, RejectsMalformedInput) {
       m);
   EXPECT_TRUE(r.ok) << r.error;
 }
+
+#include "io/solution_reader.h"
+#include "io/solution_writer.h"
+
+TEST(SolutionFile, WriteReadRoundTrip) {
+  Model m = test::make_model({1, 2}, {{1, 1}}, {1}, {kInf}, {0, 0}, {kInf, kInf});
+  Solution s;
+  s.status = Status::Optimal;
+  s.x = {0.25, 0.75};
+  s.z = {0, 1};
+  s.y = {1.0 / 3.0};
+  s.row_activity = {1.0};
+  s.objective = 1.75;
+  s.engine = "test";
+  s.model_fingerprint = m.fingerprint_hex();
+  const std::string path = testing::TempDir() + "rt.sol";
+  std::string err;
+  ASSERT_TRUE(io::write_solution(path, m, s, err)) << err;
+  Solution r;
+  ASSERT_TRUE(io::read_solution(path, r, err)) << err;
+  EXPECT_EQ(r.status, Status::Optimal);
+  EXPECT_EQ(r.x, s.x);  // %.17g round-trips exactly
+  EXPECT_EQ(r.y, s.y);
+  EXPECT_EQ(r.z, s.z);
+  EXPECT_EQ(r.model_fingerprint, s.model_fingerprint);
+  EXPECT_DOUBLE_EQ(r.objective, 1.75);
+  std::remove(path.c_str());
+}

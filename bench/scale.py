@@ -131,7 +131,10 @@ def plot(rows, png):
         return
     fig, axes = plt.subplots(1, 3, figsize=(16, 4.8))
     configs = sorted({(r["engine"], r["backend"], r["precision"]) for r in rows})
-    for fam, marker in (("random", "o"), ("refinery", "s")):
+    # one fixed colour per configuration so every panel matches the legend
+    palette = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    color = {cfg: palette[i % len(palette)] for i, cfg in enumerate(configs)}
+    for fam, marker, ls in (("random", "o", "-"), ("refinery", "s", "--")):
         for cfg in configs:
             pts = [r for r in rows if (r["engine"], r["backend"], r["precision"]) == cfg and r["family"] == fam]
             if not pts:
@@ -141,18 +144,19 @@ def plot(rows, png):
             nnz = [int(r["nnz"]) for r in pts]
             if cfg[0] != "highs":
                 mpi = [float(r["ms_per_iteration"]) if r.get("ms_per_iteration") else float("nan") for r in pts]
-                axes[0].loglog(nnz, mpi, marker=marker, label=label)
+                axes[0].loglog(nnz, mpi, marker=marker, ls=ls, color=color[cfg], label=label)
                 t4 = [float(r["seconds_to_1e-4"]) if r.get("seconds_to_1e-4") else float("nan") for r in pts]
-                axes[1].loglog(nnz, t4, marker=marker, label=label)
+                axes[1].loglog(nnz, t4, marker=marker, ls=ls, color=color[cfg], label=label)
             t8 = [float(r["seconds_to_1e-8"]) if r.get("seconds_to_1e-8") else float("nan") for r in pts]
-            axes[2].loglog(nnz, t8, marker=marker, label=label)
+            axes[2].loglog(nnz, t8, marker=marker, ls=ls, color=color[cfg], label=label)
     axes[0].set_title("time per iteration (ms)")
     axes[1].set_title("wall time to 1e-4 (s)")
     axes[2].set_title("wall time to 1e-8 (s)  [missing = limit hit]")
     for ax in axes:
         ax.set_xlabel("nonzeros")
         ax.grid(True, which="both", alpha=0.3)
-    axes[2].legend(fontsize=7, loc="upper left")
+    for ax in axes:
+        ax.legend(fontsize=6.5, loc="upper left")
     fig.suptitle(f"{rows[0]['machine']} — {rows[0]['cpu']} — GPU: {rows[0]['gpu']} — commit {rows[0]['git_hash']}", fontsize=9)
     fig.tight_layout()
     fig.savefig(png, dpi=130)
@@ -171,7 +175,12 @@ def main():
     ap.add_argument("--verify-max-nnz", type=float, default=3e6)
     ap.add_argument("--highs", action="store_true")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--replot", default=None, help="only redraw the PNG from an existing CSV")
     a = ap.parse_args()
+    if a.replot:
+        with open(a.replot, newline="") as f:
+            plot(list(csv.DictReader(f)), os.path.splitext(a.replot)[0] + ".png")
+        return
     info = machine_info()
     instances = [ensure_instance("rand", int(float(s))) for s in a.sizes.split(",") if s] + \
                 [ensure_instance("refinery", int(float(t))) for t in a.refinery.split(",") if t]

@@ -32,6 +32,12 @@ Solution solve_pdlp(const Model& model, const EngineOptions& opt) {
   b.fill(aty, 0.0);
   b.primal_step(xbar, aty, 0.0, x);
   b.fill(y, 0.0);
+  const bool warm = ctx.apply_warm_start(x, y, policy);
+  ctx.note_primal_weight(omega);
+  if (warm) {  // the warm point may already be good enough (e.g. an unchanged re-solve)
+    const KktStats kw = b.kkt(x, y);
+    if (kw.finite() && ctx.record(kw, 0)) return ctx.finish(Status::Optimal, x, y, 0, "warm start already optimal");
+  }
   b.copy(x0, x);
   b.copy(y0, y);
   b.copy(xa, x);
@@ -42,7 +48,7 @@ Solution solve_pdlp(const Model& model, const EngineOptions& opt) {
   double restart_kkt = k0.rel_kkt(), last_candidate = 1e300;
   std::int64_t it = 0, inner = 0;
   const int K = opt.check_every;
-  std::string msg;
+  std::string msg = warm ? "warm start" : "";
 
   for (;;) {
     const double tau = eta / omega, sigma = eta * omega;
@@ -80,7 +86,7 @@ Solution solve_pdlp(const Model& model, const EngineOptions& opt) {
 
     const double e = kk.rel_kkt();
     const bool promoted = policy.on_check(e, it);
-    if (promoted) msg = "fp32 -> fp64 at iteration " + std::to_string(it);
+    if (promoted) msg += std::string(msg.empty() ? "" : "; ") + "fp32 -> fp64 at iteration " + std::to_string(it);
     const bool restart = promoted || e <= 0.2 * restart_kkt ||
                          (e <= opt.pdlp_restart_necessary * restart_kkt && e > last_candidate) ||
                          static_cast<double>(inner) >= 0.36 * static_cast<double>(it);
@@ -90,6 +96,7 @@ Solution solve_pdlp(const Model& model, const EngineOptions& opt) {
       if (dx > 1e-10 && dy > 1e-10) {
         const double th = opt.pdlp_primal_weight_smoothing;
         omega = std::exp(th * std::log(dy / dx) + (1.0 - th) * std::log(omega));
+        ctx.note_primal_weight(omega);
       }
       if (cx != x) b.copy(x, cx);
       if (cy != y) b.copy(y, cy);

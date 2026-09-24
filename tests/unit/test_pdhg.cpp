@@ -250,3 +250,54 @@ TEST_P(PdhgEngines, NoFalseCertificatesOnFeasibleModels) {
     EXPECT_EQ(s.status, Status::Optimal) << name << ": " << s.message;
   }
 }
+
+// ------------------------------------------------------------------ warm start
+TEST_P(PdhgEngines, WarmStartFromOptimumStopsAtFirstCheck) {
+  const auto [alg, prec] = GetParam();
+  for (const char* name : {"stocfor1", "share2b", "adlittle"}) {
+    Model m;
+    ASSERT_TRUE(io::read_lpm(data(std::string("netlib_small/") + name + ".lpm"), m).ok);
+    auto cold = run(m, alg, Precision::Fp64);
+    ASSERT_EQ(cold.status, Status::Optimal);
+    Options o;
+    o.algorithm = alg;
+    o.precision = prec;
+    o.warm_x = cold.x;
+    o.warm_y = cold.y;
+    auto warm = solve(m, o);
+    ASSERT_EQ(warm.status, Status::Optimal) << name << ": " << warm.message;
+    EXPECT_LT(warm.iterations, cold.iterations) << name;
+    EXPECT_LE(warm.iterations, 4 * o.termination_check_every) << name;
+    EXPECT_NE(warm.message.find("warm start"), std::string::npos);
+    EXPECT_NEAR(warm.objective, cold.objective, 1e-6 * (1 + std::fabs(cold.objective)));
+  }
+}
+
+TEST(PdhgWarmStart, WrongSizeIsNotSolved) {
+  Options o;
+  o.algorithm = Algorithm::R2hpdhg;
+  o.warm_x = {1.0};  // model has 2 columns
+  auto s = solve(wyndor(), o);
+  EXPECT_EQ(s.status, Status::NotSolved);
+  EXPECT_NE(s.message.find("warm start"), std::string::npos);
+}
+
+TEST(PdhgWarmStart, PerturbedObjectiveNeedsFewerIterations) {
+  // what-if: 1% change in the objective of share2b; warm start from the base solution
+  Model base;
+  ASSERT_TRUE(io::read_lpm(data("netlib_small/stocfor1.lpm"), base).ok);
+  auto s0 = run(base, Algorithm::R2hpdhg, Precision::Fp64);
+  ASSERT_EQ(s0.status, Status::Optimal);
+  Model changed = base;
+  for (std::size_t j = 0; j < changed.obj.size(); j += 3) changed.obj[j] *= 1.01;
+  auto cold = run(changed, Algorithm::R2hpdhg, Precision::Fp64);
+  Options o;
+  o.algorithm = Algorithm::R2hpdhg;
+  o.warm_x = s0.x;
+  o.warm_y = s0.y;
+  auto warm = solve(changed, o);
+  ASSERT_EQ(cold.status, Status::Optimal);
+  ASSERT_EQ(warm.status, Status::Optimal);
+  EXPECT_NEAR(warm.objective, cold.objective, 1e-6 * (1 + std::fabs(cold.objective)));
+  EXPECT_LT(warm.iterations, cold.iterations);
+}

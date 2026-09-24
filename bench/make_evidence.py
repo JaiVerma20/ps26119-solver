@@ -94,6 +94,31 @@ def netlib_section(path):
     return "\n".join(lines)
 
 
+def netlib_full_section(path):
+    rows = load(path)
+    r0 = rows[0]
+    solved = [r for r in rows if r["status"] == "Optimal" and r["verify"] == "PASS"]
+    match = [r for r in solved if r["rel_err_highs"] and float(r["rel_err_highs"]) <= 1e-6]
+    limit = [r for r in rows if r["status"] in ("TimeLimit", "IterationLimit")]
+    other = [r for r in rows if r not in solved and r not in limit]
+    lines = [f"Source: `{path}` — {r0['engine']} {r0['precision']} on {r0['backend']} "
+             f"(`{r0['machine']}`, {r0['cpu']}), commit `{r0['git_hash']}`, time limit {r0['time_limit']} s per model.", "",
+             f"- **{len(solved)} of {len(rows)}** Netlib LPs solved to relative KKT 1e-8 and verified PASS by "
+             f"`tools/verify.py`; **{len(match)}** of those agree with HiGHS to 1e-6 relative.",
+             f"- {len(limit)} hit the time/iteration limit (listed below, not hidden); {len(other)} other outcomes."]
+    unsolved = limit + other
+    if unsolved:
+        lines += ["", table(["model", "rows", "cols", "nnz", "status", "iterations", "rel. err vs HiGHS at stop"],
+                            [[r["instance"], r["rows"], r["cols"], r["nnz"], r["status"], r["iterations"] or "–",
+                              r["rel_err_highs"] or "–"] for r in unsolved])]
+    mism = [r for r in solved if r not in match]
+    if mism:
+        lines += ["", "Solved and verified but objective differs from HiGHS by more than 1e-6 (investigate):", "",
+                  table(["model", "objective", "HiGHS", "rel. err"],
+                        [[r["instance"], r["objective"], r["highs_objective"], r["rel_err_highs"]] for r in mism])]
+    return "\n".join(lines)
+
+
 def scale_section(path):
     rows = load(path)
     r0 = rows[0]
@@ -178,6 +203,10 @@ def main():
     if net_gpu:
         doc += ["", "### Same set on GPU", "", netlib_section(net_gpu)]
 
+    fulls = [p for p in paths if os.path.basename(p).startswith("netlib-full-")]
+    doc += ["", "## 1b. Full Netlib LP set (first-order engine)", ""]
+    doc += [netlib_full_section(p) + "\n" for p in fulls] or ["_No committed full-Netlib CSV yet._"]
+
     doc += ["", "## 2. Scaling on generated LPs with known optimum (CPU)", ""]
     if cpu_scales:
         for p in cpu_scales:
@@ -215,6 +244,26 @@ def main():
     else:
         doc.append("_No committed refinery-year run._")
 
+    doc += ["", "## 4b. Warm-started re-solves (what-if scenarios on the refinery LP)", ""]
+    warms = [p for p in paths if os.path.basename(p).startswith("warm-start-")]
+    for p in warms:
+        rows = load(p)
+        r0 = rows[0]
+        doc += [f"Source: `{p}` — `{r0['machine']}` ({r0['cpu']}), commit `{r0['git_hash']}`. Each scenario solved "
+                "cold and warm-started from the base-case solution, both to 1e-8, both verified.", ""]
+        body = []
+        for inst in dict.fromkeys(r["instance"] for r in rows):
+            for scen in dict.fromkeys(r["scenario"] for r in rows if r["instance"] == inst):
+                c = next(r for r in rows if r["instance"] == inst and r["scenario"] == scen and r["start"] == "cold")
+                w = next(r for r in rows if r["instance"] == inst and r["scenario"] == scen and r["start"] == "warm")
+                body.append([inst, scen, c["objective_change_vs_base"], c["iterations"], w["iterations"],
+                             w["iteration_ratio_warm_over_cold"], fnum(c["seconds"]), fnum(w["seconds"]),
+                             f"{c['verify']}/{w['verify']}"])
+        doc.append(table(["instance", "scenario", "objective change", "cold it", "warm it", "warm/cold it",
+                          "cold s", "warm s", "verify cold/warm"], body))
+    if not warms:
+        doc.append("_No committed warm-start CSV yet._")
+
     doc += ["", "## 5. What we do NOT do yet (honest list)", "",
             "- **No GPU number is claimed** unless a GPU CSV appears in §3. The CUDA backend has not yet been "
             "compiled by nvcc or run at the time this list was written.",
@@ -229,7 +278,11 @@ def main():
             "- **Generated instances**: the refinery LP has refinery structure, but its prices and inequality "
             "right-hand sides come from the KKT construction (synthetic), not from plant data; random LPs of this "
             "kind are friendly to first-order methods. Netlib / Mittelmann large models are the next evidence step.",
-            "- **Warm start, batched scenarios, certified dual bounds** (CLAUDE.md §9 items 3–5) are not implemented.",
+            "- **Batched scenarios and certified dual bounds** (CLAUDE.md §9 items 4–5) are not implemented; warm "
+            "start (item 3) exists for the first-order engines (see §4b) but not yet in the C API.",
+            "- Laptop timings vary run to run (a fanless MacBook Air throttles and macOS moves threads between "
+            "performance and efficiency cores): the same 1e6-row run has taken 294 s and 539 s for identical "
+            "iteration counts. Iteration counts are deterministic; compare those first.",
             "- CPU runs are single-threaded (deterministic by default; OpenMP is optional and off)."]
     with open(OUT, "w") as f:
         f.write("\n".join(doc) + "\n")

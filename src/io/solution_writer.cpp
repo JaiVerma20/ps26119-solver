@@ -26,6 +26,7 @@ bool write_solution(const std::string& path, const Model& m, const Solution& s, 
   std::fprintf(f, "iterations %lld\n", static_cast<long long>(s.iterations));
   std::fprintf(f, "seconds %.6f\n", s.seconds);
   std::fprintf(f, "setup_seconds %.6f\n", s.setup_seconds);
+  if (s.primal_weight == s.primal_weight) std::fprintf(f, "primal_weight %.17g\n", s.primal_weight);
   if (s.iterations_to_fast >= 0) {
     std::fprintf(f, "iterations_to_fast %lld\n", static_cast<long long>(s.iterations_to_fast));
     std::fprintf(f, "seconds_to_fast %.6f\n", s.seconds_to_fast);

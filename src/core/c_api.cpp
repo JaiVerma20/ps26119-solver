@@ -37,6 +37,8 @@ void ps26119_default_options(ps26119_options* opt) {
   opt->time_limit = d.time_limit;
   opt->iteration_limit = d.iteration_limit;
   opt->verbosity = 0;
+  opt->warm_x = nullptr;
+  opt->warm_y = nullptr;
 }
 
 int ps26119_solve_lp(int num_rows, int num_cols, int sense, double obj_offset, const double* c,
@@ -89,6 +91,8 @@ int ps26119_solve_lp(int num_rows, int num_cols, int sense, double obj_offset, c
       if (opt->time_limit > 0) o.time_limit = opt->time_limit;
       if (opt->iteration_limit > 0) o.iteration_limit = opt->iteration_limit;
       o.verbosity = opt->verbosity;
+      if (opt->warm_x) o.warm_x.assign(opt->warm_x, opt->warm_x + num_cols);
+      if (opt->warm_y) o.warm_y.assign(opt->warm_y, opt->warm_y + num_rows);
     }
     const Solution s = solve(m, o);
     result->status = static_cast<int>(s.status);  // enum orders match (checked by test)

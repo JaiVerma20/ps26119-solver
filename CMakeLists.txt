@@ -38,6 +38,7 @@ set(PS26119_SOURCES
   src/core/c_api.cpp
   src/io/lpm_reader.cpp
   src/io/solution_writer.cpp
+  src/io/solution_reader.cpp
   src/oracle/dense_simplex.cpp
   src/la/csr.cpp
   src/pdhg/scaling.cpp
@@ -89,6 +90,16 @@ if(PS26119_ENABLE_OPENMP)
   find_package(OpenMP REQUIRED)
   target_link_libraries(ps26119_core PUBLIC OpenMP::OpenMP_CXX)
   target_compile_definitions(ps26119_core PUBLIC PS26119_HAVE_OPENMP=1)
+endif()
+
+# ---------------------------------------------------------------- shared library (C API, Python)
+option(PS26119_BUILD_SHARED "Build libps26119 (C API) as a shared library for Python/ctypes" ON)
+if(PS26119_BUILD_SHARED)
+  set_target_properties(ps26119_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  add_library(ps26119_shared SHARED src/core/c_api.cpp)
+  set_target_properties(ps26119_shared PROPERTIES OUTPUT_NAME ps26119)
+  target_link_libraries(ps26119_shared PRIVATE ps26119_core)
+  target_include_directories(ps26119_shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 endif()
 
 # ---------------------------------------------------------------- CLI

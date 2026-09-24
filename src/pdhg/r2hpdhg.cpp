@@ -31,6 +31,12 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
   b.fill(aty, 0.0);
   b.primal_step(dx, aty, 0.0, x);  // x = proj_X(0)
   b.fill(y, 0.0);
+  const bool warm = ctx.apply_warm_start(x, y, policy);
+  ctx.note_primal_weight(omega);
+  if (warm) {  // the warm point may already be good enough (e.g. an unchanged re-solve)
+    const KktStats kw = b.kkt(x, y);
+    if (kw.finite() && ctx.record(kw, 0)) return ctx.finish(Status::Optimal, x, y, 0, "warm start already optimal");
+  }
   b.copy(x0, x);
   b.copy(y0, y);
   b.copy(xh, x);
@@ -54,7 +60,7 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
   const int K = opt.check_every;
   std::int64_t it = 0, inner = 0;
   double r0 = -1.0, r_last = std::numeric_limits<double>::infinity();
-  std::string msg;
+  std::string msg = warm ? "warm start" : "";
 
   for (;;) {
     const double tau = eta / omega, sigma = eta * omega;
@@ -83,7 +89,7 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
     }
 
     const bool promoted = policy.on_check(k.rel_kkt(), it);
-    if (promoted) msg = "fp32 -> fp64 at iteration " + std::to_string(it);
+    if (promoted) msg += std::string(msg.empty() ? "" : "; ") + "fp32 -> fp64 at iteration " + std::to_string(it);
     const bool restart = promoted || r <= opt.restart_sufficient * r0 ||
                          (r <= opt.restart_necessary * r0 && r > r_last) ||
                          static_cast<double>(inner) >= opt.restart_artificial * static_cast<double>(it);
@@ -112,6 +118,7 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
       best_omega = omega;
     }
 
+    ctx.note_primal_weight(omega);
     if (opt.verbosity >= 2)
       std::fprintf(stderr, "  restart at %lld (inner %lld): r/r0 %.3f  omega %.4e  dx %.3e dy %.3e\n",
                    static_cast<long long>(it), static_cast<long long>(inner), r / r0, omega, dxn, dyn);

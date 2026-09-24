@@ -25,6 +25,13 @@ Solution solve(const Model& model, const Options& options) {
     return sol;
   }
 
+  if ((!options.warm_x.empty() && static_cast<int>(options.warm_x.size()) != model.num_cols) ||
+      (!options.warm_y.empty() && static_cast<int>(options.warm_y.size()) != model.num_rows)) {
+    sol.status = Status::NotSolved;
+    sol.message = "warm start vectors have the wrong size";
+    return sol;
+  }
+
   try {
     switch (options.algorithm) {
       case Algorithm::Oracle: {

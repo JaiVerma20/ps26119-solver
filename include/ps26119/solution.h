@@ -50,6 +50,9 @@ struct Solution {
   // tolerance (1e-4) while continuing to the requested one. -1 = never reached / not tracked.
   std::int64_t iterations_to_fast = -1;
   double seconds_to_fast = -1.0;
+  // First-order engines: primal weight ω at the end (pass it back as
+  // Options::warm_primal_weight when warm-starting a re-solve). NaN for other engines.
+  double primal_weight = std::numeric_limits<double>::quiet_NaN();
   std::string engine;     // "oracle", "pdlp", "r2hpdhg", ...
   std::string precision;  // "dd", "fp64", "mixed"
   std::string model_fingerprint;

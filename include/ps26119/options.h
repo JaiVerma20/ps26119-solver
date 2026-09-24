@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "ps26119/tolerances.h"
 
@@ -37,6 +38,12 @@ struct Options {
   int ruiz_iterations = 10;
   bool pock_chambolle = true;
   int termination_check_every = 64;  // iterations between KKT evaluations
+  // Warm start (first-order engines): a previous primal point x (size n) and row duals y
+  // (size m, same sign convention as Solution::y). Either may be empty (then 0 is used for
+  // that part); a size mismatch makes solve() return NotSolved. Typical use: re-solving
+  // after a small data change (what-if, SLP step, rolling horizon) from the last solution.
+  std::vector<double> warm_x, warm_y;
+  double warm_primal_weight = 0.0;  // > 0: start from this ω (Solution::primal_weight)
 };
 
 }  // namespace ps26119

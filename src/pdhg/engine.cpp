@@ -20,6 +20,9 @@ EngineOptions engine_options_from(const Options& o) {
   e.verbosity = o.verbosity;
   e.scaling.ruiz_iterations = o.ruiz_iterations;
   e.scaling.pock_chambolle = o.pock_chambolle;
+  e.warm_x = o.warm_x;
+  e.warm_y = o.warm_y;
+  e.warm_primal_weight = o.warm_primal_weight;
   return e;
 }
 
@@ -128,6 +131,14 @@ Status EngineContext::check_infeasibility(int dx, int dy, const KktStats& curren
   return Status::NotSolved;
 }
 
+void PrecisionPolicy::on_warm_start(double warm_rel_kkt) {
+  if (mixed_ && b_.precision() == Precision::Mixed && warm_rel_kkt <= tol::kMixedPrecisionSwitch &&
+      target_ < tol::kMixedPrecisionSwitch) {
+    b_.set_precision(Precision::Fp64);
+    switched_at_ = 0;
+  }
+}
+
 // ------------------------------------------------------------------ context
 EngineContext::EngineContext(const Model& model, const EngineOptions& opt, const char* engine_name)
     : model_(model), opt_(opt), name_(engine_name), t0_(std::chrono::steady_clock::now()) {
@@ -142,6 +153,7 @@ EngineContext::EngineContext(const Model& model, const EngineOptions& opt, const
 }
 
 double EngineContext::initial_primal_weight() const {
+  if (opt_.warm_primal_weight > 0) return opt_.warm_primal_weight;
   if (opt_.scaling.bound_objective_rescaling) return 1.0;
   double c2 = 0, b2 = 0;
   for (double v : sp_.c) c2 += v * v;
@@ -168,6 +180,37 @@ bool EngineContext::record(const KktStats& k, std::int64_t iteration) {
                  static_cast<long long>(iteration), elapsed(), k.primal_obj, k.dual_obj, k.rel_primal(), k.rel_dual(),
                  k.rel_gap(), backend_->precision() == Precision::Mixed ? "fp32" : "fp64");
   return k.converged(opt_.tolerance);
+}
+
+bool EngineContext::apply_warm_start(int x, int y, PrecisionPolicy& policy) {
+  if (opt_.warm_x.empty() && opt_.warm_y.empty()) return false;
+  const Model& M = model_;
+  // original-space warm point: x clipped into its bounds, y (min form) sign-projected
+  std::vector<double> xo, yo(sp_.m, 0.0);
+  if (!opt_.warm_x.empty()) {
+    xo.resize(sp_.n);
+    for (int j = 0; j < sp_.n; ++j) xo[j] = std::min(std::max(opt_.warm_x[j], M.col_lower[j]), M.col_upper[j]);
+  } else {
+    std::vector<double> xs;
+    backend_->download(x, xs);  // the engine's cold x
+    sp_.unscale_primal(xs, xo);
+  }
+  if (!opt_.warm_y.empty()) {
+    for (int i = 0; i < sp_.m; ++i) {
+      double v = M.sense * opt_.warm_y[i];
+      if (!std::isfinite(M.row_lower[i])) v = std::min(v, 0.0);
+      if (!std::isfinite(M.row_upper[i])) v = std::max(v, 0.0);
+      yo[i] = v;
+    }
+  }
+  // Decide the working precision BEFORE uploading (an fp32 copy would lose the accuracy).
+  policy.on_warm_start(kkt_on_original(sp_, xo, yo).rel_kkt());
+  std::vector<double> xs(sp_.n), ys(sp_.m);
+  for (int j = 0; j < sp_.n; ++j) xs[j] = sp_.bound_scale * xo[j] / sp_.col_scale[j];
+  for (int i = 0; i < sp_.m; ++i) ys[i] = sp_.obj_scale * yo[i] / sp_.row_scale[i];
+  backend_->upload(x, xs);
+  backend_->upload(y, ys);
+  return true;
 }
 
 Solution EngineContext::finish(Status status, int xs, int ys, std::int64_t iterations, const std::string& message) {
@@ -202,6 +245,7 @@ Solution EngineContext::finish(Status status, int xs, int ys, std::int64_t itera
   sol.seconds_to_fast = fast_seconds_;
   sol.seconds = elapsed();
   sol.setup_seconds = setup_seconds_;
+  sol.primal_weight = primal_weight_;
   return sol;
 }
 

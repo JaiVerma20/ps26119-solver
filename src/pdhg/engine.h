@@ -12,6 +12,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 
@@ -25,6 +26,8 @@ namespace ps26119::pdhg {
 
 struct EngineOptions {
   double tolerance = tol::kFirstOrderHigh;
+  std::vector<double> warm_x, warm_y;  // see Options
+  double warm_primal_weight = 0.0;
   double time_limit = 3600.0;
   std::int64_t iteration_limit = 100'000'000;
   int check_every = 64;  // K: iterations between KKT / restart evaluations
@@ -50,6 +53,8 @@ class PrecisionPolicy {
   // (the engine should then restart from the current point).
   bool on_check(double rel_kkt, std::int64_t iteration);
   std::int64_t switch_iteration() const { return switched_at_; }
+  // Warm start already more accurate than fp32 can hold: go straight to fp64.
+  void on_warm_start(double warm_rel_kkt);
 
  private:
   Backend& b_;
@@ -104,6 +109,13 @@ class EngineContext {
   // a primal ray alone only proves "dual infeasible"), otherwise NotSolved = keep going.
   Status check_infeasibility(int dx_scaled, int dy_scaled, const KktStats& current, std::string& message);
 
+  // Loads Options::warm_x / warm_y (original space) into scaled backend vectors x, y.
+  // x is clipped into its bounds and y projected onto its sign-feasible set. Returns true
+  // if a warm start was applied.
+  bool apply_warm_start(int x, int y, PrecisionPolicy& policy);
+  // The engine reports its current primal weight so the Solution can carry it.
+  void note_primal_weight(double w) { primal_weight_ = w; }
+
   // Builds the Solution from the scaled point (x̂, ŷ) held in backend vectors.
   Solution finish(Status status, int x_scaled, int y_scaled, std::int64_t iterations, const std::string& message);
 
@@ -117,6 +129,7 @@ class EngineContext {
   double eta_ = 1.0;
   std::chrono::steady_clock::time_point t0_;
   double setup_seconds_ = 0;
+  double primal_weight_ = std::numeric_limits<double>::quiet_NaN();
   std::int64_t fast_iterations_ = -1;
   double fast_seconds_ = -1;
 };

@@ -5,6 +5,7 @@ first-order LP engine (restarted Halpern PDHG with reflection, r²HPDHG), with a
 simplex beside it. Library first; the CLI and Python layers are thin.
 
 ```
+   Python (python/ps26119, ctypes)  →  C API (include/ps26119/ps26119.h, exception-free)
             ps26119 CLI  (apps/cli)             tools/verify.py  (independent, highspy)
                  │                                     ▲ reads original MPS + our solution file
                  ▼                                     │
@@ -38,6 +39,11 @@ model fingerprint, engine, precision, iterations and seconds.
 - Verification is independent: `tools/verify.py` re-reads the original MPS with highspy
   (a different reader) and checks primal/dual feasibility and the gap. highspy is never
   used in `src/`; CI checks that no solver library is linked.
+
+**First-order engine features.** Termination on fp64 KKT of the original problem (plus
+verifier-grade per-row checks at tight tolerances); infeasibility/unboundedness only from
+checked ray certificates; warm start from a previous (x, y); mixed precision promotes the
+iterate from fp32 to fp64 when fp32 has done what it can.
 
 **Evidence.** Benchmarks write `bench/results/<name>-<githash>.csv` with machine info.
 README/docs numbers must come from those CSVs.
