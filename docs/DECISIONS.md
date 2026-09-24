@@ -81,3 +81,11 @@ Newest last. Each entry: what, why, evidence, how to undo.
     rounding pattern of the reductions and need > 8M with another (fixed 64-chunk sums vs one
     running sum). Counts of solved hard models within a time limit carry ± a few models of
     this kind of noise.
+22. **Presolve judged by the original model's yardstick.** Substituting fixed columns changes
+    the right-hand side, so the reduced problem's relative KKT (divided by 1+‖b‖) is not the
+    original's (tuff: ‖b‖ = 0 originally, 1100 after presolve — a 1000× difference for the same
+    absolute residual). The reduced solve therefore uses the ORIGINAL ‖b‖, ‖c‖ and objective
+    magnitude for termination (Options::kkt_b_norm/kkt_c_norm/kkt_obj_shift). Safety net if a
+    postsolved point still misses on the original: re-solve the reduced model 100× tighter,
+    then fall back to solving the original without presolve. A warm-started polish of the
+    original was tried first and was fragile (stocfor2 4.8M vs 39k iterations) — removed.

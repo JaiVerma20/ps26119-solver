@@ -28,6 +28,7 @@ struct EngineOptions {
   double tolerance = tol::kFirstOrderHigh;
   std::vector<double> warm_x, warm_y;  // see Options
   double warm_primal_weight = 0.0;
+  double kkt_b_norm = -1, kkt_c_norm = -1, kkt_obj_shift = 0;  // see Options
   double time_limit = 3600.0;
   std::int64_t iteration_limit = 100'000'000;
   int check_every = 64;  // K: iterations between KKT / restart evaluations
@@ -112,6 +113,15 @@ class EngineContext {
   // certificate is found (Unbounded additionally needs a nearly primal-feasible iterate:
   // a primal ray alone only proves "dual infeasible"), otherwise NotSolved = keep going.
   Status check_infeasibility(int dx_scaled, int dy_scaled, const KktStats& current, std::string& message);
+
+  // Backend KKT of scaled (x, y) with the normalization overrides applied.
+  KktStats kkt(int x_scaled, int y_scaled) { return adjust(backend_->kkt(x_scaled, y_scaled)); }
+  KktStats adjust(KktStats k) const {
+    if (opt_.kkt_b_norm >= 0) k.b_norm = opt_.kkt_b_norm;
+    if (opt_.kkt_c_norm >= 0) k.c_norm = opt_.kkt_c_norm;
+    k.obj_shift = opt_.kkt_obj_shift;
+    return k;
+  }
 
   // Loads Options::warm_x / warm_y (original space) into scaled backend vectors x, y.
   // x is clipped into its bounds and y projected onto its sign-feasible set. Returns true

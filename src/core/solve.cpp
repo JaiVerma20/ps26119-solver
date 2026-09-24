@@ -1,6 +1,9 @@
 // solve.cpp — the solve() dispatcher. Validates the model, routes to an engine, stamps
 // provenance (fingerprint, engine, precision, wall time) into the Solution.
+#include <algorithm>
 #include <chrono>
+#include <cmath>
+#include <cstdio>
 #include <exception>
 #include <new>
 
@@ -42,6 +45,19 @@ Solution solve(const Model& model, const Options& options) {
   if (pr.outcome == PresolveResult::Outcome::Unchanged) return solve_direct(model, options);
   Options inner = options;
   inner.presolve = false;
+  {  // judge the reduced solve with the ORIGINAL model's normalization (see termination.h)
+    double b2 = 0, c2 = 0;
+    for (int i = 0; i < model.num_rows; ++i) {
+      const double lo = std::isfinite(model.row_lower[i]) ? std::fabs(model.row_lower[i]) : 0.0;
+      const double up = std::isfinite(model.row_upper[i]) ? std::fabs(model.row_upper[i]) : 0.0;
+      b2 += std::max(lo, up) * std::max(lo, up);
+    }
+    for (double c : model.obj) c2 += c * c;
+    inner.kkt_b_norm = std::sqrt(b2);
+    inner.kkt_c_norm = std::sqrt(c2);
+    // reduced objective (without offsets) = original − Σ c_j x_fixed; shift back, min form
+    inner.kkt_obj_shift = model.sense * (pr.reduced.obj_offset - model.obj_offset);
+  }
   if (pr.outcome == PresolveResult::Outcome::Infeasible) {
     Solution s;
     s.status = Status::Infeasible;
@@ -71,15 +87,37 @@ Solution solve(const Model& model, const Options& options) {
                            std::to_string(pr.removed_cols) + " cols";
   post.message = post.message.empty() ? note : post.message + "; " + note;
   post.model_fingerprint = model.fingerprint_hex();
-  if (post.status == Status::Optimal && first_order(options.algorithm) && !post.x.empty() && !post.y.empty() &&
-      !original_kkt(model, post).converged(options.tolerance)) {
-    Options polish = inner;
-    polish.warm_x = post.x;
-    polish.warm_y = post.y;
-    Solution pol = solve_direct(model, polish);
-    pol.iterations += red.iterations;
-    pol.message += std::string(pol.message.empty() ? "" : "; ") + note + "; polished on the original after postsolve";
-    post = pol;
+  auto passes = [&](const Solution& s) {
+    return !s.x.empty() && !s.y.empty() && original_kkt(model, s).converged(options.tolerance);
+  };
+  if (post.status == Status::Optimal && first_order(options.algorithm) && !passes(post)) {
+    // The reduced problem's relative KKT uses different norms, so a point that met the
+    // tolerance there can narrowly miss it on the original. Step 1: tighten the reduced
+    // solve 100×, warm-started in the REDUCED space (same problem, so the warm start is
+    // good). Step 2, if still short: a plain cold solve of the original (never worse than
+    // no presolve). A warm-started solve of the original was tried first and was fragile
+    // (stocfor2: 4.8M iterations vs 39k cold).
+    Options tight = inner;
+    tight.tolerance = std::max(options.tolerance * 1e-2, 1e-13);
+    tight.warm_x = red.x;
+    tight.warm_y = red.y;
+    const Solution red2 = solve_direct(pr.reduced, tight);
+    Solution post2 = postsolve(model, pr, red2);
+    post2.iterations += red.iterations;
+    if (post2.status == Status::Optimal && passes(post2)) {
+      char buf[64];
+      std::snprintf(buf, sizeof buf, "%.0e", tight.tolerance);
+      post2.message = note + "; reduced model re-solved to " + buf + " to pass on the original";
+      post = post2;
+    } else {
+      Solution cold = solve_direct(model, inner);
+      cold.iterations += red.iterations + red2.iterations;
+      cold.message += std::string(cold.message.empty() ? "" : "; ") + note +
+                      "; postsolved point missed the tolerance, fell back to solving the original";
+      post = cold;
+    }
+  } else if (post.status == Status::Optimal && first_order(options.algorithm) && post.x.empty()) {
+    post.status = Status::NumericalError;  // never claim Optimal without a point
   }
   if (static_cast<int>(post.y.size()) == model.num_rows && model.num_rows + model.num_cols > 0)
     post.certified_bound = certified_dual_bound(model, post.y).bound;

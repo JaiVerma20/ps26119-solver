@@ -35,7 +35,7 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
   const bool warm = ctx.apply_warm_start(x, y, policy);
   ctx.note_primal_weight(omega);
   if (warm) {  // the warm point may already be good enough (e.g. an unchanged re-solve)
-    const KktStats kw = b.kkt(x, y);
+    const KktStats kw = ctx.kkt(x, y);
     if (kw.finite() && ctx.record(kw, 0)) return ctx.finish(Status::Optimal, x, y, 0, "warm start already optimal");
   }
   b.copy(x0, x);
@@ -78,7 +78,7 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
     it += K;
 
     const double r = fixed_point_residual();
-    const KktStats k = b.kkt(xh, yh);
+    const KktStats k = ctx.kkt(xh, yh);
     if (!k.finite() || !std::isfinite(r)) return ctx.finish(Status::NumericalError, xh, yh, it, "non-finite iterate");
     if (ctx.record(k, it)) return ctx.finish(Status::Optimal, xh, yh, it, msg);
     if (it >= opt.iteration_limit) return ctx.finish(Status::IterationLimit, xh, yh, it, msg);

@@ -37,11 +37,15 @@ struct KktStats {
   double primal_obj = 0, dual_obj = 0;
   double b_norm = 0, c_norm = 0;
   double primal_max_rel = 0, dual_max_rel = 0;  // verifier-grade, per element
+  // Added to both objectives in the gap's DENOMINATOR only: lets a presolved (reduced)
+  // problem be judged with the original objective's magnitude (see Options::kkt_obj_shift).
+  double obj_shift = 0;
 
   double rel_primal() const { return primal_residual / (1.0 + b_norm); }
   double rel_dual() const { return dual_residual / (1.0 + c_norm); }
   double rel_gap() const {
-    return std::fabs(primal_obj - dual_obj) / (1.0 + std::fabs(primal_obj) + std::fabs(dual_obj));
+    return std::fabs(primal_obj - dual_obj) /
+           (1.0 + std::fabs(primal_obj + obj_shift) + std::fabs(dual_obj + obj_shift));
   }
   double rel_kkt() const { return std::max({rel_primal(), rel_dual(), rel_gap()}); }
   bool converged(double eps) const {

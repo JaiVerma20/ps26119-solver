@@ -35,7 +35,7 @@ Solution solve_pdlp(const Model& model, const EngineOptions& opt) {
   const bool warm = ctx.apply_warm_start(x, y, policy);
   ctx.note_primal_weight(omega);
   if (warm) {  // the warm point may already be good enough (e.g. an unchanged re-solve)
-    const KktStats kw = b.kkt(x, y);
+    const KktStats kw = ctx.kkt(x, y);
     if (kw.finite() && ctx.record(kw, 0)) return ctx.finish(Status::Optimal, x, y, 0, "warm start already optimal");
   }
   b.copy(x0, x);
@@ -43,7 +43,7 @@ Solution solve_pdlp(const Model& model, const EngineOptions& opt) {
   b.copy(xa, x);
   b.copy(ya, y);
 
-  KktStats k0 = b.kkt(x, y);
+  KktStats k0 = ctx.kkt(x, y);
   ctx.record(k0, 0);
   double restart_kkt = k0.rel_kkt(), last_candidate = 1e300;
   std::int64_t it = 0, inner = 0;
@@ -68,7 +68,7 @@ Solution solve_pdlp(const Model& model, const EngineOptions& opt) {
     }
     it += K;
 
-    const KktStats kc = b.kkt(x, y), ka = b.kkt(xa, ya);
+    const KktStats kc = ctx.kkt(x, y), ka = ctx.kkt(xa, ya);
     const bool use_avg = ka.finite() && ka.rel_kkt() < kc.rel_kkt();
     const KktStats& kk = use_avg ? ka : kc;
     const int cx = use_avg ? xa : x, cy = use_avg ? ya : y;

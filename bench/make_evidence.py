@@ -225,7 +225,8 @@ def main():
 
     fulls_all = [p for p in paths if os.path.basename(p).startswith("netlib-full-")]
     # tagged runs (e.g. -gm12-) are ablations, not the default configuration
-    ablations = [p for p in fulls_all if any(f"-{t}-" in os.path.basename(p) for t in ("gm12", "gm4", "gm0"))]
+    ablations = [p for p in fulls_all
+                 if any(f"-{t}-" in os.path.basename(p) for t in ("gm12", "gm4", "gm0", "presolve", "nopresolve"))]
     fulls = [p for p in fulls_all if p not in ablations]
     # latest run per configuration tag (engine-precision[-gpu]-machine)
     by_tag = {}
@@ -237,7 +238,7 @@ def main():
     doc += [netlib_full_section(p) + "\n" for p in fulls] or ["_No committed full-Netlib CSV yet._"]
 
     if ablations:
-        doc += ["### 1c. Ablation: geometric-mean scaling (full Netlib, 60 s per model)", ""]
+        doc += ["### 1c. Ablations (full Netlib, 60 s per model)", ""]
         body = []
         for p in sorted(ablations) + sorted(fulls_all_untagged_before(ablations, fulls_all)):
             rows = load(p)
@@ -245,7 +246,7 @@ def main():
             body.append([f"`{os.path.basename(p)}`", rows[0].get("settings", "") or "default of that commit",
                          f"{len(solved)}/{len(rows)}"])
         doc += [table(["CSV", "settings", "solved + verified"], body), "",
-                "Decision (docs/DECISIONS.md #17): apply 12 sweeps only when max|a|/min|a| ≥ 10^4.5.", ""]
+                "Decisions: geometric-mean scaling is adaptive (docs/DECISIONS.md #17); presolve see #22.", ""]
 
     doc += ["", "## 2. Scaling on generated LPs with known optimum (CPU)", ""]
     if cpu_scales:

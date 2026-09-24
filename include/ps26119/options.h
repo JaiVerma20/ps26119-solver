@@ -35,6 +35,9 @@ struct Options {
   double time_limit = 3600.0;                         // seconds, wall clock
   std::int64_t iteration_limit = 100'000'000;         // engine iterations
   int verbosity = 0;                                  // 0 silent, 1 summary, 2 progress
+  // Termination normalization overrides (set internally by presolve so that a reduced model
+  // is judged with the ORIGINAL model's ‖b‖₂, ‖c‖₂ and objective magnitude; −1 = own norms).
+  double kkt_b_norm = -1, kkt_c_norm = -1, kkt_obj_shift = 0;
   bool presolve = false;  // safe reductions + postsolve (src/core/presolve.h); result re-checked on the original
   int threads = 1;  // CPU threads for first-order engines (0 = all cores); results do not depend on it
   // First-order engine knobs (defaults follow the cited papers; see src/pdhg/*.h).

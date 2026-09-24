@@ -6,6 +6,9 @@
 //   R3 empty column     — set to its best finite bound for sense·c_j (removed only if that
 //                         bound is finite, or c_j = 0); z_j = c_j.
 //   R4 singleton row    — rl ≤ a·x_j ≤ ru becomes a bound on x_j; the row is removed.
+// After postsolve the caller (solve()) re-checks optimality on the ORIGINAL model; a
+// first-order answer that narrowly misses is re-solved tighter in the reduced space, and
+// failing that the original is solved without presolve.
 // Postsolve: x of removed columns is restored; y of kept rows comes from the reduced solve;
 // y of removed rows is 0 except singleton rows, which take over the column's reduced cost
 // when the column sits on the bound that row created (so that z = c − Aᵀy keeps the right

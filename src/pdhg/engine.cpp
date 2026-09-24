@@ -23,6 +23,9 @@ EngineOptions engine_options_from(const Options& o) {
   e.warm_x = o.warm_x;
   e.warm_y = o.warm_y;
   e.warm_primal_weight = o.warm_primal_weight;
+  e.kkt_b_norm = o.kkt_b_norm;
+  e.kkt_c_norm = o.kkt_c_norm;
+  e.kkt_obj_shift = o.kkt_obj_shift;
   return e;
 }
 
@@ -225,7 +228,7 @@ bool EngineContext::apply_warm_start(int x, int y, PrecisionPolicy& policy) {
     }
   }
   // Decide the working precision BEFORE uploading (an fp32 copy would lose the accuracy).
-  policy.on_warm_start(kkt_on_original(sp_, xo, yo).rel_kkt());
+  policy.on_warm_start(adjust(kkt_on_original(sp_, xo, yo)).rel_kkt());
   std::vector<double> xs(sp_.n), ys(sp_.m);
   for (int j = 0; j < sp_.n; ++j) xs[j] = sp_.bound_scale * xo[j] / sp_.col_scale[j];
   for (int i = 0; i < sp_.m; ++i) ys[i] = sp_.obj_scale * yo[i] / sp_.row_scale[i];
@@ -245,7 +248,7 @@ Solution EngineContext::finish(Status status, int xs, int ys, std::int64_t itera
   backend_->download(ys, ysd);
   sp_.unscale_primal(xsd, sol.x);
   sp_.unscale_dual(ysd, y_min);
-  const KktStats k = kkt_on_original(sp_, sol.x, y_min);
+  const KktStats k = adjust(kkt_on_original(sp_, sol.x, y_min));
   if (!k.finite()) status = Status::NumericalError;
   if (status == Status::Optimal && !k.converged(opt_.tolerance)) status = Status::NumericalError;  // never over-claim
 
