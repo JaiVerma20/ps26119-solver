@@ -10,6 +10,7 @@ set(PS26119_TEST_SOURCES
   unit/test_c_api.cpp
   unit/test_batch.cpp
   unit/test_safe_bound.cpp
+  unit/test_presolve.cpp
 )
 
 if(PS26119_ENABLE_CUDA)
@@ -35,6 +36,7 @@ if(Python3_Interpreter_FOUND)
                   RESULT_VARIABLE _no_highspy OUTPUT_QUIET ERROR_QUIET)
   if(_no_highspy EQUAL 0)
     add_test(NAME tools.python COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/test_tools.py)
+    add_test(NAME cli.contract COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_cli.py $<TARGET_FILE:ps26119_cli>)
     if(TARGET ps26119_shared)
       add_test(NAME python.binding COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/python/test_python.py)
       set_tests_properties(python.binding PROPERTIES ENVIRONMENT "PS26119_LIB=$<TARGET_FILE:ps26119_shared>")

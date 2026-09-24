@@ -42,6 +42,7 @@ void usage(std::FILE* f) {
                "  --precision fp64|mixed                 (first-order engines, default fp64)\n"
                "  --gpu                                  use the CUDA backend (CUDA builds only)\n"
                "  --threads <n>                          CPU threads (default 1, 0 = all cores; same results)\n"
+               "  --presolve                             safe presolve + postsolve (answer re-checked on the original)\n"
                "  --tol <eps>                            relative KKT tolerance (default 1e-8)\n"
                "  --time-limit <seconds>   --iteration-limit <n>\n"
                "  --out <file>                           write the solution file (tools/verify.py reads it)\n"
@@ -104,6 +105,8 @@ int cmd_solve(int argc, char** argv) {
       warm = next();
     } else if (a == "--threads") {
       opt.threads = std::atoi(next());
+    } else if (a == "--presolve") {
+      opt.presolve = true;
     } else if (a == "--warm-weight") {
       warm_weight = true;
     } else if (a == "--set") {

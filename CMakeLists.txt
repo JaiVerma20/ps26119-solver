@@ -38,6 +38,7 @@ set(PS26119_SOURCES
   src/core/c_api.cpp
   src/core/safe_bound.cpp
   src/core/implied_bounds.cpp
+  src/core/presolve.cpp
   src/io/lpm_reader.cpp
   src/io/solution_writer.cpp
   src/io/solution_reader.cpp

@@ -54,6 +54,7 @@ def main():
     ap.add_argument("--gpu", action="store_true")
     ap.add_argument("--only", default="")
     ap.add_argument("--set", action="append", default=[], help="engine knob name=value (repeatable)")
+    ap.add_argument("--presolve", action="store_true")
     ap.add_argument("--tag", default="", help="suffix for the CSV name, e.g. gm12")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
@@ -77,8 +78,10 @@ def main():
                 cmd.append("--gpu")
             for kv in a.set:
                 cmd += ["--set", kv]
+            if a.presolve:
+                cmd.append("--presolve")
             subprocess.run(cmd, capture_output=True, text=True)
-            r = {"settings": " ".join(a.set), "instance": name, "rows": mdl["rows"], "cols": mdl["cols"], "nnz": mdl["nnz"], "engine": a.engine,
+            r = {"settings": " ".join(a.set + (["presolve"] if a.presolve else [])), "instance": name, "rows": mdl["rows"], "cols": mdl["cols"], "nnz": mdl["nnz"], "engine": a.engine,
                  "backend": "gpu" if a.gpu else "cpu", "precision": a.precision, "tolerance": "1e-8",
                  "time_limit": a.time_limit, "published_optimum": mdl["published_optimum"],
                  "highs_objective": mdl["highs_objective"]}

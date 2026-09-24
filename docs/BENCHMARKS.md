@@ -8,11 +8,17 @@ generated from the committed CSVs by `bench/make_evidence.py`.
 |---|---|---|
 | `bench/netlib_small.py` | 10 small Netlib LPs × {oracle, PDLP-style PDHG, r²HPDHG} × {fp64, mixed}; every solution checked by `tools/verify.py` and against the published optimum | `netlib-small-<hash>.csv` (`netlib-small-gpu-<hash>.csv` with `--gpu`) |
 | `bench/scale.py` | generated LPs with known optimum: random sparse (1e4–1e6 rows) and refinery (T = 12, 365, 8760); CPU vs GPU, fp64 vs mixed; iterations / wall time to 1e-4 and 1e-8, ms per iteration, setup time; optional HiGHS reference (`--highs`) | `scale-<machine>-<hash>.csv` + `.png` |
+| `bench/netlib_full.py` | all 93 Netlib LPs (`tools/fetch_netlib.py` first), first-order engine, 60 s each, verified, vs HiGHS and published optima; `--set k=v --tag t` for ablations | `netlib-full-<engine>-<prec>[-tag]-<machine>-<hash>.csv` |
+| `bench/warm_start.py` | refinery what-if re-solves (price / demand / crude): cold vs warm vs warm+ω | `warm-start-<machine>-<hash>.csv` |
+| `bench/batch.py` | K price scenarios: K separate solves vs one batched solve (SpMM) | `batch-<machine>-<hash>.csv` |
 | `scripts/gpu_check.sh` | the one command for GPU machines: build with CUDA, all tests, both benches with `--gpu` | CSVs + `bench/results/logs/<machine>-<hash>/` |
 | `scripts/reproduce.sh` | the same on a CPU-only machine | CSVs |
 
 Every CSV row records: git hash, machine label (`PS26119_MACHINE`), CPU, GPU model, driver,
-CUDA version, precision, tolerance, date.
+CUDA version, precision, tolerance, date. The git hash is taken from the BINARY that ran
+(`ps26119 --version` prints the commit it was built from, `-dirty` if the tree had
+uncommitted changes), never from the working tree at run time. Long runs: use a frozen copy of
+the binary and `caffeinate -i` on macOS.
 
 ## Definitions
 - **Relative KKT** (first-order engines): see `src/pdhg/termination.h` — L2 primal residual
@@ -28,7 +34,8 @@ CUDA version, precision, tolerance, date.
   KKT construction (`bench/lpgen.py`); HiGHS reproduces it in `bench/test_generators.py`.
 
 ## Caveats
-- CPU engines are single-threaded (deterministic); OpenMP is optional and off by default.
+- CPU engines default to 1 thread; `--threads N` uses a deterministic pool (bit-identical
+  results for any N). Scaling CSVs have a `threads` column.
 - HiGHS is called through highspy in the benchmark process as an external reference; its
   default algorithm returns a vertex at simplex accuracy, not a 1e-8 relative-KKT point.
 - Random LPs of this construction favour first-order methods; Mittelmann / Netlib-large
