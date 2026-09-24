@@ -57,6 +57,8 @@ EngineContext::EngineContext(const Model& model, const EngineOptions& opt, const
   backend_->setup(sp_);
   const double norm = la::estimate_norm2(sp_.A, sp_.At);
   eta_ = norm > 0 ? 0.998 / norm : 1.0;
+  backend_->sync();
+  setup_seconds_ = elapsed();
 }
 
 double EngineContext::initial_primal_weight() const {
@@ -119,6 +121,7 @@ Solution EngineContext::finish(Status status, int xs, int ys, std::int64_t itera
   sol.iterations_to_fast = fast_iterations_;
   sol.seconds_to_fast = fast_seconds_;
   sol.seconds = elapsed();
+  sol.setup_seconds = setup_seconds_;
   return sol;
 }
 

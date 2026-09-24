@@ -45,6 +45,7 @@ struct Solution {
   double gap = std::numeric_limits<double>::quiet_NaN();
   std::int64_t iterations = 0;
   double seconds = 0.0;
+  double setup_seconds = 0.0;  // part of `seconds` spent before the first iteration (scaling, ‖A‖, upload)
   // First-order engines record when the relative KKT error first dropped below the "fast"
   // tolerance (1e-4) while continuing to the requested one. -1 = never reached / not tracked.
   std::int64_t iterations_to_fast = -1;

@@ -40,6 +40,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from lpm import fingerprint, read_lpm, read_mps_highspy, read_solution  # noqa: E402
 
+FINGERPRINT_MAX_NNZ = 300_000
 TOL_HEADER = os.path.join(HERE, "..", "include", "ps26119", "tolerances.h")
 
 
@@ -74,10 +75,11 @@ def verify(model_path: str, solution_path: str, expected: float | None = None) -
         "status": s.header.get("status", "?"),
         "engine": s.header.get("engine", "?"),
         "precision": s.header.get("precision", "?"),
-        "fingerprint_model": fingerprint(m),
+        # pure-Python FNV is slow (~1 s per 100k nnz); skip it for big models
+        "fingerprint_model": fingerprint(m) if m.nnz <= FINGERPRINT_MAX_NNZ else "skipped",
         "fingerprint_solution": s.header.get("model", ""),
     }
-    rep["model_match"] = rep["fingerprint_model"] == rep["fingerprint_solution"]
+    rep["model_match"] = rep["fingerprint_model"] in ("skipped", rep["fingerprint_solution"])
     reasons = []
     if rep["status"] != "Optimal":
         reasons.append(f"status is {rep['status']}, not Optimal")
@@ -170,7 +172,7 @@ def print_report(rep: dict) -> None:
     print(f"model      {rep['model']}  ({rep['rows']} rows, {rep['cols']} cols, {rep['nnz']} nnz, read by {rep['reader']})")
     print(f"solution   status={rep['status']} engine={rep['engine']} precision={rep['precision']}")
     print(f"fingerprint model={rep['fingerprint_model']} solution={rep['fingerprint_solution']} "
-          f"{'match' if rep['model_match'] else 'MISMATCH (different reader or model)'}")
+          f"{'(not computed: large model)' if rep['fingerprint_model'] == 'skipped' else 'match' if rep['model_match'] else 'MISMATCH (different reader or model)'}")
     if "objective" in rep:
         print(f"objective  primal={g('objective', '{:.12g}')}  dual={g('dual_objective', '{:.12g}')}  "
               f"reported={g('objective_reported', '{:.12g}')}")

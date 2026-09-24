@@ -13,13 +13,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lpm import fingerprint, read_lpm, read_mps_highspy  # noqa: E402
 
 
-def solve_with_highs(model_path: str, out_path: str) -> dict:
+def solve_with_highs(model_path: str, out_path: str, time_limit: float = 0.0) -> dict:
     import highspy
     import numpy as np
 
     m = read_lpm(model_path) if model_path.endswith(".lpm") else read_mps_highspy(model_path)
     h = highspy.Highs()
     h.setOptionValue("output_flag", False)
+    if time_limit > 0:
+        h.setOptionValue("time_limit", float(time_limit))
     lp = highspy.HighsLp()
     lp.num_col_, lp.num_row_ = m.num_cols, m.num_rows
     lp.col_cost_ = np.asarray(m.obj, float)
@@ -41,6 +43,7 @@ def solve_with_highs(model_path: str, out_path: str) -> dict:
         highspy.HighsModelStatus.kInfeasible: "Infeasible",
         highspy.HighsModelStatus.kUnbounded: "Unbounded",
         highspy.HighsModelStatus.kUnboundedOrInfeasible: "Infeasible",
+        highspy.HighsModelStatus.kTimeLimit: "TimeLimit",
     }.get(status, "NotSolved")
     sol = h.getSolution()
     info = h.getInfo()

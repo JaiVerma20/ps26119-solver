@@ -130,7 +130,8 @@ int cmd_solve(int argc, char** argv) {
   std::printf("engine     %s (%s)\n", sol.engine.c_str(), sol.precision.c_str());
   std::printf("objective  %.12g\n", sol.objective);
   std::printf("residuals  primal %.2e  dual %.2e  gap %.2e\n", sol.primal_residual, sol.dual_residual, sol.gap);
-  std::printf("iterations %lld   seconds %.3f\n", static_cast<long long>(sol.iterations), sol.seconds);
+  std::printf("iterations %lld   seconds %.3f   (setup %.3f)\n", static_cast<long long>(sol.iterations), sol.seconds,
+              sol.setup_seconds);
   if (sol.iterations_to_fast >= 0)
     std::printf("to 1e-4    iterations %lld   seconds %.3f\n", static_cast<long long>(sol.iterations_to_fast),
                 sol.seconds_to_fast);

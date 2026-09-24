@@ -88,6 +88,7 @@ class EngineContext {
   std::string error_;
   double eta_ = 1.0;
   std::chrono::steady_clock::time_point t0_;
+  double setup_seconds_ = 0;
   std::int64_t fast_iterations_ = -1;
   double fast_seconds_ = -1;
 };
