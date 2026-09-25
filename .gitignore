@@ -7,3 +7,4 @@ __pycache__/
 bench/generated/
 data/netlib/
 data/miplib3/
+.cache/

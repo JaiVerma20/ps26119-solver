@@ -119,6 +119,9 @@ add_custom_target(ps26119_git_info ALL
 # ---------------------------------------------------------------- CLI
 add_executable(ps26119_cli apps/cli/main.cpp)
 add_dependencies(ps26119_cli ps26119_git_info)
+# Explicit dependency so Ninja re-checks main.cpp AFTER the stamp step has (re)written the
+# header in the same build (otherwise the binary lags one build behind).
+set_source_files_properties(apps/cli/main.cpp PROPERTIES OBJECT_DEPENDS ${PS26119_BUILD_INFO})
 target_include_directories(ps26119_cli PRIVATE ${CMAKE_BINARY_DIR}/generated)
 set_target_properties(ps26119_cli PROPERTIES OUTPUT_NAME ps26119)
 target_link_libraries(ps26119_cli PRIVATE ps26119_core)
