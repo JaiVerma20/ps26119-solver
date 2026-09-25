@@ -1,0 +1,2 @@
+git_hash,machine,cpu,gpu,driver,cuda,date,instance,rows,cols,nnz,K,sequential_seconds,batch_seconds,speedup,sequential_iterations_max,batch_iterations,all_optimal,all_verified,max_objective_disagreement
+8fd5170,macbook-air-m4,Apple M4,none,,,2026-09-25T05:49:47,refinery-T8760-s1,429240,516840,1515469,4,1438.271,2118.532,0.68,264576,360192,True,True,3.4e-11
