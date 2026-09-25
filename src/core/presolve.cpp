@@ -29,6 +29,22 @@ PresolveResult presolve(const Model& M) {
   for (int j = 0; j < n; ++j) col_cnt[j] = M.col_start[j + 1] - M.col_start[j];
   r.fixed_value.assign(n, kNaN);
   double offset = M.obj_offset;
+  // Integer columns: bounds are always rounded INWARD (a fractional bound on an integer
+  // column is equivalent to its rounded value). Without this, a column tightened to x ≥ 0.5
+  // and then removed would be fixed at 0.5 — found on MIPLIB egout (wrong "optimum").
+  auto is_int = [&](int j) { return j < static_cast<int>(M.is_integer.size()) && M.is_integer[j] != 0; };
+  auto round_int_bounds = [&](int j) {
+    if (!is_int(j)) return true;
+    if (std::isfinite(cl[j])) cl[j] = std::ceil(cl[j] - 1e-9);
+    if (std::isfinite(cu[j])) cu[j] = std::floor(cu[j] + 1e-9);
+    return cl[j] <= cu[j];
+  };
+  for (int j = 0; j < n; ++j)
+    if (!round_int_bounds(j)) {
+      r.outcome = PresolveResult::Outcome::Infeasible;
+      r.message = "integer column " + std::to_string(j) + " has no integer value within its bounds";
+      return r;
+    }
   auto infeasible = [&](const std::string& why) {
     r.outcome = PresolveResult::Outcome::Infeasible;
     r.message = why;
@@ -62,6 +78,7 @@ PresolveResult presolve(const Model& M) {
         }
         cl[j] = nl;
         cu[j] = nu;
+        if (!round_int_bounds(j)) return infeasible("singleton row " + std::to_string(i) + " leaves integer column " + std::to_string(j) + " no integer value");
         r.singletons.push_back({i, j, a, set_lower, set_upper});
         r.tightened_bounds += set_lower + set_upper;
         row_alive[i] = 0;

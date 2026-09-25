@@ -135,3 +135,24 @@ TEST(Mip, RelaxationIsLabelledAndLargeModelsAreRefused) {
   bo.max_tableau_entries = 1;  // this 1×2 model needs 1·(2+2) = 4 entries
   EXPECT_EQ(mip::solve_branch_and_bound(m, bo).status, Status::NotSolved);
 }
+
+// Regression (MIPLIB egout): presolve must round integer bounds inward. Here a singleton
+// row gives x0 ≥ 0.5; x0 then becomes an empty column. Without inward rounding presolve
+// fixed x0 = 0.5 and reported a better-than-possible "optimum".
+TEST(Mip, PresolveRoundsIntegerBoundsInward) {
+  // min 10·x0 + x1  s.t.  2·x0 ≥ 1 (singleton),  x1 ≥ 0.3 (singleton);  x0 ∈ Z ∩ [0,5], x1 ∈ [0,5]
+  Model m = make_model({10, 1}, {{2, 0}, {0, 1}}, {1, 0.3}, {kInf, kInf}, {0, 0}, {5, 5});
+  m.is_integer = {1, 0};
+  for (bool pre : {true, false}) {
+    Options o;
+    o.presolve = pre;
+    const Solution s = solve(m, o);
+    ASSERT_EQ(s.status, Status::Optimal) << s.message;
+    EXPECT_NEAR(s.objective, 10.3, 1e-9) << (pre ? "presolve" : "no presolve");
+    EXPECT_EQ(s.x[0], 1.0);
+  }
+  // integer column with no integer value in its (tightened) bounds → infeasible
+  Model inf = make_model({1}, {{4}}, {1}, {3}, {0}, {1});  // 0.25 ≤ x ≤ 0.75
+  inf.is_integer = {1};
+  EXPECT_EQ(solve(inf).status, Status::Infeasible);
+}

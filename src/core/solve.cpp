@@ -12,6 +12,7 @@
 #include "core/presolve.h"
 #include "core/safe_bound.h"
 #include "pdhg/backend.h"
+#include "ps26119/tolerances.h"
 #include "la/parallel.h"
 #include "mip/branch_and_bound.h"
 #include "oracle/dense_simplex.h"
@@ -102,6 +103,26 @@ Solution solve(const Model& model, const Options& options) {
     return !s.x.empty() && !s.y.empty() && original_kkt(model, s).converged(options.tolerance);
   };
   const bool is_mip = has_integers(model) && !options.relax_integrality;
+  if (is_mip && (post.status == Status::Optimal || !post.x.empty())) {
+    // Safety net: a MILP answer that went through presolve is re-verified on the ORIGINAL
+    // model (bounds, rows, integrality). Never report a point that fails as Optimal.
+    bool ok = static_cast<int>(post.x.size()) == model.num_cols;
+    if (ok) {
+      const auto ax = model.row_activity(post.x);
+      auto in = [](double v, double lo, double up) {
+        return v >= lo - tol::kMipFeasibility * (1 + std::fabs(lo)) && v <= up + tol::kMipFeasibility * (1 + std::fabs(up));
+      };
+      for (int j = 0; ok && j < model.num_cols; ++j) {
+        ok = in(post.x[j], model.col_lower[j], model.col_upper[j]);
+        if (ok && model.is_integer[j]) ok = std::fabs(post.x[j] - std::round(post.x[j])) <= tol::kMipIntegrality;
+      }
+      for (int i = 0; ok && i < model.num_rows; ++i) ok = in(ax[i], model.row_lower[i], model.row_upper[i]);
+    }
+    if (!ok && post.status == Status::Optimal) {
+      post.status = Status::NumericalError;
+      post.message += "; postsolved MILP point failed the check on the original model";
+    }
+  }
   if (!is_mip && post.status == Status::Optimal && first_order(options.algorithm) && !passes(post)) {
     // The reduced problem's relative KKT uses different norms, so a point that met the
     // tolerance there can narrowly miss it on the original. Step 1: tighten the reduced

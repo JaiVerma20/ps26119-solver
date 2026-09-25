@@ -107,3 +107,10 @@ Newest last. Each entry: what, why, evidence, how to undo.
     but the hardest one took 360k iterations in the batch vs 265k alone — rounding-level
     differences (reduction order) on a chaotic, very long run. At T=365 iteration counts
     matched exactly. SpMM batching remains primarily a GPU idea; CPU gains are modest.
+26. **Wrong MILP answer found by the MIPLIB run and fixed (egout).** Presolve had no notion of
+    integrality: a singleton row tightened a binary column to x ≥ 0.183…, the column became
+    empty and was fixed at that fractional value, and the tree reported 468.15 "Optimal"
+    (true optimum 568.1007) — caught by tools/verify.py. Fixes: presolve rounds integer
+    bounds inward (conflict ⇒ Infeasible), and every MILP answer that went through presolve
+    is re-verified on the ORIGINAL model (bounds, rows, integrality) before it may be called
+    Optimal. Regression test: Mip.PresolveRoundsIntegerBoundsInward.
