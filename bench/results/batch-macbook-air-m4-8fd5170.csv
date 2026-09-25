@@ -1,0 +1,4 @@
+git_hash,machine,cpu,gpu,driver,cuda,date,instance,rows,cols,nnz,K,sequential_seconds,batch_seconds,speedup,sequential_iterations_max,batch_iterations,all_optimal,all_verified,max_objective_disagreement
+8fd5170,macbook-air-m4,Apple M4,none,,,2026-09-25T05:47:04,refinery-T365-s1,17885,21535,63134,4,11.232,10.080,1.11,32000,32000,True,True,1.4e-13
+8fd5170,macbook-air-m4,Apple M4,none,,,2026-09-25T05:47:04,refinery-T365-s1,17885,21535,63134,8,21.692,19.528,1.11,50432,50432,True,True,1.4e-13
+8fd5170,macbook-air-m4,Apple M4,none,,,2026-09-25T05:47:04,refinery-T365-s1,17885,21535,63134,16,46.845,40.874,1.15,61632,61632,True,True,1.4e-13
