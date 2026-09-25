@@ -97,3 +97,13 @@ Newest last. Each entry: what, why, evidence, how to undo.
     starts are unaffected (47k). Netlib overall still favours presolve (85 vs 83, no losses),
     so it stays on; `--no-presolve` exists for such models. Recorded in
     bench/results/warm-start-macbook-air-m4-8fd5170.csv.
+24. **MILP models are never answered with their LP relaxation.** A model with integer columns
+    goes to the prototype branch-and-bound (dense double-double oracle as node solver,
+    depth-first then best-bound, most-fractional branching, rounding heuristic, no cuts);
+    too-large models get NotSolved with a reason. `Options::relax_integrality` solves the
+    relaxation explicitly and says so in the message. Tested against brute-force enumeration
+    (knapsack, 60 pure-integer, 10 mixed-integer random programs).
+25. **Batch at T=8760 (K=4) was slower (0.68×)**: all four scenarios optimal and verified,
+    but the hardest one took 360k iterations in the batch vs 265k alone — rounding-level
+    differences (reduction order) on a chaotic, very long run. At T=365 iteration counts
+    matched exactly. SpMM batching remains primarily a GPU idea; CPU gains are modest.

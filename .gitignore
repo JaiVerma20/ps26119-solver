@@ -6,3 +6,4 @@ __pycache__/
 /scratch/
 bench/generated/
 data/netlib/
+data/miplib3/

@@ -11,6 +11,13 @@ inline constexpr double kFirstOrderHigh = 1e-8;
 // src/pdhg/engine.h). A status Infeasible/Unbounded from these engines needs a ray whose
 // violation divided by its objective is below this.
 inline constexpr double kFirstOrderInfeasible = 1e-8;
+// Prototype branch-and-bound (src/mip): integrality of an integer column, feasibility of an
+// incumbent (relative, after rounding its integer columns) and the gap needed to claim
+// Optimal (absolute or relative to |incumbent|).
+inline constexpr double kMipIntegrality = 1e-6;
+inline constexpr double kMipFeasibility = 1e-9;
+inline constexpr double kMipGapAbs = 1e-9;
+inline constexpr double kMipGapRel = 1e-9;
 // Mixed precision: fp32 iterates are promoted to fp64 once the relative KKT error reaches
 // this level (when the target is tighter), or earlier if fp32 progress stalls.
 inline constexpr double kMixedPrecisionSwitch = 1e-6;

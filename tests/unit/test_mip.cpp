@@ -1,0 +1,137 @@
+// test_mip.cpp — prototype branch-and-bound: optima equal brute-force enumeration.
+#include <gtest/gtest.h>
+
+#include <cmath>
+#include <random>
+
+#include "mip/branch_and_bound.h"
+#include "model_builder.h"
+#include "ps26119/solve.h"
+
+using namespace ps26119;
+using test::make_model;
+
+namespace {
+
+// Brute force: all integer points in the box (pure integer models), feasibility checked
+// exactly; returns +inf (min) if none feasible. Objective in the model's own sense.
+double brute_force_pure(const Model& m, bool& feasible) {
+  const int n = m.num_cols;
+  std::vector<int> lo(n), hi(n), x(n);
+  for (int j = 0; j < n; ++j) lo[j] = static_cast<int>(std::ceil(m.col_lower[j])), hi[j] = static_cast<int>(std::floor(m.col_upper[j]));
+  double best = m.sense > 0 ? INFINITY : -INFINITY;
+  feasible = false;
+  x = lo;
+  for (;;) {
+    std::vector<double> xd(x.begin(), x.end());
+    const auto ax = m.row_activity(xd);
+    bool ok = true;
+    for (int i = 0; i < m.num_rows && ok; ++i) ok = ax[i] >= m.row_lower[i] - 1e-9 && ax[i] <= m.row_upper[i] + 1e-9;
+    if (ok) {
+      feasible = true;
+      const double v = m.objective_value(xd);
+      best = m.sense > 0 ? std::min(best, v) : std::max(best, v);
+    }
+    int j = 0;
+    while (j < n && ++x[j] > hi[j]) x[j] = lo[j], ++j;
+    if (j == n) break;
+  }
+  return best;
+}
+
+}  // namespace
+
+TEST(Mip, KnapsackMatchesEnumeration) {
+  const std::vector<double> v = {12, 7, 9, 4, 11, 6, 8, 5, 10, 3, 7, 9}, w = {5, 3, 4, 2, 6, 3, 4, 2, 5, 1, 4, 5};
+  Model m = make_model(v, {w}, {-kInf}, {20}, std::vector<double>(12, 0.0), std::vector<double>(12, 1.0), -1);
+  m.is_integer.assign(12, 1);
+  bool feas;
+  const double ref = brute_force_pure(m, feas);
+  const Solution s = solve(m);
+  ASSERT_EQ(s.status, Status::Optimal) << s.message;
+  EXPECT_NEAR(s.objective, ref, 1e-9);
+  for (double xj : s.x) EXPECT_EQ(xj, std::round(xj));
+  EXPECT_NE(s.engine.find("branch-and-bound"), std::string::npos);
+}
+
+TEST(Mip, RandomPureIntegerProgramsMatchEnumeration) {
+  std::mt19937_64 rng(5);
+  std::uniform_int_distribution<int> coef(-4, 5), rhs(0, 12);
+  int optimal = 0, infeasible = 0;
+  for (int trial = 0; trial < 60; ++trial) {
+    const int n = 2 + trial % 5, m = 1 + trial % 4;
+    std::vector<double> c(n), cl(n, 0.0), cu(n, 3.0), rl(m), ru(m);
+    std::vector<std::vector<double>> rows(m, std::vector<double>(n));
+    for (int j = 0; j < n; ++j) c[j] = coef(rng);
+    for (int i = 0; i < m; ++i) {
+      for (int j = 0; j < n; ++j) rows[i][j] = coef(rng);
+      rl[i] = trial % 3 == 0 ? rhs(rng) - 6.0 : -kInf;
+      ru[i] = rhs(rng) + (trial % 7 == 0 ? -15.0 : 0.0);  // some infeasible ones
+      if (rl[i] > ru[i]) std::swap(rl[i], ru[i]);
+    }
+    Model mod = make_model(c, rows, rl, ru, cl, cu, trial % 2 ? 1 : -1);
+    mod.is_integer.assign(n, 1);
+    bool feas;
+    const double ref = brute_force_pure(mod, feas);
+    const Solution s = solve(mod);
+    if (!feas) {
+      EXPECT_EQ(s.status, Status::Infeasible) << "trial " << trial;
+      ++infeasible;
+      continue;
+    }
+    ASSERT_EQ(s.status, Status::Optimal) << "trial " << trial << ": " << s.message;
+    EXPECT_NEAR(s.objective, ref, 1e-9) << "trial " << trial;
+    ++optimal;
+  }
+  EXPECT_GT(optimal, 30);
+  EXPECT_GT(infeasible, 0);
+}
+
+TEST(Mip, MixedIntegerMatchesEnumerationOverIntegerPart) {
+  // x0, x1 integer in [0,4]; x2, x3 continuous. Reference: enumerate the 25 integer
+  // assignments and solve each LP in the continuous part with the oracle.
+  std::mt19937_64 rng(9);
+  std::uniform_real_distribution<double> U(-3, 3);
+  for (int trial = 0; trial < 10; ++trial) {
+    std::vector<double> c = {std::round(U(rng) * 3), std::round(U(rng) * 3), U(rng), U(rng)};
+    std::vector<std::vector<double>> rows = {{1, 2, 1, 0}, {3, -1, 0, 1}, {U(rng), U(rng), 1, 1}};
+    Model m = make_model(c, rows, {-kInf, -2, -5}, {7.5, 8.2, 6}, {0, 0, 0, -1}, {4, 4, 3.5, 2.5});
+    m.is_integer = {1, 1, 0, 0};
+    double ref = INFINITY;
+    for (int a = 0; a <= 4; ++a)
+      for (int b = 0; b <= 4; ++b) {
+        Model f = m;
+        f.is_integer.clear();
+        f.col_lower[0] = f.col_upper[0] = a;
+        f.col_lower[1] = f.col_upper[1] = b;
+        Options o;
+        o.algorithm = Algorithm::Oracle;
+        const Solution s = solve(f, o);
+        if (s.status == Status::Optimal) ref = std::min(ref, s.objective);
+      }
+    const Solution s = solve(m);
+    if (!std::isfinite(ref)) {
+      EXPECT_EQ(s.status, Status::Infeasible);
+      continue;
+    }
+    ASSERT_EQ(s.status, Status::Optimal) << s.message;
+    EXPECT_NEAR(s.objective, ref, 1e-8 * (1 + std::fabs(ref))) << "trial " << trial;
+  }
+}
+
+TEST(Mip, RelaxationIsLabelledAndLargeModelsAreRefused) {
+  Model m = make_model({-1, -1}, {{2, 2}}, {-kInf}, {3}, {0, 0}, {kInf, kInf});
+  m.is_integer = {1, 1};
+  const Solution mip = solve(m);
+  ASSERT_EQ(mip.status, Status::Optimal);
+  EXPECT_NEAR(mip.objective, -1.0, 1e-9);  // integer optimum
+  Options o;
+  o.relax_integrality = true;
+  const Solution lp = solve(m, o);
+  EXPECT_NEAR(lp.objective, -1.5, 1e-6);  // LP relaxation
+  EXPECT_NE(lp.message.find("LP relaxation"), std::string::npos);
+  // size guard
+  mip::BranchAndBoundOptions bo;
+  bo.max_tableau_entries = 1;  // this 1×2 model needs 1·(2+2) = 4 entries
+  EXPECT_EQ(mip::solve_branch_and_bound(m, bo).status, Status::NotSolved);
+}

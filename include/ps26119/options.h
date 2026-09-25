@@ -42,6 +42,9 @@ struct Options {
   // original model. Default ON since 01f2eec: full Netlib 85 vs 83 solved, no losses,
   // −6% geomean iterations (bench/results/netlib-full-*-presolve-*-01f2eec.csv).
   bool presolve = true;
+  // A model with integer columns is solved by the prototype branch-and-bound (src/mip).
+  // true = ignore integrality and solve the LP relaxation (reported as such in `message`).
+  bool relax_integrality = false;
   int threads = 1;  // CPU threads for first-order engines (0 = all cores); results do not depend on it
   // First-order engine knobs (defaults follow the cited papers; see src/pdhg/*.h).
   int ruiz_iterations = 10;

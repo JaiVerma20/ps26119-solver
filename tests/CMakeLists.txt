@@ -11,6 +11,7 @@ set(PS26119_TEST_SOURCES
   unit/test_batch.cpp
   unit/test_safe_bound.cpp
   unit/test_presolve.cpp
+  unit/test_mip.cpp
 )
 
 if(PS26119_ENABLE_CUDA)

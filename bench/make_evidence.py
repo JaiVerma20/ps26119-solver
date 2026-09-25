@@ -345,6 +345,23 @@ def main():
     else:
         doc.append("_No committed batch CSV yet._")
 
+    doc += ["", "## 4d. MILP prototype (branch-and-bound, small MIPLIB 3)", ""]
+    mips = [p for p in paths if os.path.basename(p).startswith("miplib3-")]
+    if mips:
+        p = latest(mips, "miplib3-")
+        rows = load(p)
+        r0 = rows[0]
+        solved = [r for r in rows if r["status"] == "Optimal" and r["verify"] == "PASS"]
+        doc += [f"Source: `{p}` — `{r0['machine']}`, commit `{r0['git_hash']}`. Prototype: dense double-double "
+                "simplex as node solver, depth-first then best-bound, most-fractional branching, no cuts. "
+                f"**{len(solved)} of {len(rows)}** solved to proven optimality within the limit, each verified "
+                "(feasibility + integrality) and equal to the HiGHS optimum.", "",
+                table(["instance", "rows", "cols", "int", "status", "objective", "HiGHS", "gap", "s", "verify"],
+                      [[r["instance"], r["rows"], r["cols"], r["integers"], r["status"], r["objective"],
+                        r["highs_objective"], r["gap"], fnum(r["seconds"]), r["verify"]] for r in rows])]
+    else:
+        doc.append("_No committed MIPLIB CSV yet._")
+
     doc += ["", "## 5. What we do NOT do yet (honest list)", "",
             "- **No GPU number is claimed** unless a GPU CSV appears in §3. The CUDA backend has not yet been "
             "compiled by nvcc or run at the time this list was written.",
@@ -355,7 +372,8 @@ def main():
             "- **Infeasibility / unboundedness detection in the first-order engines is new and only lightly "
             "tested** (ray certificates, checked in fp64 on the original problem; unit-tested on hand-made "
             "infeasible/unbounded LPs, not yet on the Netlib infeasible set).",
-            "- **No MILP, no QP** yet (branch-and-bound and PDHG-QP are post-PPT milestones).",
+            "- **MILP is a prototype** (§4d): branch-and-bound over a dense double-double simplex, no cuts, "
+            "no warm-started node LPs — correct on small models only. **No QP** yet.",
             "- **Generated instances**: the refinery LP has refinery structure, but its prices and inequality "
             "right-hand sides come from the KKT construction (synthetic), not from plant data; random LPs of this "
             "kind are friendly to first-order methods. Netlib / Mittelmann large models are the next evidence step.",

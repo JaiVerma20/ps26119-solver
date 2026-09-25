@@ -49,7 +49,7 @@ def load_tolerances(path: str = TOL_HEADER) -> dict:
     with open(path) as f:
         for name, val in re.findall(r"inline constexpr double (k\w+)\s*=\s*([0-9.eE+-]+);", f.read()):
             tol[name] = float(val)
-    for need in ("kVerifyPrimal", "kVerifyDual", "kVerifyGap", "kVerifyReference"):
+    for need in ("kVerifyPrimal", "kVerifyDual", "kVerifyGap", "kVerifyReference", "kMipIntegrality"):
         if need not in tol:
             raise RuntimeError(f"{need} missing from {path}")
     return tol
@@ -83,11 +83,13 @@ def verify(model_path: str, solution_path: str, expected: float | None = None) -
     reasons = []
     if rep["status"] != "Optimal":
         reasons.append(f"status is {rep['status']}, not Optimal")
-    if len(s.x) != n or len(s.y) != mrows:
+    if len(s.x) != n or (len(s.y) != mrows and not any(m.is_integer)):
         reasons.append("solution has no primal/dual vectors of the right size")
         rep.update(verdict="FAIL", reasons=reasons)
         return rep
 
+    is_mip = any(m.is_integer)
+    rep["mip"] = is_mip
     sense = m.sense
     c = np.asarray(m.obj, dtype=float)
     cl, cu = np.asarray(m.col_lower, float), np.asarray(m.col_upper, float)
@@ -96,7 +98,7 @@ def verify(model_path: str, solution_path: str, expected: float | None = None) -
     ridx = np.asarray(m.row_index, dtype=np.int64)
     cidx = np.repeat(np.arange(n), np.diff(np.asarray(m.col_start, dtype=np.int64)))
     x = np.asarray(s.x, float)
-    y = np.asarray(s.y, float)
+    y = np.asarray(s.y, float) if len(s.y) == mrows else np.zeros(mrows)
 
     # ---------------- primal
     ax = np.bincount(ridx, weights=val * x[cidx], minlength=mrows) if mrows else np.zeros(0)
@@ -109,6 +111,25 @@ def verify(model_path: str, solution_path: str, expected: float | None = None) -
     rep["primal_rel"] = float(max((col_viol / col_den).max(initial=0.0), (row_viol / row_den).max(initial=0.0)))
     if len(s.row_activity) == mrows and mrows:
         rep["activity_mismatch_abs"] = float(np.max(np.abs(np.asarray(s.row_activity) - ax)))
+
+    if is_mip:
+        # MILP: primal feasibility + integrality + objective (no duals exist for a MILP optimum)
+        ints = np.asarray([bool(v) for v in m.is_integer])
+        frac = np.abs(x[ints] - np.round(x[ints])) if ints.any() else np.zeros(0)
+        rep["max_fractionality"] = float(frac.max(initial=0.0))
+        rep["objective"] = float(c @ x) + m.obj_offset
+        if rep["primal_rel"] > tol["kVerifyPrimal"]:
+            reasons.append(f"primal violation {rep['primal_rel']:.3e} > {tol['kVerifyPrimal']:.0e}")
+        if rep["max_fractionality"] > tol["kMipIntegrality"]:
+            reasons.append(f"integer column off by {rep['max_fractionality']:.2e}")
+        if expected is not None:
+            rep["expected_objective"] = expected
+            rep["reference_rel"] = abs(rep["objective"] - expected) / (1.0 + abs(expected))
+            if rep["reference_rel"] > tol["kVerifyReference"]:
+                reasons.append(f"objective {rep['objective']:.10g} differs from expected {expected:.10g}")
+        rep["verdict"] = "FAIL" if reasons else "PASS"
+        rep["reasons"] = reasons
+        return rep
 
     # ---------------- dual (min form)
     aty = np.bincount(cidx, weights=val * y[ridx], minlength=n) if n else np.zeros(0)

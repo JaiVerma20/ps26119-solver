@@ -50,6 +50,7 @@ set(PS26119_SOURCES
   src/pdhg/pdlp.cpp
   src/pdhg/r2hpdhg.cpp
   src/pdhg/batch.cpp
+  src/mip/branch_and_bound.cpp
 )
 
 # The MPS reader belongs to a teammate (CLAUDE.md §2). Compile it only once it exists.

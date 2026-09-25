@@ -13,6 +13,7 @@
 #include "core/safe_bound.h"
 #include "pdhg/backend.h"
 #include "la/parallel.h"
+#include "mip/branch_and_bound.h"
 #include "oracle/dense_simplex.h"
 #include "pdhg/pdlp.h"
 #include "pdhg/r2hpdhg.h"
@@ -23,6 +24,12 @@ namespace {
 Solution solve_direct(const Model& model, const Options& options);
 
 bool first_order(Algorithm a) { return a != Algorithm::Oracle; }
+
+bool has_integers(const Model& m) {
+  for (auto v : m.is_integer)
+    if (v) return true;
+  return false;
+}
 
 // fp64 KKT of a solution on the ORIGINAL model (termination.h definitions).
 pdhg::KktStats original_kkt(const Model& M, const Solution& s) {
@@ -94,7 +101,8 @@ Solution solve(const Model& model, const Options& options) {
   auto passes = [&](const Solution& s) {
     return !s.x.empty() && !s.y.empty() && original_kkt(model, s).converged(options.tolerance);
   };
-  if (post.status == Status::Optimal && first_order(options.algorithm) && !passes(post)) {
+  const bool is_mip = has_integers(model) && !options.relax_integrality;
+  if (!is_mip && post.status == Status::Optimal && first_order(options.algorithm) && !passes(post)) {
     // The reduced problem's relative KKT uses different norms, so a point that met the
     // tolerance there can narrowly miss it on the original. Step 1: tighten the reduced
     // solve 100×, warm-started in the REDUCED space (same problem, so the warm start is
@@ -120,7 +128,7 @@ Solution solve(const Model& model, const Options& options) {
                       "; postsolved point missed the tolerance, fell back to solving the original";
       post = cold;
     }
-  } else if (post.status == Status::Optimal && first_order(options.algorithm) && post.x.empty()) {
+  } else if (!is_mip && post.status == Status::Optimal && first_order(options.algorithm) && post.x.empty()) {
     post.status = Status::NumericalError;  // never claim Optimal without a point
   }
   if (static_cast<int>(post.y.size()) == model.num_rows && model.num_rows + model.num_cols > 0)
@@ -153,6 +161,17 @@ Solution solve_direct(const Model& model, const Options& options) {
 
   la::ThreadPool::instance().set_threads(options.threads);
   try {
+    if (has_integers(model) && !options.relax_integrality) {
+      // Never return an LP relaxation as if it were the MILP optimum (CLAUDE.md §5.4).
+      mip::BranchAndBoundOptions bo;
+      bo.time_limit = options.time_limit;
+      bo.node_limit = options.iteration_limit;
+      bo.verbosity = options.verbosity;
+      sol = mip::solve_branch_and_bound(model, bo);
+      sol.model_fingerprint = model.fingerprint_hex();
+      sol.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+      return sol;
+    }
     switch (options.algorithm) {
       case Algorithm::Oracle: {
         oracle::DenseSimplexOptions o;
@@ -185,6 +204,9 @@ Solution solve_direct(const Model& model, const Options& options) {
     sol.message = e.what();
   }
   sol.model_fingerprint = model.fingerprint_hex();
+  if (has_integers(model)) {  // options.relax_integrality: say what was solved
+    sol.message = std::string("LP relaxation (integrality ignored)") + (sol.message.empty() ? "" : "; ") + sol.message;
+  }
   if (static_cast<int>(sol.y.size()) == model.num_rows && model.num_rows + model.num_cols > 0)
     sol.certified_bound = certified_dual_bound(model, sol.y).bound;
 
