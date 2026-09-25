@@ -182,7 +182,11 @@ Solution postsolve(const Model& M, const PresolveResult& r, const Solution& red)
     for (int p = M.col_start[j]; p < M.col_start[j + 1]; ++p) s.z[j] -= M.value[p] * s.y[M.row_index[p]];
   s.row_activity = M.row_activity(s.x);
   s.objective = M.objective_value(s.x);
-  if (!have_x) s.x.clear(), s.row_activity.clear();
+  if (!have_x) {  // no point (e.g. a limit before any incumbent): no objective either
+    s.x.clear();
+    s.row_activity.clear();
+    s.objective = kNaN;
+  }
   if (!have_y) s.y.clear(), s.z.clear();
   return s;
 }
