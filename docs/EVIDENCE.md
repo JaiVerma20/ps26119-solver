@@ -145,7 +145,7 @@ Hourly year, T = 8760 periods: 429240 rows, 516840 columns, 1515469 nonzeros (ge
 
 | engine | backend | threads | prec | status | iterations | s to 1e-4 | s to 1e-8 | rel. err vs known opt | verify | source |
 |---|---|---|---|---|---|---|---|---|---|---|
-| highs | cpu | 1 | fp64 | TimeLimit | – | – | – | – | reference | `scale-macbook-air-m4-62a13f2.csv` |
+| highs | cpu | – | fp64 | TimeLimit | – | – | – | – | reference | `scale-macbook-air-m4-62a13f2.csv` |
 | r2hpdhg | cpu | 1 | fp64 | Optimal | 2880 | 2.49 | 9.95 | 1.49e-13 | PASS | `scale-macbook-air-m4-8fd5170.csv` |
 | r2hpdhg | cpu | 1 | mixed | Optimal | 3136 | 2.36 | 10.1 | 1.20e-13 | PASS | `scale-macbook-air-m4-8fd5170.csv` |
 | r2hpdhg | cpu | 10 | fp64 | Optimal | 2880 | 1.72 | 7.49 | 1.49e-13 | PASS | `scale-macbook-air-m4-8fd5170.csv` |

@@ -136,7 +136,7 @@ def scale_section(path):
               "s to 1e-4", "s to 1e-8", "ms/iter", "rel. err vs known opt", "verify"]
     body = []
     for r in rows:
-        body.append([r["instance"], r["rows"], r["nnz"], r["engine"], r["backend"], r.get("threads", "") or "1",
+        body.append([r["instance"], r["rows"], r["nnz"], r["engine"], r["backend"], (r.get("threads", "") or ("1" if r["engine"] != "highs" else "–")),
                      r["precision"], r["status"],
                      r["iterations"] or "–", fnum(r["seconds_to_1e-4"]), fnum(r["seconds_to_1e-8"]),
                      fnum(r["ms_per_iteration"]), r["rel_err_known"] or "–", r["verify"] or "–"])
@@ -294,7 +294,7 @@ def main():
             if r["instance"].startswith("refinery-T8760") and (p == newest_cpu or p in gpu_scales or r["engine"] == "highs"):
                 ref.append((p, r))
     if ref:
-        body = [[r["engine"], r["backend"], r.get("threads", "") or "1", r["precision"], r["status"], r["iterations"] or "–",
+        body = [[r["engine"], r["backend"], (r.get("threads", "") or ("1" if r["engine"] != "highs" else "–")), r["precision"], r["status"], r["iterations"] or "–",
                  fnum(r["seconds_to_1e-4"]), fnum(r["seconds_to_1e-8"]), r["rel_err_known"] or "–", r["verify"] or "–",
                  f"`{os.path.basename(p)}`"] for p, r in ref]
         r0 = ref[0][1]
