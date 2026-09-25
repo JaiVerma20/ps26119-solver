@@ -145,5 +145,32 @@ class VerifierTests(unittest.TestCase):
         self.assertEqual(rep["verdict"], "FAIL")
 
 
+class MilpVerifier(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def _write(self, x):
+        p = os.path.join(self.tmp, "k.sol")
+        with open(p, "w") as f:
+            f.write("PS26119-SOLUTION 1\nstatus Optimal\nCOLUMNS 5\n")
+            for j, v in enumerate(x):
+                f.write(f"{j} {v!r} 0\n")
+            f.write("ROWS 1\n0 0 0\nEND\n")
+        return p
+
+    def test_integral_optimum_passes_fractional_fails(self):
+        mps = os.path.join(HAND, "knapsack_mip.mps")
+        good = verify.verify(mps, self._write([1, 1, 1, 0, 0]), 28.0)  # 5+3+4 = 12, value 28
+        self.assertTrue(good["mip"])
+        self.assertEqual(good["verdict"], "PASS", good["reasons"])
+        frac = verify.verify(mps, self._write([1, 1, 0.5, 0, 0.3]), None)
+        self.assertEqual(frac["verdict"], "FAIL")
+        over = verify.verify(mps, self._write([1, 1, 1, 1, 0]), None)  # capacity 14 > 12
+        self.assertEqual(over["verdict"], "FAIL")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

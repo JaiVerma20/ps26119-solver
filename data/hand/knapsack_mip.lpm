@@ -1,0 +1,36 @@
+LPM 1
+# source knapsack_mip.mps
+# fingerprint cde20ff9ac651d15
+NAME knapsack_mip
+SENSE MAX
+ROWS 1
+COLS 5
+NNZ 5
+OFFSET 0.0
+OBJ
+12.0 7.0 9.0 4.0 11.0
+COL_LOWER
+0.0 0.0 0.0 0.0 0.0
+COL_UPPER
+1.0 1.0 1.0 1.0 1.0
+ROW_LOWER
+-inf
+ROW_UPPER
+12.0
+COL_START
+0 1 2 3 4 5
+ROW_INDEX
+0 0 0 0 0
+VALUE
+5.0 3.0 4.0 2.0 6.0
+INTEGER
+1 1 1 1 1
+ROW_NAMES
+cap
+COL_NAMES
+a
+b
+c
+d
+e
+END

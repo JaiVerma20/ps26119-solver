@@ -12,3 +12,4 @@ Every instance, published optimum and benchmark list in `data/` is recorded here
 | `hand/max_ranged.{mps,lpm}` | written by us (.lpm via tools/mps_to_lpm.py) | 2026-09-24 | Hand LP for max-sense / RANGES / FR / offset mapping. Optimum 21.5 (HiGHS and oracle). |
 | `netlib/*.mps` (93 models, git-ignored; fetched by `tools/fetch_netlib.py`) | https://github.com/coin-or/CyLP/tree/master/cylp/input/netlib | 2026-09-24 | Full Netlib LP set; `netlib/optima.csv` = published optimum (readme table) + HiGHS 1.15.1 optimum. |
 | `miplib3/*.mps` (small MIPLIB 3 instances, git-ignored; fetched by `tools/fetch_miplib3.py`) | https://github.com/coin-or-tools/Data-miplib3 | 2026-09-25 | Reference optimum = HiGHS 1.15.1 (`miplib3/optima.csv`). |
+| `hand/knapsack_mip.{mps,lpm}` | written by us | 2026-09-25 | 5-item 0/1 knapsack (MAX), optimum 28 (HiGHS and our branch-and-bound); verifier MILP-mode test. |
