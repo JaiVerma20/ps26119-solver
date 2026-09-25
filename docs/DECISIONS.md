@@ -92,3 +92,8 @@ Newest last. Each entry: what, why, evidence, how to undo.
     Result at 01f2eec (full Netlib, 60 s): presolve 85 vs 83 solved, no losses, geomean
     iterations −6%, total time −5%; safety net used on 4 models. **Presolve is ON by default**
     (`--no-presolve` to disable).
+23. **Presolve is not free everywhere.** On the hard refinery price scenario (T=8760) the cold
+    solve needed > 224k iterations with presolve (TimeLimit at 600 s) vs 94k without; warm
+    starts are unaffected (47k). Netlib overall still favours presolve (85 vs 83, no losses),
+    so it stays on; `--no-presolve` exists for such models. Recorded in
+    bench/results/warm-start-macbook-air-m4-8fd5170.csv.
