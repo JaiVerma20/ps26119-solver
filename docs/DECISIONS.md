@@ -194,3 +194,11 @@ Newest last. Each entry: what, why, evidence, how to undo.
     - *First-order detection*: r²HPDHG also tests the drift z − z0 since the restart anchor (every
       4th check). Small Netlib + objective cut, 3M-iteration budget: 10/10 certified (3/10 with
       T(z) − z alone); adlittle + cut 56M → 13k iterations with both changes.
+
+32. **Pseudocost branching in the MILP prototype** (`mip/branch_and_bound.cpp`). Most-fractional
+    branching could not solve gt2 in 190k nodes; pseudocosts (per column and direction, learned
+    from solved children, product score, column average for columns without history) solve it
+    in ~3.4k nodes (`Mip.PseudocostBranchingSolvesGt2WithinANodeBudget`). The ε floor is on the
+    per-unit gain, not on the product: with zero gains everywhere (enigma, a pure feasibility
+    model) the rule must fall back to most fractional — an ε on the product made every score
+    equal and branched in column order (enigma 0.8 s → 17 s, fixed → 3.7 s).

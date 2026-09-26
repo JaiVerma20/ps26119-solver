@@ -43,9 +43,9 @@ Status words: **VERIFIED** (tested + benchmarked with a committed CSV), **IMPLEM
 
 ## MILP (EXPERIMENTAL / prototype)
 - Branch-and-bound with cold-started sparse simplex node LPs, certified-bound pruning,
-  most-fractional branching, one rounding heuristic. **No cuts, no strong/pseudocost
-  branching, no primal heuristics beyond rounding, no node warm start.** Small MIPLIB 3
-  models only; bell3a/bell5 find no incumbent within the limit.
+  pseudocost branching (most fractional until there is history), one rounding heuristic.
+  **No cuts, no strong/reliability branching, no primal heuristics beyond rounding, no node
+  warm start.** Small MIPLIB 3 models only (EVIDENCE §4d for which are solved).
 - Single-threaded tree.
 
 ## Input / output

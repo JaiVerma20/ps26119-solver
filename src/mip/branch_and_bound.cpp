@@ -22,6 +22,33 @@ struct Node {
   std::vector<double> lo, up;  // bounds of the integer columns (indexed like `ints`)
   double bound;                // parent's LP bound (min form); refined when solved
   int depth;
+  int branched = -1;           // index into `ints` of the branching that created this node
+  int dir = 0;                 // -1 down, +1 up
+  double dist = 0.0;           // distance the branching moved the parent's LP value
+};
+
+// Pseudocosts (Bénichou et al. 1971; Achterberg, Koch, Martin, "Branching rules revisited",
+// Oper. Res. Lett. 33, 2005): average LP bound gain per unit of change, per column and
+// direction, learned from the children actually solved. A column without history uses the
+// average over all columns (1 when there is none yet), so the rule starts as most-fractional.
+struct Pseudocosts {
+  std::vector<double> sum[2];
+  std::vector<int> cnt[2];
+  double all_sum[2] = {0, 0};
+  int all_cnt[2] = {0, 0};
+  explicit Pseudocosts(std::size_t n) {
+    for (int d = 0; d < 2; ++d) sum[d].assign(n, 0.0), cnt[d].assign(n, 0);
+  }
+  void record(int t, int dir, double gain_per_unit) {
+    const int d = dir > 0;
+    sum[d][t] += gain_per_unit, ++cnt[d][t];
+    all_sum[d] += gain_per_unit, ++all_cnt[d];
+  }
+  double get(int t, int dir) const {
+    const int d = dir > 0;
+    if (cnt[d][t] > 0) return sum[d][t] / cnt[d][t];
+    return all_cnt[d] > 0 ? all_sum[d] / all_cnt[d] : 1.0;
+  }
 };
 
 // Feasibility of x on the original model (bounds, rows) with the verifier's relative test.
@@ -60,6 +87,7 @@ Solution solve_branch_and_bound(const Model& M, const BranchAndBoundOptions& opt
     return best;
   }
 
+  Pseudocosts pc(ints.size());
   double incumbent = std::numeric_limits<double>::infinity();  // min form, without offset
   std::vector<double> inc_x;
   std::int64_t nodes = 0, lp_iterations = 0, uncertified_prunes = 0, oracle_fallbacks = 0;
@@ -175,17 +203,25 @@ Solution solve_branch_and_bound(const Model& M, const BranchAndBoundOptions& opt
         certified = true;
       }
     }
+    // learn from this node: the bound gain its branching caused, per unit of change
+    if (nd.branched >= 0 && std::isfinite(nd.bound) && std::isfinite(bound) && nd.dist > 0)
+      pc.record(nd.branched, nd.dir, std::max(0.0, bound - nd.bound) / nd.dist);
     if (std::isfinite(incumbent) && gap_closed(bound)) {
       if (!certified) ++uncertified_prunes;
       continue;
     }
-    // most fractional integer column
+    // pseudocost branching, product score
     int branch = -1;
-    double best_frac = tol::kMipIntegrality;
+    double best_score = -1.0;
     for (std::size_t t = 0; t < ints.size(); ++t) {
       const double v = lp.x[ints[t]];
-      const double f = std::fabs(v - std::round(v));
-      if (f > best_frac) best_frac = f, branch = static_cast<int>(t);
+      if (std::fabs(v - std::round(v)) <= tol::kMipIntegrality) continue;
+      const double f = v - std::floor(v);
+      const int ti = static_cast<int>(t);
+      // ε on the per-unit gain (not on the product), so that with zero gains everywhere (pure
+      // feasibility problems such as enigma) the score is ε²·f(1−f): most fractional again.
+      const double score = std::max(pc.get(ti, -1), 1e-6) * f * std::max(pc.get(ti, +1), 1e-6) * (1.0 - f);
+      if (score > best_score) best_score = score, branch = ti;
     }
     try_incumbent(lp.x);  // integral LP point, or a rounding of it
     if (branch < 0) continue;  // integral: incumbent updated (if feasible after rounding)
@@ -195,6 +231,9 @@ Solution solve_branch_and_bound(const Model& M, const BranchAndBoundOptions& opt
     upn.lo[branch] = std::ceil(v);
     down.bound = upn.bound = bound;
     down.depth = upn.depth = nd.depth + 1;
+    down.branched = upn.branched = branch;
+    down.dir = -1, upn.dir = +1;
+    down.dist = v - std::floor(v), upn.dist = std::ceil(v) - v;
     if (std::isfinite(incumbent)) {
       heap.push(std::move(down));
       heap.push(std::move(upn));
