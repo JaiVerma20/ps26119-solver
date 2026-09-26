@@ -9,12 +9,27 @@ Command: `PS26119_MACHINE=<name> scripts/gpu_check.sh` (add `QUICK=1` for the fi
 
 **Where to run it.** Linux, or **WSL2 (Ubuntu) on a Windows laptop** with the NVIDIA Windows
 driver and the CUDA toolkit for WSL installed inside Ubuntu. nvcc does not support MinGW;
-native Windows needs MSVC + the CUDA toolkit, which this script does not drive. On WSL2:
-`sudo apt install build-essential git python3-pip`, install the CUDA toolkit for WSL-Ubuntu
-from NVIDIA, `export PATH=/usr/local/cuda/bin:$PATH`, then run the command above from a clone
-of the canonical repository (a feature branch such as `feature/shivanshu/gpu-validation`).
-The script also runs `compute-sanitizer` (memcheck + racecheck) on the GPU tests when the
-toolkit provides it; its logs go to `bench/results/logs/`.
+native Windows needs MSVC + the CUDA toolkit, which this script does not drive.
+
+**Quickstart (WSL2 Ubuntu, first run):**
+```bash
+sudo apt update && sudo apt install -y build-essential git python3-venv
+# CUDA toolkit for WSL-Ubuntu: https://developer.nvidia.com/cuda-downloads (Linux → x86_64 → WSL-Ubuntu)
+export PATH=/usr/local/cuda/bin:$PATH
+nvidia-smi && nvcc --version                       # both must work before going on
+git clone https://github.com/JaiVerma20/ps26119-solver.git && cd ps26119-solver
+git switch -c feature/shivanshu/gpu-validation
+PS26119_MACHINE=<laptop-gpu-name> QUICK=1 scripts/gpu_check.sh     # build + all tests + small Netlib
+PS26119_MACHINE=<laptop-gpu-name> scripts/gpu_check.sh             # + scaling / refinery benchmarks
+git add bench/results && git commit -m "bench: <laptop-gpu-name> GPU run" && git push -u origin feature/shivanshu/gpu-validation
+```
+Then open a pull request. If the build or tests fail, still commit and push
+`bench/results/logs/<machine>-<hash>/` (build output, `ctest.log`, sanitizer logs,
+`nvidia-smi.txt`) — those logs are exactly what is needed to fix the CUDA code.
+The script puts its Python tools (cmake, ninja, highspy, numpy, scipy, matplotlib) in a
+private venv `.venv-gpu/` (Ubuntu refuses `pip install --user`), keeps going after test
+failures to collect every log, and runs `compute-sanitizer` (memcheck + racecheck) on the GPU
+tests when the toolkit provides it; its logs go to `bench/results/logs/`.
 
 ## A. Build (step "configure + build" in gpu_check.sh)
 | # | Check | Why it can fail | Pass criterion |

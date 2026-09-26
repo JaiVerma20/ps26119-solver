@@ -28,16 +28,26 @@ fi
 
 echo "=== machine"
 uname -a
+command -v g++ >/dev/null && g++ --version | head -1
 command -v nvidia-smi >/dev/null && nvidia-smi --query-gpu=name,driver_version,memory.total,clocks.max.sm --format=csv || {
   echo "ERROR: nvidia-smi not found — is this a CUDA machine?"; exit 1; }
 command -v nvcc >/dev/null && nvcc --version | tail -2 || { echo "ERROR: nvcc not found (add /usr/local/cuda/bin to PATH)"; exit 1; }
 nvidia-smi -q > "$LOGDIR/nvidia-smi.txt" 2>&1 || true
 lscpu > "$LOGDIR/lscpu.txt" 2>/dev/null || true
 
-echo "=== python tools (cmake, ninja, highspy, numpy, matplotlib)"
-PY=${PYTHON:-python3}
-$PY -c "import highspy, numpy, matplotlib" 2>/dev/null || $PY -m pip install --user --quiet cmake ninja highspy numpy matplotlib
-export PATH="$($PY -m site --user-base)/bin:$PATH"
+echo "=== python tools (private venv: cmake, ninja, highspy, numpy, scipy, matplotlib)"
+# A venv, not `pip install --user`: Ubuntu 23.04+ / WSL2 Ubuntu 24.04 refuse user installs into
+# the system Python (PEP 668, "externally-managed-environment"). Tooling only; never linked.
+SYSPY=${PYTHON:-python3}
+VENV="${VENV:-.venv-gpu}"
+if [ ! -x "$VENV/bin/python" ]; then
+  $SYSPY -m venv "$VENV" || { echo "ERROR: '$SYSPY -m venv' failed — run: sudo apt install python3-venv"; exit 1; }
+fi
+PY="$ROOT/$VENV/bin/python"
+$PY -c "import highspy, numpy, scipy, matplotlib, cmake, ninja" 2>/dev/null || \
+  $PY -m pip install --quiet --upgrade pip cmake ninja highspy numpy scipy matplotlib
+export PATH="$ROOT/$VENV/bin:$PATH"   # the venv's cmake (>= 3.24 for CUDA_ARCHITECTURES=native) and ninja
+cmake --version | head -1
 GEN="-G Ninja"; command -v ninja >/dev/null || GEN=""
 
 echo "=== configure + build (CUDA ON)"
@@ -46,7 +56,11 @@ cmake -S . -B "$BUILD" $GEN -DCMAKE_BUILD_TYPE=Release -DPS26119_ENABLE_CUDA=ON 
 cmake --build "$BUILD" -j
 
 echo "=== tests (CPU + GPU)"
-ctest --test-dir "$BUILD" --output-on-failure | tee "$LOGDIR/ctest.log"
+# Keep going on failures: the sanitizer and benchmark logs below are the most useful
+# diagnostics on a first GPU run. The summary at the end says whether tests failed.
+TESTS_OK=1
+ctest --test-dir "$BUILD" --output-on-failure | tee "$LOGDIR/ctest.log" || TESTS_OK=0
+grep -q "100% tests passed" "$LOGDIR/ctest.log" || TESTS_OK=0
 scripts/check_no_solver_linked.sh "$BUILD"
 
 # Invalid device memory access, races and uninitialised reads in the kernels (Phase 16 of the
@@ -62,8 +76,8 @@ else
 fi
 
 echo "=== bench: small Netlib (CPU and GPU, fp64 + mixed, verified)"
-$PY bench/netlib_small.py --bin "$BUILD/ps26119" --engines oracle,simplex,pdlp,r2hpdhg | tail -2
-$PY bench/netlib_small.py --bin "$BUILD/ps26119" --engines pdlp,r2hpdhg --gpu | tail -2
+$PY bench/netlib_small.py --bin "$BUILD/ps26119" --engines oracle,simplex,pdlp,r2hpdhg | tail -2 || true
+$PY bench/netlib_small.py --bin "$BUILD/ps26119" --engines pdlp,r2hpdhg --gpu | tail -2 || true
 
 if [ -z "${QUICK:-}" ] && [ -f bench/scale.py ]; then
   echo "=== bench: scaling (generated LPs + refinery), CPU vs GPU, fp64 vs mixed"
@@ -71,6 +85,8 @@ if [ -z "${QUICK:-}" ] && [ -f bench/scale.py ]; then
       ${REFINERY_T:+--refinery $REFINERY_T} ${SCALE_TIME_LIMIT:+--time-limit $SCALE_TIME_LIMIT}
 fi
 
-echo "=== done. New result files:"
+echo "=== done."
+[ "$TESTS_OK" = 1 ] && echo "TESTS: all passed" || echo "TESTS: FAILURES — see $LOGDIR/ctest.log (send the whole $LOGDIR folder)"
+echo "New result files:"
 ls -1t bench/results/*.csv bench/results/*.png 2>/dev/null | head -10
 echo "Commit them:  git add bench/results && git commit -m \"bench: ${PS26119_MACHINE} @ ${HASH}\""
