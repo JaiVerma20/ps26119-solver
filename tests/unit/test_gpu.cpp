@@ -78,12 +78,17 @@ TEST(Gpu, BackendOpsMatchCpu) {
         k[t] = b.kkt(xh, yh);
       }
       for (std::size_t v = 0; v < got[0].size(); ++v) EXPECT_LT(max_rel_diff(got[0][v], got[1][v]), tol) << "vector " << v;
-      EXPECT_NEAR(k[0].primal_residual, k[1].primal_residual, 1e-9 * (1 + k[0].primal_residual));
-      EXPECT_NEAR(k[0].dual_residual, k[1].dual_residual, 1e-9 * (1 + k[0].dual_residual));
-      EXPECT_NEAR(k[0].primal_obj, k[1].primal_obj, 1e-9 * (1 + std::fabs(k[0].primal_obj)));
-      EXPECT_NEAR(k[0].dual_obj, k[1].dual_obj, 1e-9 * (1 + std::fabs(k[0].dual_obj)));
-      EXPECT_NEAR(k[0].primal_max_rel, k[1].primal_max_rel, 1e-12 + 1e-9 * k[0].primal_max_rel);
-      EXPECT_NEAR(k[0].dual_max_rel, k[1].dual_max_rel, 1e-12 + 1e-9 * k[0].dual_max_rel);
+      // KKT statistics are evaluated in fp64, but in mixed precision they are functions of fp32
+      // iterates, which CPU and GPU round differently (summation order, FMA). First NVIDIA run
+      // (2026-09-27): every fp64 comparison within 1e-9, every mixed one within 1.6e-6
+      // relative — fp32 noise. fp64 keeps 1e-9; mixed uses 1e-5 (the "fp32: ~1e-5" above).
+      const double kt = prec == Precision::Fp64 ? 1e-9 : 1e-5;
+      EXPECT_NEAR(k[0].primal_residual, k[1].primal_residual, kt * (1 + k[0].primal_residual));
+      EXPECT_NEAR(k[0].dual_residual, k[1].dual_residual, kt * (1 + k[0].dual_residual));
+      EXPECT_NEAR(k[0].primal_obj, k[1].primal_obj, kt * (1 + std::fabs(k[0].primal_obj)));
+      EXPECT_NEAR(k[0].dual_obj, k[1].dual_obj, kt * (1 + std::fabs(k[0].dual_obj)));
+      EXPECT_NEAR(k[0].primal_max_rel, k[1].primal_max_rel, 1e-12 + kt * k[0].primal_max_rel);
+      EXPECT_NEAR(k[0].dual_max_rel, k[1].dual_max_rel, 1e-12 + kt * k[0].dual_max_rel);
     }
   }
 }

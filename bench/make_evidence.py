@@ -324,8 +324,9 @@ def main():
         for p in gpu_scales:
             doc += ["", scale_section(p)]
     else:
-        doc += ["**Not measured yet.** The CUDA backend (`src/gpu/cuda_backend.cu`) is written and type-checked "
-                "on macOS, but no committed CSV comes from a GPU machine, so this pack makes **no GPU speed claim**. "
+        doc += ["**Not measured yet.** The CUDA backend (`src/gpu/cuda_backend.cu`) compiles with nvcc and passes its "
+                "correctness tests on an NVIDIA laptop GPU (docs/GPU_VERIFICATION.md, status log), but no committed CSV "
+                "comes from a GPU machine, so this pack makes **no GPU speed claim**. "
                 "To produce one: `PS26119_MACHINE=<name> scripts/gpu_check.sh` on the NVIDIA laptop / university "
                 "server, then commit `bench/results/` and rerun this script."]
 
@@ -412,8 +413,9 @@ def main():
         doc.append("_No committed MIPLIB CSV yet._")
 
     doc += ["", "## 5. What we do NOT do yet (honest list)", "",
-            "- **No GPU number is claimed** unless a GPU CSV appears in §3. The CUDA backend has not yet been "
-            "compiled by nvcc or run on NVIDIA hardware.",
+            "- **No GPU number is claimed** unless a GPU CSV appears in §3. The CUDA backend is compiled "
+            "and correctness-tested on an NVIDIA laptop GPU (2026-09-27: GPU answers equal CPU answers on the "
+            "small Netlib set), but no GPU benchmark CSV has been committed yet.",
             "- **No crossover** from a first-order solution to a vertex, and **no simplex warm start / dual "
             "simplex** yet (the integrated primal simplex starts from the slack basis every time). First-order "
             "solutions are accurate to the stated tolerance but are not vertices.",

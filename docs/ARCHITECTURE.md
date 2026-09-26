@@ -94,7 +94,7 @@ the first-order code uses `la::Csr<T>`; neither is a second model representation
 `src/gpu/cuda_backend.cu` implements it (own CSR SpMV kernels, fused update + projection,
 deterministic fixed-grid reductions). The CPU backend implements the same math, so the Mac
 unit-tests the algorithm and the GPU machines test the kernels (`docs/GPU_VERIFICATION.md`).
-**The CUDA backend has not yet been compiled by nvcc or run on NVIDIA hardware.**
+**The CUDA backend has been compiled by nvcc and passes its correctness tests on an NVIDIA GPU (2026-09-27); GPU speed is not yet measured (no GPU CSV).**
 
 ## Threads
 

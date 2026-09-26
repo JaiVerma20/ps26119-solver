@@ -29,8 +29,11 @@ engines plus a MILP branch-and-bound. Both histories are preserved (the teammate
   paths to a false "Optimal" inside an engine; the new in-process gate now catches that class.
 - **Tests: 165 CTest cases** (C++ unit, differential, CLI, Python, random-MPS cross-checks),
   all passing locally and in GitHub CI (Ubuntu + macOS); ASan/UBSan and TSan clean in CI.
-- **GPU: NOT VERIFIED.** The CUDA backend has still never been compiled by nvcc or run; no GPU
-  claim is made. The procedure (`scripts/gpu_check.sh`, WSL2 on the teammate's laptop) is ready.
+- **GPU: correctness PARTIALLY VERIFIED, speed NOT MEASURED.** Update 2026-09-27: the teammate
+  compiled the CUDA backend with nvcc under WSL2 and ran the full suite on his NVIDIA laptop:
+  167/168 pass, including `Gpu.EnginesMatchCpuOnSmallNetlib` (40 GPU solves equal to the CPU
+  answers) and the long-row kernel test. The only failure was a test bug (fp64 tolerance applied
+  to fp32-derived statistics), fixed. No GPU benchmark CSV yet, so no GPU speed claim.
 
 ## 2. What my repository contained (before: tag `pre-teammate-integration` = `20033bf`)
 

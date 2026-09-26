@@ -5,9 +5,10 @@ Status words: **VERIFIED** (tested + benchmarked with a committed CSV), **IMPLEM
 `docs/EVIDENCE.md` (generated from committed CSVs only).
 
 ## GPU
-- The CUDA backend (`src/gpu/cuda_backend.cu`) has **never been compiled by nvcc nor run on
-  NVIDIA hardware** — NOT VERIFIED. No GPU speed or correctness claim is made anywhere.
-  `scripts/gpu_check.sh` (Linux/WSL2) is the procedure; `docs/GPU_VERIFICATION.md` the checklist.
+- The CUDA backend (`src/gpu/cuda_backend.cu`) is **compiled and correctness-tested on NVIDIA
+  hardware** (teammate's laptop, WSL2, 2026-09-27: all GPU end-to-end tests pass — GPU answers equal
+  CPU answers on 10 Netlib LPs × 2 engines × fp64/mixed). **No GPU benchmark CSV exists yet, so no
+  GPU speed claim is made.** `scripts/gpu_check.sh` produces the CSVs; `docs/GPU_VERIFICATION.md`.
 - Batched scenarios have no GPU SpMM kernel yet.
 
 ## LP engines

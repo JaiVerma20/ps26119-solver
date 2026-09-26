@@ -28,7 +28,7 @@ simplex, checker) — with both histories preserved: `docs/FINAL_INTEGRATION_REP
 | Netlib, simplex alone / r²HPDHG alone | 92/93 / 85/93 | `netlib-full-simplex-…-eb90bbf.csv`, `netlib-full-r2hpdhg-…-d824f82.csv` |
 | Small MIPLIB 3 (branch-and-bound, 300 s) | 10/14 proven optimal, verified, equal to HiGHS | `miplib3-macbook-air-m4-eb90bbf.csv` |
 | Refinery planning LP, hourly year (429k rows, 1.5M nnz), r²HPDHG to 1e-8 | 19.2 s (1 thread) / 14.7 s (10 threads, mixed); equal to the known optimum, verified | `scale-macbook-air-m4-d824f82.csv` |
-| GPU | **not measured yet** — the CUDA backend has not run on NVIDIA hardware | — |
+| GPU (CUDA backend) | compiled and correctness-tested on an NVIDIA laptop GPU: GPU answers equal CPU answers (10 Netlib LPs × 2 engines × fp64/mixed); **speed not measured yet** | test logs; GPU CSV pending |
 
 Limitations: `docs/LIMITATIONS.md`.
 
