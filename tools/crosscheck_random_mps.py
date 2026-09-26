@@ -1,18 +1,20 @@
-"""Differential test: gpuopt vs SciPy/HiGHS on random LPs written as MPS files.
+"""Origin: gpuopt scripts/crosscheck_scipy.py (Shivanshu Vats, c192dd0); now drives `ps26119 solve`.
+
+Differential test: ps26119 vs SciPy/HiGHS on random LPs written as MPS files.
 
 Generates random LPs with every row type (E, L, G, ranged) and bound type
 (default, boxed, MI, FR, LO), writes each one as a free-format MPS file, runs
-the gpuopt executable on it (exercising the MPS reader end to end), and
+the ps26119 executable on it (exercising the MPS reader end to end), and
 compares the status and objective against scipy.optimize.linprog.
 
 SciPy/HiGHS is used ONLY as an external comparison baseline, never linked
-into gpuopt.
+into ps26119.
 
 If the two disagree, HiGHS is re-run with presolve disabled: HiGHS presolve
 sometimes labels an unbounded LP as infeasible, and the tie-break shows who
 is right.
 
-usage:  python scripts/crosscheck_scipy.py [--exe build/gpuopt.exe] [--count 400] [--seed 7]
+usage:  python3 tools/crosscheck_random_mps.py [--exe build/ps26119] [--algorithm simplex] [--count 400] [--seed 7]
 """
 import argparse
 import os
@@ -110,13 +112,18 @@ def scipy_solve(A, c, maximize, bounds, rows, presolve=True):
     return status, objective
 
 
+# ps26119 status names -> the names scipy_solve() returns
+_STATUS = {"Optimal": "OPTIMAL", "Infeasible": "INFEASIBLE", "Unbounded": "UNBOUNDED"}
+
+
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
-    default_exe = os.path.join(here, "..", "build", "gpuopt.exe" if os.name == "nt" else "gpuopt")
+    default_exe = os.path.join(here, "..", "build", "ps26119.exe" if os.name == "nt" else "ps26119")
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--exe", default=default_exe)
     ap.add_argument("--count", type=int, default=400)
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--algorithm", default="simplex", help="ps26119 engine (simplex, oracle, r2hpdhg, pdlp)")
     args = ap.parse_args()
 
     rng = random.Random(args.seed)
@@ -128,16 +135,17 @@ def main():
             path = os.path.join(tmp, "r%d.mps" % t)
             write_mps(path, "R%d" % t, *model)
 
-            out = subprocess.run([args.exe, path], capture_output=True, text=True).stdout
-            ours = re.search(r"^status\s+(\S+)", out, re.M).group(1)
+            out = subprocess.run([args.exe, "solve", path, "--algorithm", args.algorithm],
+                                 capture_output=True, text=True).stdout
+            ours = _STATUS.get(re.search(r"^status\s+(\S+)", out, re.M).group(1), "OTHER")
             obj = re.search(r"^objective\s+(\S+)", out, re.M)
-            if "checker" in out and "PASS" not in out:
-                failures.append((t, "checker FAIL"))
+            if re.search(r"^check\s+FAIL", out, re.M):
+                failures.append((t, "in-process check FAIL"))
 
             ref, ref_obj = scipy_solve(*model)
             if ours != ref:
                 ref, ref_obj = scipy_solve(*model, presolve=False)
-                print("model %d: HiGHS presolve disagreed; without presolve HiGHS says %s, gpuopt says %s"
+                print("model %d: HiGHS presolve disagreed; without presolve HiGHS says %s, ps26119 says %s"
                       % (t, ref, ours))
             ok = ours == ref
             if ok and ours == "OPTIMAL":

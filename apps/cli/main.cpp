@@ -107,6 +107,8 @@ int cmd_inspect(const std::string& what, int argc, char** argv) {
     cli::print_model(model);
     return 0;
   }
+  std::printf("model      %s  %d rows, %d columns, %zu nonzeros\n", model.name.c_str(), model.num_rows,
+              model.num_cols, model.nnz());
   cli::LuBenchOptions lo;
   for (int i = 1; i < argc; ++i) {
     const std::string a = argv[i];

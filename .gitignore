@@ -8,3 +8,11 @@ bench/generated/
 data/netlib/
 data/miplib3/
 .cache/
+
+# Windows / IDE build output (from gpuopt)
+out/
+.vs/
+.vscode/
+*.exe
+*.o
+*.obj

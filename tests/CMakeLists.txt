@@ -50,6 +50,19 @@ if(Python3_Interpreter_FOUND)
       set_tests_properties(python.binding PROPERTIES ENVIRONMENT "PS26119_LIB=$<TARGET_FILE:ps26119_shared>")
     endif()
     add_test(NAME bench.generators COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/bench/test_generators.py)
+    # Random LPs written as MPS: reader + engines (incl. infeasible/unbounded detection) vs
+    # SciPy/HiGHS as an external reference (tooling only; needs scipy).
+    execute_process(COMMAND ${Python3_EXECUTABLE} -c "import scipy"
+                    RESULT_VARIABLE _no_scipy OUTPUT_QUIET ERROR_QUIET)
+    if(_no_scipy EQUAL 0)
+      foreach(_alg simplex r2hpdhg)
+        add_test(NAME tools.crosscheck.${_alg}
+                 COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/crosscheck_random_mps.py
+                         --exe $<TARGET_FILE:ps26119_cli> --algorithm ${_alg} --count 200 --seed 11)
+      endforeach()
+    elseif(PS26119_REQUIRE_PYTHON_TESTS)
+      message(FATAL_ERROR "Python tests required but scipy is not importable by ${Python3_EXECUTABLE}")
+    endif()
   else()
     set(_py_skip_reason "highspy/numpy not importable by ${Python3_EXECUTABLE}")
   endif()

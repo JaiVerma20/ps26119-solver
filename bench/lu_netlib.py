@@ -1,9 +1,11 @@
 """Run the Layer 2 LU benchmark on every .mps file in a folder and summarise.
 
+Origin: gpuopt scripts/bench_netlib.py (Shivanshu Vats, c192dd0); now drives `ps26119 lu-bench`.
+
 For each model: read it with gpuopt, factorize random simplex-style bases
 built from its constraint matrix, and verify FTRAN / BTRAN by residuals.
 
-usage:  python scripts/bench_netlib.py [--dir data/netlib] [--exe build/gpuopt.exe] [--trials 1]
+usage:  python3 bench/lu_netlib.py [--dir data/netlib] [--exe build/ps26119] [--trials 1]
 """
 import argparse
 import glob
@@ -18,19 +20,19 @@ def main():
     root = os.path.join(here, "..")
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--dir", default=os.path.join(root, "data", "netlib"))
-    ap.add_argument("--exe", default=os.path.join(root, "build", "gpuopt.exe" if os.name == "nt" else "gpuopt"))
+    ap.add_argument("--exe", default=os.path.join(root, "build", "ps26119.exe" if os.name == "nt" else "ps26119"))
     ap.add_argument("--trials", type=int, default=1)
     args = ap.parse_args()
 
     files = sorted(glob.glob(os.path.join(args.dir, "*.mps")))
     if not files:
-        print("no .mps files in %s - run scripts/fetch_netlib.py first" % args.dir)
+        print("no .mps files in %s - run tools/fetch_netlib.py first" % args.dir)
         return 1
 
     rows = []
     for path in files:
         name = os.path.splitext(os.path.basename(path))[0]
-        proc = subprocess.run([args.exe, path, "--lu-bench", "--trials", str(args.trials)],
+        proc = subprocess.run([args.exe, "lu-bench", path, "--trials", str(args.trials)],
                               capture_output=True, text=True)
         out = proc.stdout
         size = re.search(r"(\d+) rows, (\d+) columns, (\d+) nonzeros", out)
