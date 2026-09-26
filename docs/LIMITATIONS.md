@@ -45,6 +45,8 @@ Status words: **VERIFIED** (tested + benchmarked with a committed CSV), **IMPLEM
 
 ## Evidence
 - All CPU numbers come from one fanless MacBook Air M4; timings vary run to run (throttling,
-  P/E cores); iteration counts are deterministic.
+  P/E cores); iteration counts are deterministic. In the final suite (`d824f82`) wall times were
+  ~2× slower than in the pre-merge run for identical iteration counts, and rand-1e6 (fp64,
+  1 thread) hit its 600 s limit — the row is kept.
 - Generated refinery LPs have refinery structure but synthetic data (optimum known by
   construction). No plant data. Mittelmann large LPs not yet run.

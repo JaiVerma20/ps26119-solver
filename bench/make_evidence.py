@@ -104,7 +104,7 @@ def netlib_full_section(path):
     other = [r for r in rows if r not in solved and r not in limit]
     lines = [f"Source: `{path}` — {r0['engine']} {r0['precision']} on {r0['backend']} "
              f"(`{r0['machine']}`, {r0['cpu']}), commit `{r0['git_hash']}`, time limit {r0['time_limit']} s per model.", "",
-             f"- **{len(solved)} of {len(rows)}** Netlib LPs solved to relative KKT 1e-8 and verified PASS by "
+             f"- **{len(solved)} of {len(rows)}** Netlib LPs solved (engine Optimal — first-order engines at relative KKT 1e-8 — and the in-process gate) and verified PASS by "
              f"`tools/verify.py`; **{len(match)}** of those agree with HiGHS to 1e-6 relative.",
              f"- {len(limit)} hit the time/iteration limit (listed below, not hidden); {len(other)} other outcomes."]
     if "certified_gap" in r0:
