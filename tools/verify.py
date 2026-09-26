@@ -191,6 +191,62 @@ def verify(model_path: str, solution_path: str, expected: float | None = None) -
 EXACT_MAX_NNZ = 300_000
 
 
+def _implied_bounds(m, passes: int = 20):
+    """Column bounds implied by the rows, by iterated one-row propagation, EXACTLY (Fraction).
+    Each pass uses only bounds already proven (original bounds, then earlier implied ones), so
+    every derived bound holds for every feasible x — usable in a proof that no feasible x exists.
+    For a row a_i x <= U_i (or -a_i x <= -L_i) and a coefficient c = a_ij > 0:
+        x_j <= (U_i - sum_{k != j} min_{x_k in [lo_k, up_k]} a_ik x_k) / a_ij   (symmetric for c < 0).
+    Independent of the C++ implementation (src/core/implied_bounds.cpp). Returns (lo, up) lists
+    with None for "no finite bound"."""
+    from fractions import Fraction
+    cache = getattr(m, "_implied_cache", None)
+    if cache is not None:
+        return cache
+    lo = [Fraction(v) if math.isfinite(v) else None for v in m.col_lower]
+    up = [Fraction(v) if math.isfinite(v) else None for v in m.col_upper]
+    rows = [[] for _ in range(m.num_rows)]
+    for jj in range(m.num_cols):
+        for k in range(m.col_start[jj], m.col_start[jj + 1]):
+            rows[m.row_index[k]].append((jj, Fraction(m.value[k])))
+    for _ in range(passes):
+        changed = False
+        for i in range(m.num_rows):
+            for sgn, rhs in ((1, m.row_upper[i]), (-1, m.row_lower[i])):
+                if not math.isfinite(rhs):
+                    continue
+                # minimum of sgn*a_i x over the box, with the count of unbounded terms
+                total, unb, unb_col = Fraction(0), 0, -1
+                for kk, v in rows[i]:
+                    c = sgn * v
+                    b = lo[kk] if c > 0 else up[kk]
+                    if b is None:
+                        unb += 1
+                        unb_col = kk
+                    else:
+                        total += c * b
+                if unb > 1:
+                    continue
+                R = Fraction(sgn) * Fraction(rhs)
+                for kk, v in rows[i]:
+                    c = sgn * v
+                    if unb == 1 and kk != unb_col:
+                        continue
+                    own = (lo[kk] if c > 0 else up[kk])
+                    rest = total if own is None else total - c * own
+                    bound = (R - rest) / c
+                    if c > 0 and (up[kk] is None or bound < up[kk]):
+                        up[kk] = bound
+                        changed = True
+                    elif c < 0 and (lo[kk] is None or bound > lo[kk]):
+                        lo[kk] = bound
+                        changed = True
+        if not changed:
+            break
+    m._implied_cache = (lo, up)
+    return lo, up
+
+
 def verify_certificate(m, s, tol: dict, rep: dict) -> dict:
     """Independent check of an Infeasible (Farkas dual ray) or Unbounded (feasible point + primal
     ray) claim, with THIS module's reader. Infeasible: L0(r) = sum_i min_{s in [rl_i, ru_i]} r_i s
@@ -211,7 +267,11 @@ def verify_certificate(m, s, tol: dict, rep: dict) -> dict:
             return rep
         exact_ok = None
         if m.nnz <= EXACT_MAX_NNZ and all(math.isfinite(v) for v in r):
-            R = [Fraction(v) for v in r]
+            # Multipliers pointing at an infinite row bound are set to 0 first: L0 is a valid
+            # bound for ANY r, so this only removes -inf terms (rounding-sized wrong signs on
+            # inactive rows); lam = -A^T r is computed from the modified r.
+            R = [Fraction(0) if (v > 0 and not math.isfinite(m.row_lower[i])) or
+                 (v < 0 and not math.isfinite(m.row_upper[i])) else Fraction(v) for i, v in enumerate(r)]
             L0 = Fraction(0)
             bad = False
             for i in range(mr):
@@ -227,17 +287,26 @@ def verify_certificate(m, s, tol: dict, rep: dict) -> dict:
                 for k in range(m.col_start[j], m.col_start[j + 1]):
                     acc += Fraction(m.value[k]) * R[m.row_index[k]]
                 lam[j] = -acc
+            implied = 0
             for j in range(n):
                 if lam[j] > 0:
                     if math.isfinite(m.col_lower[j]): L0 += lam[j] * Fraction(m.col_lower[j])
-                    else: bad = True
+                    else:
+                        b = _implied_bounds(m)[0][j]
+                        if b is None: bad = True
+                        else: L0 += lam[j] * b; implied += 1
                 elif lam[j] < 0:
                     if math.isfinite(m.col_upper[j]): L0 += lam[j] * Fraction(m.col_upper[j])
-                    else: bad = True
+                    else:
+                        b = _implied_bounds(m)[1][j]
+                        if b is None: bad = True
+                        else: L0 += lam[j] * b; implied += 1
             exact_ok = (not bad) and L0 > 0
             rep["farkas_exact_L0"] = None if bad else float(L0)
+            rep["farkas_implied_bounds"] = implied
         if exact_ok:
-            rep["certificate"] = "Farkas, exact rational check"
+            rep["certificate"] = "Farkas, exact rational check" + (
+                f" (with {rep['farkas_implied_bounds']} implied column bounds)" if rep.get("farkas_implied_bounds") else "")
         else:
             rr = np.asarray(r, float)
             rmax = float(np.abs(rr).max(initial=0.0))
