@@ -35,6 +35,13 @@ inline constexpr double kVerifyPrimal = 1e-6;
 inline constexpr double kVerifyDual = 1e-6;
 inline constexpr double kVerifyGap = 1e-6;
 
+// Unboundedness certificates (core/certificates.h, tools/verify.py): after scaling the ray d
+// to ‖d‖∞ = 1, the objective must decrease, −(sense·c)ᵀd ≥ kVerifyRay·max(1, ‖c‖∞), and every
+// recession-cone violation (rows: A d against the finite row bounds; columns: d against the
+// finite bounds) must be ≤ kVerifyRay·(−(sense·c)ᵀd). Infeasibility certificates need no
+// tolerance: they are checked with the rounding-proof bound of core/safe_bound.h.
+inline constexpr double kVerifyRay = 1e-8;
+
 // Agreement with a published optimum: |ours − ref| / (1 + |ref|).
 inline constexpr double kVerifyReference = 1e-6;
 

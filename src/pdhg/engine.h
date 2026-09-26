@@ -90,6 +90,8 @@ struct RayTest {
   bool dual_infeasible = false;
   double dual_ray_objective = 0, dual_ray_violation = 0;
   double primal_ray_objective = 0, primal_ray_violation = 0;
+  std::vector<double> dual_ray;    // r (min form, original rows): returned as Solution::dual_ray
+  std::vector<double> primal_ray;  // d (original columns): returned as Solution::primal_ray
 };
 RayTest ray_test(const ScaledProblem& sp, const std::vector<double>& dx_scaled, const std::vector<double>& dy_scaled);
 
@@ -138,6 +140,7 @@ class EngineContext {
   const EngineOptions& opt_;
   const char* name_;
   ScaledProblem sp_;
+  std::vector<double> dual_ray_, primal_ray_;  // certificate of the last Infeasible / Unbounded verdict
   std::unique_ptr<Backend> backend_;
   std::string error_;
   double eta_ = 1.0;

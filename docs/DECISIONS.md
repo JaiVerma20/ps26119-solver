@@ -155,3 +155,30 @@ Newest last. Each entry: what, why, evidence, how to undo.
     verified (68.6 s total for the solved ones); no scaling 91/93 (`cycle` lost; pilot87 passes
     every check but is 1.1e-6 from HiGHS); Dantzig pricing 90/93. PDHG scaling decisions are
     separate (#17). CSVs: `netlib-full-simplex-fp64[-noscale|-dantzig]-macbook-air-m4-fc3f29c.csv`.
+
+## 2026-09-27 (overnight)
+
+31. **Infeasible / Unbounded are verified claims too** (`core/certificates.h`). The gate used to
+    re-check only Optimal; the other two verdicts rested on the engines' own tests.
+    - *Infeasible*: a Farkas vector r (row multipliers) with L₀(r) > 0, where L₀ is the
+      zero-objective Lagrangian bound, evaluated first with the rounding-proof machinery of
+      `core/safe_bound` (rigorous); only if that cannot decide (a floating-point ray whose Aᵀr is
+      1e-16 instead of 0 on a free column gives −∞) the PDLP-style tolerance test
+      (violation ≤ 1e-8·L₀ after normalising). Which stage passed is reported.
+    - *Unbounded*: a feasible point (verifier-grade, per row) and a ray d in the recession cone
+      with (sense·c)ᵀd < 0 (`tol::kVerifyRay` = 1e-8).
+    - Engines: r²HPDHG/PDLP return the rays they already computed; the simplex returns ρ = R y
+      from its phase-1 duals (for Bᵀy = c_B, c_B = ±1 on the violated basics, the internal
+      certificate −Mᵀy gives min over the box = Σ infeasibilities > 0; in original variables that
+      is L₀(ρ) with ρᵢ = rowscaleᵢ·yᵢ) and the entering direction at an unbounded ratio test.
+    - Gate: a failing certificate → NumericalError; a missing one → status kept, `check` empty,
+      message "not certified" (e.g. the dense oracles, which return none). With presolve, an LP
+      Infeasible/Unbounded verdict (or a presolve infeasibility) is re-derived by solving the
+      original model, so the certificate lives in the original space; this also cross-checks
+      presolve's verdict. Objective is NaN for both statuses.
+    - Found on the way: r²HPDHG claimed Unbounded when the L2-relative primal residual was ≤ 1e-6
+      although one row was violated by 1.04e-6 (random MPS model #119); the claim now also needs
+      the per-row verifier test, as Optimal does. The certified bound gave −∞ for exactly
+      cancelling reduced costs on free columns; fixed with exact expansion arithmetic (`1f2102c`).
+    - *Evidence*: Differential.* — every Infeasible/Unbounded verdict certified: simplex
+      2192/2192, r²HPDHG 1032/1032 (1,800 random LPs), 0 mismatches, 0 extra first-order limits.

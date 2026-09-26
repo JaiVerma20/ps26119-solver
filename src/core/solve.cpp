@@ -7,10 +7,12 @@
 #include <cmath>
 #include <cstdio>
 #include <exception>
+#include <limits>
 #include <new>
 
 #include "ps26119/solve.h"
 
+#include "core/certificates.h"
 #include "core/gate.h"
 #include "core/presolve.h"
 #include "core/safe_bound.h"
@@ -90,7 +92,32 @@ namespace core {
 // verifier-grade accuracy are demoted to NumericalError when the check fails. MILP answers
 // are verified by the branch-and-bound / presolve safety net instead (integrality, rows).
 void gate(const Model& model, const Options& options, Solution& s) {
-  if (s.status != Status::Optimal || treat_as_mip(model, options)) return;
+  if (treat_as_mip(model, options)) return;
+  if (s.status == Status::Infeasible || s.status == Status::Unbounded) {
+    // Claims other than Optimal are verified too (core/certificates.h).
+    s.objective = s.dual_objective = std::numeric_limits<double>::quiet_NaN();
+    auto note = [&](const std::string& t) { s.message += std::string(s.message.empty() ? "" : "; ") + t; };
+    if (s.status == Status::Infeasible && !model.crossed_bounds().empty()) {
+      s.check = "PASS";  // the certificate is the crossing itself, re-derived from the model
+      return;
+    }
+    const CertificateCheck c = s.status == Status::Infeasible
+                                   ? check_infeasibility_certificate(model, s.dual_ray)
+                                   : check_unboundedness_certificate(model, s.x, s.primal_ray);
+    if (!c.present) {
+      s.check.clear();
+      note("not certified (the engine returned no certificate)");
+    } else if (c.passed) {
+      s.check = "PASS";
+      note(c.detail);
+    } else {
+      s.check = "FAIL";
+      note(std::string(to_string(s.status)) + " withdrawn, " + c.detail);
+      s.status = Status::NumericalError;
+    }
+    return;
+  }
+  if (s.status != Status::Optimal) return;
   if (static_cast<int>(s.x.size()) != model.num_cols || static_cast<int>(s.y.size()) != model.num_rows) {
     s.status = Status::NumericalError;
     s.message += std::string(s.message.empty() ? "" : "; ") + "engine reported Optimal without primal and dual vectors";
@@ -172,6 +199,24 @@ Solution solve_impl(const Model& model, const Options& options) {
     // reduced objective (without offsets) = original − Σ c_j x_fixed; shift back, min form
     inner.kkt_obj_shift = model.sense * (pr.reduced.obj_offset - model.obj_offset);
   }
+  const bool lp_model = !(has_integers(model) && !options.relax_integrality);
+  // Certificates must be in the ORIGINAL model's space (the gate checks them there), and a
+  // presolve infeasibility verdict carries none: for an LP, re-derive Infeasible / Unbounded
+  // by solving the original directly (rare, so the extra cost is small; it also cross-checks
+  // presolve's own verdict).
+  auto on_original = [&](const Solution& why, const std::string& what) {
+    Options direct = options;
+    direct.presolve = false;
+    Solution d = solve_direct(model, direct);
+    d.iterations += why.iterations;
+    d.message += std::string(d.message.empty() ? "" : "; ") + "presolve: " + what +
+                 "; re-solved the original model for an original-space certificate";
+    return d;
+  };
+  if (pr.outcome == PresolveResult::Outcome::Infeasible && lp_model) {
+    Solution none;
+    return on_original(none, "reduction found infeasibility (" + pr.message + ")");
+  }
   if (pr.outcome == PresolveResult::Outcome::Infeasible) {
     Solution s;
     s.status = Status::Infeasible;
@@ -196,6 +241,8 @@ Solution solve_impl(const Model& model, const Options& options) {
   } else {
     red = solve_direct(pr.reduced, inner);
   }
+  if (lp_model && (red.status == Status::Infeasible || red.status == Status::Unbounded))
+    return on_original(red, std::string("reduced model ") + to_string(red.status));
   Solution post = postsolve(model, pr, red);
   const std::string note = "presolve removed " + std::to_string(pr.removed_rows) + " rows, " +
                            std::to_string(pr.removed_cols) + " cols";

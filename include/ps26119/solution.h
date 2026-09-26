@@ -67,6 +67,16 @@ struct Solution {
   double check_primal = std::numeric_limits<double>::quiet_NaN();
   double check_dual = std::numeric_limits<double>::quiet_NaN();
   double check_gap = std::numeric_limits<double>::quiet_NaN();
+  // Certificates (core/certificates.h), in the model's own variables:
+  //   dual_ray   (size m) with status Infeasible: Farkas row multipliers r whose certified
+  //              zero-objective Lagrangian bound L₀(r) is > 0;
+  //   primal_ray (size n) with status Unbounded: a recession direction d with (sense·c)ᵀd < 0,
+  //              together with the feasible point in x.
+  // Empty when the engine produced none. For Infeasible / Unbounded, `check` reports the
+  // verification of the certificate ("PASS"; "" = no certificate, the claim is not certified;
+  // a failing certificate turns the status into NumericalError). objective is NaN then.
+  std::vector<double> dual_ray;
+  std::vector<double> primal_ray;
   std::string engine;     // "oracle", "pdlp", "r2hpdhg", "simplex", ...
   std::string precision;  // "dd", "fp64", "mixed"
   std::string model_fingerprint;

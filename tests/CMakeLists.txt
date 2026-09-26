@@ -20,6 +20,7 @@ set(PS26119_TEST_SOURCES
   unit/test_simplex.cpp
   unit/test_integration.cpp
   unit/test_differential.cpp
+  unit/test_certificates.cpp
 )
 
 if(PS26119_ENABLE_CUDA)
