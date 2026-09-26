@@ -4,6 +4,8 @@
 
 #include <cmath>
 #include <limits>
+#include <random>
+#include <cstdio>
 #include <vector>
 
 #include "core/certificates.h"
@@ -118,4 +120,52 @@ TEST(Certificates, EnginesCertifyTheirVerdicts) {
       EXPECT_TRUE(std::isnan(su.objective));
     }
   }
+}
+
+TEST(Certificates, SimplexTightensPhaseOneUntilTheFarkasRayPasses) {
+  // Phase 1 stops when no reduced cost beats the dual tolerance, so with a loose tolerance the
+  // phase-1 duals can leave wrong-sign reduced costs on columns with an infinite bound and the
+  // Farkas vector fails the check (seen on d2q06c + objective cut at the default 1e-7). The
+  // simplex must then tighten and keep pivoting, never return an uncertified Infeasible. The
+  // loose tolerance below forces that path on random infeasible LPs with free / one-sided columns.
+  std::mt19937 rng(7);
+  std::uniform_real_distribution<double> U(-1.0, 1.0);
+  int infeasible_models = 0, tightened = 0;
+  for (int trial = 0; trial < 400; ++trial) {
+    const int m = 3 + trial % 5, n = 3 + (trial / 5) % 5;
+    std::vector<std::vector<double>> rows(m, std::vector<double>(n, 0.0));
+    for (auto& r : rows)
+      for (double& v : r) v = (rng() % 3 == 0) ? 0.0 : std::round(U(rng) * 40) / 8;
+    std::vector<double> rl(m), ru(m), cl(n), cu(n), c(n);
+    for (int i = 0; i < m; ++i) {
+      const int kind = rng() % 3;
+      const double b = std::round(U(rng) * 16) / 4;
+      rl[i] = kind == 1 ? -kInf : b;
+      ru[i] = kind == 0 ? kInf : kind == 1 ? b : b + 1;
+    }
+    for (int j = 0; j < n; ++j) {
+      const int kind = rng() % 3;
+      cl[j] = kind == 2 ? -kInf : 0.0;
+      cu[j] = kind == 0 ? 2.0 : kInf;
+      c[j] = U(rng);
+    }
+    const Model model = make_model(c, rows, rl, ru, cl, cu);
+    Options ref;
+    ref.algorithm = Algorithm::Simplex;
+    ref.presolve = false;
+    if (solve(model, ref).status != Status::Infeasible) continue;
+    ++infeasible_models;
+    Options loose = ref;
+    loose.engine_params = {{"simplex_dual_tolerance", 0.2}};
+    const Solution s = solve(model, loose);
+    // An uncertified Infeasible is demoted to NumericalError by the gate: that is what the
+    // tightening must prevent here.
+    EXPECT_NE(s.status, Status::NumericalError) << "trial " << trial << ": " << s.message;
+    if (s.status != Status::Infeasible) continue;  // a limit is allowed
+    EXPECT_EQ(s.check, "PASS") << "trial " << trial << ": " << s.message;
+    if (s.message.find("tolerance tightenings 0") == std::string::npos) ++tightened;
+  }
+  EXPECT_GE(infeasible_models, 20);
+  EXPECT_GE(tightened, 1) << "the loose tolerance never exercised the tightening path";
+  std::printf("infeasible models %d, phase-1 tightenings needed on %d\n", infeasible_models, tightened);
 }
