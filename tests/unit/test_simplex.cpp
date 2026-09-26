@@ -149,3 +149,31 @@ TEST(Simplex, time_limit_is_reported_as_time_limit) {
   const Solution res = solve_primal_simplex(lp, opt);
   EXPECT_EQ(res.status, Status::TimeLimit) << res.message;
 }
+
+// Integration audit (Phase 14): an explicit zero coefficient (possible through the C API,
+// .lpm files or presolve; the MPS reader drops them) made the geometric scaling divide by
+// zero and the simplex claim Optimal with objective 0 on Wyndor (true optimum 36). The gate
+// caught it; the scaling now ignores explicit zeros.
+TEST(Simplex, explicit_zero_coefficients_are_harmless) {
+  Model lp;
+  lp.num_rows = 3;
+  lp.num_cols = 2;
+  lp.sense = -1;
+  lp.obj = {3, 5};
+  lp.col_lower = {0, 0};
+  lp.col_upper = {kInf, kInf};
+  lp.row_lower = {-kInf, -kInf, -kInf};
+  lp.row_upper = {4, 12, 18};
+  lp.col_start = {0, 2, 5};
+  lp.row_index = {0, 2, 0, 1, 2};
+  lp.value = {1, 3, 0.0, 2, 2};  // (row 0, col 1) is an explicit zero
+  ASSERT_EQ(lp.validate(), "");
+  for (bool scale : {true, false}) {
+    SimplexOptions opt;
+    opt.scale = scale;
+    const Solution res = solve_primal_simplex(lp, opt);
+    ASSERT_EQ(res.status, Status::Optimal) << res.message;
+    EXPECT_NEAR(res.objective, 36.0, 1e-9);
+    EXPECT_TRUE(check_solution(lp, res.x, res.y).passed());
+  }
+}

@@ -25,6 +25,7 @@ Scaling compute_scaling(const la::SparseMatrixCSC& A, int passes) {
     for (int j = 0; j < n; ++j) {
       for (int k = A.col_start[j]; k < A.col_start[j + 1]; ++k) {
         const double v = std::fabs(A.value[k]) * s.col[j];
+        if (v == 0.0) continue;  // explicit zeros (C API, .lpm, presolve) carry no scale
         const int i = A.row_index[k];
         lo[i] = std::min(lo[i], v);
         hi[i] = std::max(hi[i], v);
@@ -38,6 +39,7 @@ Scaling compute_scaling(const la::SparseMatrixCSC& A, int passes) {
       double l = INFINITY, h = 0.0;
       for (int k = A.col_start[j]; k < A.col_start[j + 1]; ++k) {
         const double v = std::fabs(A.value[k]) * s.row[A.row_index[k]];
+        if (v == 0.0) continue;
         l = std::min(l, v);
         h = std::max(h, v);
       }
