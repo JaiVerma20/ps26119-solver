@@ -3,7 +3,7 @@
 tools/verify.py (independent reader), compare with the published optimum, and write
 bench/results/netlib-small-<githash>.csv.
 
-usage: bench/netlib_small.py [--bin build/ps26119] [--engines oracle,pdlp,r2hpdhg]
+usage: bench/netlib_small.py [--bin build/ps26119] [--engines oracle,simplex,pdlp,r2hpdhg]
                              [--precisions fp64,mixed] [--gpu] [--time-limit 120]
 The first-order engines run once at 1e-8; the 1e-4 milestone (iterations, seconds) is
 recorded from the same run.
@@ -42,9 +42,9 @@ def optima():
 
 def run_one(binary, name, opt, engine, precision, gpu, time_limit, tmp):
     sol_path = os.path.join(tmp, f"{name}.{engine}.{precision}.sol")
-    cmd = [binary, "solve", os.path.join(DATA, name + ".lpm"), "--algorithm", engine, "--out", sol_path,
+    cmd = [binary, "solve", os.path.join(DATA, name + ".mps"), "--algorithm", engine, "--out", sol_path,
            "--time-limit", str(time_limit)]
-    if engine != "oracle":
+    if engine not in ("oracle", "simplex"):
         cmd += ["--precision", precision, "--tol", "1e-8"]
     if gpu:
         cmd.append("--gpu")
@@ -56,8 +56,8 @@ def run_one(binary, name, opt, engine, precision, gpu, time_limit, tmp):
     return {
         "instance": name, "rows": rep["rows"], "cols": rep["cols"], "nnz": rep["nnz"],
         "engine": engine, "backend": "gpu" if gpu else "cpu",
-        "precision": "dd" if engine == "oracle" else precision,
-        "tolerance": "exact" if engine == "oracle" else "1e-8",
+        "precision": {"oracle": "dd", "simplex": "fp64"}.get(engine, precision),
+        "tolerance": {"oracle": "exact", "simplex": "vertex"}.get(engine, "1e-8"),
         "status": h.get("status"), "objective": f"{obj:.12g}", "published_optimum": f"{opt:.11g}",
         "rel_err_published": f"{abs(obj - opt) / (1 + abs(opt)):.2e}",
         "iterations": h.get("iterations"), "seconds": h.get("seconds"),
@@ -71,7 +71,7 @@ def run_one(binary, name, opt, engine, precision, gpu, time_limit, tmp):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--bin", default=os.path.join(ROOT, "build", "ps26119"))
-    ap.add_argument("--engines", default="oracle,pdlp,r2hpdhg")
+    ap.add_argument("--engines", default="oracle,simplex,pdlp,r2hpdhg")
     ap.add_argument("--precisions", default="fp64,mixed")
     ap.add_argument("--gpu", action="store_true")
     ap.add_argument("--time-limit", type=float, default=120)
@@ -82,9 +82,10 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         for name, opt in optima():
             for engine in a.engines.split(","):
-                precs = ["dd"] if engine == "oracle" else a.precisions.split(",")
+                precs = {"oracle": ["dd"], "simplex": ["fp64"]}.get(engine, a.precisions.split(","))
                 for p in precs:
-                    r = run_one(a.bin, name, opt, engine, p, a.gpu and engine != "oracle", a.time_limit, tmp)
+                    r = run_one(a.bin, name, opt, engine, p, a.gpu and engine not in ("oracle", "simplex"),
+                                a.time_limit, tmp)
                     r.update(info)
                     rows.append(r)
                     print(f"{name:9s} {engine:8s} {r['precision']:5s} {r['status']:14s} obj {r['objective']:>18s} "
