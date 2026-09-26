@@ -251,6 +251,26 @@ Solution solve_impl(const Model& model, const Options& options) {
   } else {
     red = solve_direct(pr.reduced, budget(inner, 0));
   }
+  if (lp_model && red.status == Status::Infeasible && static_cast<int>(red.dual_ray.size()) == pr.reduced.num_rows) {
+    // Cheaper than a re-solve: map the reduced model's Farkas vector to the original rows
+    // (postsolve_farkas: exact for presolve's reductions) and check it on the ORIGINAL model;
+    // only if that fails is the original re-solved.
+    std::vector<double> r = postsolve_farkas(model, pr, red.dual_ray);
+    if (!r.empty() && check_infeasibility_certificate(model, r).passed) {
+      Solution s = red;
+      s.x.clear();
+      s.y.clear();
+      s.z.clear();
+      s.row_activity.clear();
+      s.dual_ray = std::move(r);
+      s.message += std::string(s.message.empty() ? "" : "; ") + "presolve removed " +
+                   std::to_string(pr.removed_rows) + " rows, " + std::to_string(pr.removed_cols) +
+                   " cols; reduced-model Farkas certificate postsolved to the original rows";
+      s.model_fingerprint = model.fingerprint_hex();
+      s.seconds = elapsed();
+      return s;
+    }
+  }
   if (lp_model && (red.status == Status::Infeasible || red.status == Status::Unbounded))
     return on_original(red, std::string("reduced model ") + to_string(red.status));
   Solution post = postsolve(model, pr, red);

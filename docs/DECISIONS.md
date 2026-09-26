@@ -187,3 +187,10 @@ Newest last. Each entry: what, why, evidence, how to undo.
       implied bound is exact for one step and then rounded outward to a double, so it stays valid
       and denominators cannot grow across passes (unrounded, wood1p + objective cut ran > 10 min in
       gcd; rounded: 1.8 s, same verdict).
+    - *Presolve*: a reduced-model Farkas vector is mapped to the original rows by
+      `postsolve_farkas` (kept rows keep r_i; a column bound created by a removed singleton row
+      moves onto that row, r_row = λ_j / a — exact) and checked on the original; the original is
+      re-solved only if that fails. Follow-up solves get only the remaining time/iteration budget.
+    - *First-order detection*: r²HPDHG also tests the drift z − z0 since the restart anchor (every
+      4th check). Small Netlib + objective cut, 3M-iteration budget: 10/10 certified (3/10 with
+      T(z) − z alone); adlittle + cut 56M → 13k iterations with both changes.

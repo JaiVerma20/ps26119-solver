@@ -192,4 +192,18 @@ Solution postsolve(const Model& M, const PresolveResult& r, const Solution& red)
   return s;
 }
 
+std::vector<double> postsolve_farkas(const Model& M, const PresolveResult& r, const std::vector<double>& red_ray) {
+  std::vector<double> ray(M.num_rows, 0.0);
+  if (red_ray.size() != r.row_map.size()) return {};
+  for (std::size_t q = 0; q < r.row_map.size(); ++q) ray[r.row_map[q]] = red_ray[q];
+  // Same bookkeeping as the y-postsolve above with c = 0: λ_j = −(Aᵀr)_j.
+  for (auto it = r.singletons.rbegin(); it != r.singletons.rend(); ++it) {
+    const int j = it->col;
+    double lam = 0.0;
+    for (int p = M.col_start[j]; p < M.col_start[j + 1]; ++p) lam -= M.value[p] * ray[M.row_index[p]];
+    if ((lam > 0 && it->set_lower) || (lam < 0 && it->set_upper)) ray[it->row] = lam / it->a;
+  }
+  return ray;
+}
+
 }  // namespace ps26119
