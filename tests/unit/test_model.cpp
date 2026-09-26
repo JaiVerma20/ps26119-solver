@@ -43,9 +43,19 @@ TEST(Model, DetectsBrokenInvariants) {
     EXPECT_NE(m.validate(), "");
   }
   {
+    // Crossed bounds are valid data describing an infeasible model (integration decision,
+    // docs/DECISIONS.md #27): validate() accepts them, crossed_bounds() reports them and
+    // solve() returns Infeasible without running an engine.
     Model m = small();
     m.col_lower[0] = 11;  // lower > upper
-    EXPECT_NE(m.validate(), "");
+    EXPECT_EQ(m.validate(), "");
+    EXPECT_NE(m.crossed_bounds(), "");
+    EXPECT_EQ(solve(m).status, Status::Infeasible);
+    Model r = small();
+    r.row_lower[0] = r.row_upper[0] + 1;
+    EXPECT_NE(r.crossed_bounds(), "");
+    EXPECT_EQ(solve(r).status, Status::Infeasible);
+    EXPECT_EQ(small().crossed_bounds(), "");
   }
   {
     Model m = small();
@@ -134,7 +144,7 @@ TEST(Status, RoundTripsAndExitCodes) {
 
 TEST(Solve, InvalidModelIsNotSolved) {
   Model m = small();
-  m.col_lower[0] = 20;
+  m.col_upper[0] = std::nan("");  // invalid data (crossed bounds are Infeasible, see above)
   Solution s = solve(m);
   EXPECT_EQ(s.status, Status::NotSolved);
   EXPECT_NE(s.message.find("invalid model"), std::string::npos);

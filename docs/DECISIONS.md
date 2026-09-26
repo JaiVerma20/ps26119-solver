@@ -114,3 +114,15 @@ Newest last. Each entry: what, why, evidence, how to undo.
     bounds inward (conflict ⇒ Infeasible), and every MILP answer that went through presolve
     is re-verified on the ORIGINAL model (bounds, rows, integrality) before it may be called
     Optimal. Regression test: Mip.PresolveRoundsIntegerBoundsInward.
+
+## 2026-09-26 (integration of gpuopt)
+
+27. **Crossed bounds are valid, infeasible data** (Model contract §6, agreed by both code
+    bases). `Model::validate()` used to reject `lower > upper` as an invalid model
+    (NotSolved); the teammate's reader and engines treat it as a legal model that is
+    Infeasible — as HiGHS does, and as MPS files allow (`LO 3` / `UP 2`). The crossing is a
+    complete infeasibility certificate, so `solve()` now returns **Infeasible** (message
+    "bounds cross: …") before presolve or any engine runs; batch scenarios likewise.
+    `validate()` still rejects NaN, `lower = +inf`, `upper = −inf` and every structural
+    error. Tests that used crossed bounds as their "invalid model" example now use a
+    genuinely invalid one, and additionally assert Infeasible for crossed bounds.

@@ -26,6 +26,17 @@ Solution solve_direct(const Model& model, const Options& options);
 
 bool first_order(Algorithm a) { return a != Algorithm::Oracle; }
 
+// A model whose bounds cross is infeasible; the crossing itself is the certificate.
+Solution trivially_infeasible(const Model& model, const Options& options, const std::string& why) {
+  Solution s;
+  s.status = Status::Infeasible;
+  s.engine = to_string(options.algorithm);
+  s.precision = to_string(options.precision);
+  s.model_fingerprint = model.fingerprint_hex();
+  s.message = "bounds cross: " + why;
+  return s;
+}
+
 bool has_integers(const Model& m) {
   for (auto v : m.is_integer)
     if (v) return true;
@@ -52,6 +63,7 @@ Solution solve(const Model& model, const Options& options) {
   const bool bad_warm = (!options.warm_x.empty() && static_cast<int>(options.warm_x.size()) != model.num_cols) ||
                         (!options.warm_y.empty() && static_cast<int>(options.warm_y.size()) != model.num_rows);
   if (!options.presolve || bad_warm || !model.validate().empty()) return solve_direct(model, options);
+  if (auto why = model.crossed_bounds(); !why.empty()) return trivially_infeasible(model, options, why);
   const auto t0 = std::chrono::steady_clock::now();
   PresolveResult pr = presolve(model);
   if (pr.outcome == PresolveResult::Outcome::Unchanged) return solve_direct(model, options);
@@ -179,6 +191,7 @@ Solution solve_direct(const Model& model, const Options& options) {
     sol.message = "warm start vectors have the wrong size";
     return sol;
   }
+  if (auto why = model.crossed_bounds(); !why.empty()) return trivially_infeasible(model, options, why);
 
   la::ThreadPool::instance().set_threads(options.threads);
   try {

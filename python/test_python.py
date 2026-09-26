@@ -35,9 +35,12 @@ class Binding(unittest.TestCase):
         r = ps26119.solve_lp([1, 1], [[1, 1], [1, 1]], [-INF, 3], [1, INF], algorithm="oracle")
         self.assertEqual(r.status, ps26119.INFEASIBLE)
         self.assertIsNone(r.x)
-        bad = ps26119.solve_lp([1], [[1]], [0], [1], col_lower=[5], col_upper=[1])
+        bad = ps26119.solve_lp([1], [[1]], [0], [1], col_lower=[INF], col_upper=[INF])
         self.assertEqual(bad.status, ps26119.INVALID_ARGUMENT)
         self.assertIn("invalid model", bad.message)
+        # crossed bounds: valid data, infeasible model (docs/DECISIONS.md #27)
+        crossed = ps26119.solve_lp([1], [[1]], [0], [1], col_lower=[5], col_upper=[1])
+        self.assertEqual(crossed.status, ps26119.INFEASIBLE)
 
     def test_version(self):
         self.assertTrue(ps26119.version())
