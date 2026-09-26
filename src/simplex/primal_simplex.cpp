@@ -27,6 +27,7 @@
 #include <random>
 #include <string>
 
+#include "core/solution_checker.h"
 #include "la/sparse_lu.h"
 #include "simplex/simplex_scaling.h"
 
@@ -516,6 +517,14 @@ Solution PrimalSimplex::run() {
       // iterating with tighter tolerances.
       double primal_viol, dual_viol;
       unscaled_violations(primal_viol, dual_viol);
+      // Also the recomputed check on the ORIGINAL model (A x and c − Aᵀy formed from the
+      // returned point, as core/solution_checker does): the internal measure can be exactly 0
+      // while the recomputed row activities carry rounding (seen on Linux at tol 1e-300).
+      Solution candidate = finish(Status::Optimal, "");
+      const CheckReport rep = check_solution(lp_, candidate.x, candidate.y,
+                                             {opt_.primal_tolerance, opt_.dual_tolerance, kInf});
+      primal_viol = std::max(primal_viol, rep.max_primal_violation);
+      dual_viol = std::max(dual_viol, rep.max_dual_violation);
       const bool within = primal_viol <= opt_.primal_tolerance && dual_viol <= opt_.dual_tolerance;
       if (!within && tightenings_ < 4) {
         ptol_ = std::max(ptol_ * 0.1, 1e-12);
@@ -531,7 +540,7 @@ Solution PrimalSimplex::run() {
                       primal_viol, dual_viol, tightenings_);
         return finish(Status::NumericalError, buf);
       }
-      return finish(Status::Optimal, "");
+      return candidate;
     }
 
     alpha_.assign(m_, 0.0);
