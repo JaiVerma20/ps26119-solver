@@ -1,62 +1,103 @@
-# Architecture (one page)
+# Architecture
 
-**Goal.** A from-scratch LP solver (MILP/QP later) whose differentiator is a GPU-native
-first-order LP engine (restarted Halpern PDHG with reflection, r²HPDHG), with an exact
-simplex beside it. Library first; the CLI and Python layers are thin.
+One library, one model contract, one result contract, one verification gate, several
+engines. The CLI, the C API and the Python binding are thin layers over `ps26119::solve()`.
 
 ```
-   Python (python/ps26119, ctypes)  →  C API (include/ps26119/ps26119.h, exception-free)
-            ps26119 CLI  (apps/cli)             tools/verify.py  (independent, highspy)
-                 │                                     ▲ reads original MPS + our solution file
-                 ▼                                     │
-   readers:  io/lpm_reader  |  io/mps_reader (TEAMMATE)     io/solution_writer
-                 │   Model (CSC, row bounds, col bounds)        ▲
-                 ▼                                              │ Solution
-          core/solve()  ── validate ── presolve ── dispatch ── postsolve ── re-check on original ──┘
-             │              (core/presolve: empty rows, fixed/empty cols, singleton rows)
-             │               │                 │
-       oracle/dense_simplex  pdhg/ (PDLP, r²HPDHG)   (later) simplex/, mip/
-       double-double, tiny    │ engine logic in fp64 on host
-                              ▼
-                     pdhg/backend.h  ← the only interface engines use for vector math
-                      ├── CPU backend  (fp64 or fp32 iterate, fp64 residuals)
-                      └── gpu/ CUDA backend (same interface; compiled with PS26119_ENABLE_CUDA)
+        MPS file                   .lpm file (generated models)      C API / Python arrays
+            │ io/mps_reader  (teammate's parser)   │ io/lpm_reader              │ c_api.cpp
+            └──────────────────────┬───────────────┴────────────────────────────┘
+                                   ▼
+                      Model  (include/ps26119/model.h — CSC A, row/col bounds, sense,
+                              offset, integrality, names; fingerprint; validate())
+                                   │
+                                   ▼
+   solve()  core/solve.cpp ── validate ── crossed bounds? → Infeasible (certificate)
+            │                  │
+            │     Auto engine choice (rows·nnz ≤ 2e8 → simplex, else r²HPDHG;
+            │                         warm start / first-order knob → r²HPDHG)
+            ▼
+         presolve (core/presolve: empty rows, fixed/empty cols, singleton rows,
+            │       integer bounds rounded inward)
+            ▼
+   ┌────────────────────┬──────────────────────────┬──────────────────────┬─────────────────┐
+   │ integer columns?   │ LP                                                                │
+   ▼                    ▼                          ▼                      ▼                 │
+ mip/branch_and_bound  simplex/primal_simplex    pdhg/ PDLP, r²HPDHG     oracle/dense_simplex
+   node LPs:            (teammate: Devex,         engine logic in fp64;   double-double,
+   sparse simplex       Harris, bound flips,      O(nnz) work through     small models,
+   (oracle fallback),   perturbation, Bland)      pdhg/backend.h:         test oracle
+   pruned by the        │                          ├ CPU backend (fp64 / mixed,
+   certified bound      ▼                          │   deterministic thread pool)
+                       la/sparse_lu (teammate:     └ gpu/ CUDA backend (same interface)
+                       Markowitz + threshold,
+                       FTRAN/BTRAN, PFI updates)
+   └────────────────────┴──────────────────────────┴──────────────────────┘
+                                   │ Solution (include/ps26119/solution.h)
+                                   ▼
+            postsolve → re-check on the ORIGINAL model (presolve never weakens Optimal)
+                                   ▼
+   core::gate() — every Optimal LP answer re-checked by core/solution_checker (teammate's
+                  checker; verifier tolerances from tolerances.h); failure → NumericalError
+                  (first-order runs looser than 1e-6 keep Optimal at their tolerance, check=FAIL)
+                                   ▼
+            certified bound (core/safe_bound, Neumaier–Shcherbina, rounding-proof) from y
+                                   ▼
+            Solution: status, x, y, z, objective, residuals, check, certified bound,
+                      iterations, seconds, engine, precision, model fingerprint, message
+                                   ▼
+   io/solution_writer ──► tools/verify.py: EXTERNAL verifier with an independent reader
+                          (highspy) — primal, dual, gap, integrality, fingerprint
 ```
 
-**Every solution carries a certified bound** (`core/safe_bound`, Neumaier–Shcherbina):
-a rounding-proof bound on the optimum from the returned duals, using rigorous implied
-column bounds (`core/implied_bounds`, bound propagation with outward rounding) where the
-model leaves a column unbounded.
+## Contracts (one of each)
 
-**Batched scenarios** (`include/ps26119/batch.h`, `pdhg/batch.cpp`): K LPs sharing A run the
-same r²HPDHG per scenario in lockstep; each iteration multiplies A with K vectors (SpMM);
-finished scenarios are compacted out. CPU only so far.
+| Contract | File | Notes |
+|---|---|---|
+| Model | `include/ps26119/model.h` | Agreed with the reader author (CLAUDE.md §6). Crossed bounds are valid, infeasible data (DECISIONS #27). |
+| Solution / Status | `include/ps26119/solution.h` | Dual convention z = c − Aᵀy (HiGHS signs). `check` = result of the gate. |
+| Options / Algorithm | `include/ps26119/options.h` | `Auto, Oracle, Pdlp, R2hpdhg, Simplex`; engine knobs by name (`engine_params`). |
+| Tolerances | `include/ps26119/tolerances.h` | The single place; `tools/verify.py` parses it. |
+| C API | `include/ps26119/ps26119.h` | Exception-free; `ps26119_solve_lp`, `ps26119_solve_mps`. |
+| Benchmark CSV | `bench/*.py` + `bench/machine_info.py` | git hash of the binary, machine, CPU, GPU, driver, CUDA, precision, tolerance, threads, date. |
 
-**Threads** (`la/parallel.h`): a small deterministic pool (fixed chunking, fixed-order
-reductions) — bit-identical results for any thread count.
+Every engine consumes the same `Model` and returns the same `Solution`. The simplex and LU
+code uses `la::SparseMatrixCSC` (a linear-algebra matrix: a basis, a scaled copy of A) and
+the first-order code uses `la::Csr<T>`; neither is a second model representation.
 
-**Contracts.** `include/ps26119/model.h` (shared with the MPS reader author, CLAUDE.md §6)
-and `solution.h` (§7). Tolerances live only in `tolerances.h`. Every Solution carries the
-model fingerprint, engine, precision, iterations and seconds.
+## Engines
 
-**Layers and rules.**
-- `src/la` — sparse CSC/CSR, SpMV, power iteration, `dd.h` double-double (Apple Silicon
-  has no 80-bit long double).
-- `src/oracle` — a dense bounded two-phase simplex in double-double with Bland's rule.
-  Slow on purpose; used only to check other engines on small models.
-- `src/pdhg` — engine logic (scaling, restarts, primal weight, termination) runs on the host
-  in double; all O(nnz) / O(n) work goes through `Backend`. That is what makes the CUDA
-  port a backend swap instead of a rewrite, and keeps the Mac able to unit-test the math.
-- `src/gpu` — CUDA implementation of `Backend` (own CSR SpMV kernels, fused
-  update+projection kernels, device reductions, host sync only every K iterations).
-- Verification is independent: `tools/verify.py` re-reads the original MPS with highspy
-  (a different reader) and checks primal/dual feasibility and the gap. highspy is never
-  used in `src/`; CI checks that no solver library is linked.
+| Engine | Code | Origin | Best at | Limits |
+|---|---|---|---|---|
+| `simplex` | `src/simplex/`, `src/la/sparse_lu.*` | gpuopt (Shivanshu Vats) | small/medium LPs, vertex + exact duals, degenerate/badly scaled Netlib models | full pricing, PFI updates, no hypersparsity: slow beyond ~10⁴ rows; no warm start yet |
+| `r2hpdhg` | `src/pdhg/r2hpdhg.*`, `engine.*`, `backend.h` | ps26119 (Jai) | large sparse LPs, CPU threads, GPU backend, mixed precision, warm start, batch | first-order accuracy (1e-8 relative KKT), not a vertex; struggles on some degenerate Netlib models |
+| `pdlp` | `src/pdhg/pdlp.*` | ps26119 | reference first-order method | slower than r²HPDHG |
+| `oracle` | `src/oracle/dense_simplex.*` | ps26119 | exact double-double answers on small models (testing) | dense |
+| (test) tableau oracle | `src/oracle/dense_tableau.*` | gpuopt | second, independent oracle for differential tests | dense, test-only |
+| MILP | `src/mip/branch_and_bound.*` | ps26119 (node solver: gpuopt simplex) | small MIPs, proven optimal | prototype: no cuts, no heuristics beyond rounding, cold node LPs |
 
-**First-order engine features.** Termination on fp64 KKT of the original problem (plus
-verifier-grade per-row checks at tight tolerances); infeasibility/unboundedness only from
-checked ray certificates; warm start from a previous (x, y); mixed precision promotes the
-iterate from fp32 to fp64 when fp32 has done what it can.
+## Verification layers
 
-**Evidence.** Benchmarks write `bench/results/<name>-<githash>.csv` with machine info.
-README/docs numbers must come from those CSVs.
+1. Engine-internal: simplex re-checks every verdict on a fresh factorization and in unscaled
+   units; first-order engines terminate on fp64 KKT of the original model plus per-row checks.
+2. Presolve safety net: postsolved answers re-checked on the original model; MILP answers
+   re-checked for integrality and feasibility.
+3. `core::gate()`: in-process checker on every Optimal LP answer (all engines).
+4. Certified bound: rounding-proof bound on the optimum from y.
+5. `tools/verify.py`: external, independent reader (highspy), used by every benchmark.
+6. Differential tests: dd oracle vs tableau oracle vs simplex vs r²HPDHG on random LPs;
+   random MPS files vs SciPy/HiGHS; reader vs `.lpm` bridge fingerprints.
+
+## GPU
+
+`src/pdhg/backend.h` is the only interface the first-order engines use for O(n)/O(nnz) work;
+`src/gpu/cuda_backend.cu` implements it (own CSR SpMV kernels, fused update + projection,
+deterministic fixed-grid reductions). The CPU backend implements the same math, so the Mac
+unit-tests the algorithm and the GPU machines test the kernels (`docs/GPU_VERIFICATION.md`).
+**The CUDA backend has not yet been compiled by nvcc or run on NVIDIA hardware.**
+
+## Threads
+
+`src/la/parallel.h`: a small deterministic pool (fixed chunking, fixed-order reductions) —
+bit-identical results for any thread count (TSan-clean; 1/2/4/8/10/all threads verified).
+The simplex and the MILP tree are single-threaded.

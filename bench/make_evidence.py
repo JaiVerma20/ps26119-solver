@@ -62,7 +62,8 @@ def netlib_section(path):
     by = OrderedDict()
     for r in rows:
         by.setdefault(r["instance"], {})[(r["engine"], r["precision"])] = r
-    cfgs = [("oracle", "dd"), ("pdlp", "fp64"), ("pdlp", "mixed"), ("r2hpdhg", "fp64"), ("r2hpdhg", "mixed")]
+    cfgs = [("oracle", "dd"), ("simplex", "fp64"), ("pdlp", "fp64"), ("pdlp", "mixed"), ("r2hpdhg", "fp64"),
+            ("r2hpdhg", "mixed")]
     cfgs = [c for c in cfgs if any(c in v for v in by.values())]
     header = ["instance", "rows×cols", "published optimum"] + [f"{e} {p}" for e, p in cfgs]
     body = []
@@ -74,14 +75,14 @@ def netlib_section(path):
             if not r:
                 cells.append("–")
                 continue
-            it = f", {r['iterations']} it" if c[0] != "oracle" else ""
+            it = f", {r['iterations']} it" if c[0] not in ("oracle",) else ""
             cells.append(f"{r['objective']} ({r['verify']}{it})")
         body.append(cells)
     lines.append(table(header, body))
     npass = sum(r["verify"] == "PASS" for r in rows)
     lines += ["", f"**{npass} of {len(rows)} runs verified PASS** by `tools/verify.py` (independent reader, "
               f"primal/dual/gap ≤ 1e-6 relative) and within 1e-6 of the published optimum. "
-              f"First-order runs target relative KKT 1e-8."]
+              f"First-order runs target relative KKT 1e-8; the simplex returns a vertex."]
     # iteration comparison PDLP vs r2HPDHG (fp64)
     better = [inst for inst, d in by.items() if ("pdlp", "fp64") in d and ("r2hpdhg", "fp64") in d
               and int(d[("r2hpdhg", "fp64")]["iterations"]) < int(d[("pdlp", "fp64")]["iterations"])]
@@ -123,6 +124,38 @@ def netlib_full_section(path):
         lines += ["", "Solved and verified but objective differs from HiGHS by more than 1e-6 (investigate):", "",
                   table(["model", "objective", "HiGHS", "rel. err"],
                         [[r["instance"], r["objective"], r["highs_objective"], r["rel_err_highs"]] for r in mism])]
+    return "\n".join(lines)
+
+
+def netlib_engine_comparison(fulls):
+    """One row per engine for the newest commit that has full-Netlib runs of several engines."""
+    by_hash = {}
+    for p in fulls:
+        rows = load(p)
+        if rows and rows[0].get("backend") != "gpu":
+            by_hash.setdefault(rows[0]["git_hash"], []).append((p, rows))
+    multi = {h: v for h, v in by_hash.items() if len({r[0]["engine"] for _, r in v}) > 1}
+    if not multi:
+        return ""
+    # newest commit among those: pick by the most recently committed file
+    newest = latest([p for v in multi.values() for p, _ in v], "netlib-full-")
+    h = load(newest)[0]["git_hash"]
+    runs = multi[h]
+    solved_by = {}
+    body = []
+    for p, rows in sorted(runs, key=lambda t: t[1][0]["engine"]):
+        ok = [r for r in rows if r["status"] == "Optimal" and r["verify"] == "PASS"
+              and r["rel_err_highs"] and float(r["rel_err_highs"]) <= 1e-6]
+        solved_by[rows[0]["engine"]] = {r["instance"] for r in ok}
+        secs = sum(float(r["seconds"]) for r in ok if r.get("seconds"))
+        body.append([rows[0]["engine"], f"{len(ok)}/{len(rows)}", fnum(secs, "{:.1f}"),
+                     ", ".join(sorted(r["instance"] for r in rows if r not in ok)) or "–", f"`{os.path.basename(p)}`"])
+    lines = [f"Same machine, same binary (commit `{h}`), same 60 s limit, same verification "
+             "(engine Optimal + in-process gate + `tools/verify.py` PASS + |obj − HiGHS|/(1+|HiGHS|) ≤ 1e-6):", "",
+             table(["engine", "solved + verified", "total s (solved)", "not solved", "source"], body)]
+    if "auto" in solved_by:
+        lines += ["", "`auto` = simplex when rows·nnz ≤ 2·10⁸, else r²HPDHG (docs/DECISIONS.md #29). The threshold was "
+                  "chosen on this set and on the generated models, so the `auto` row is an in-sample result."]
     return "\n".join(lines)
 
 
@@ -209,7 +242,8 @@ def main():
         return 1
     net = latest([p for p in paths if "gpu" not in os.path.basename(p)], "netlib-small-")
     net_gpu = latest(paths, "netlib-small-gpu-")
-    scales = [p for p in paths if os.path.basename(p).startswith("scale-")]
+    simplex_scales = [p for p in paths if os.path.basename(p).startswith("scale-simplex-")]
+    scales = [p for p in paths if os.path.basename(p).startswith("scale-") and p not in simplex_scales]
     cpu_scales = [p for p in scales if all(r.get("backend") != "gpu" for r in load(p))]
     gpu_scales = [p for p in scales if p not in cpu_scales]
 
@@ -227,7 +261,8 @@ def main():
     fulls_all = [p for p in paths if os.path.basename(p).startswith("netlib-full-")]
     # tagged runs (e.g. -gm12-) are ablations, not the default configuration
     ablations = [p for p in fulls_all
-                 if any(f"-{t}-" in os.path.basename(p) for t in ("gm12", "gm4", "gm0", "presolve", "nopresolve"))]
+                 if any(f"-{t}-" in os.path.basename(p)
+                        for t in ("gm12", "gm4", "gm0", "presolve", "nopresolve", "noscale", "dantzig"))]
     fulls = [p for p in fulls_all if p not in ablations]
     # latest run per configuration tag (engine-precision[-gpu]-machine)
     by_tag = {}
@@ -235,7 +270,10 @@ def main():
         tag = os.path.basename(p).rsplit("-", 1)[0]
         by_tag.setdefault(tag, []).append(p)
     fulls = [latest(v, "netlib-full-") for v in by_tag.values()]
-    doc += ["", "## 1b. Full Netlib LP set (first-order engine)", ""]
+    doc += ["", "## 1b. Full Netlib LP set (every engine)", ""]
+    cmp_ = netlib_engine_comparison(fulls)
+    if cmp_:
+        doc += [cmp_, ""]
     doc += [netlib_full_section(p) + "\n" for p in fulls] or ["_No committed full-Netlib CSV yet._"]
 
     if ablations:
@@ -247,7 +285,8 @@ def main():
             body.append([f"`{os.path.basename(p)}`", rows[0].get("settings", "") or "default of that commit",
                          f"{len(solved)}/{len(rows)}"])
         doc += [table(["CSV", "settings", "solved + verified"], body), "",
-                "Decisions: geometric-mean scaling is adaptive (docs/DECISIONS.md #17); presolve see #22.", ""]
+                "Decisions: geometric-mean scaling is adaptive (docs/DECISIONS.md #17); presolve see #22; simplex "
+                "scaling and pricing see #30.", ""]
 
     doc += ["", "## 2. Scaling on generated LPs with known optimum (CPU)", ""]
     if cpu_scales:
@@ -272,6 +311,16 @@ def main():
                 "at the cap. HiGHS returns a vertex solution at simplex accuracy; our column is time to relative "
                 "KKT 1e-8 with verifier-grade feasibility — not the identical accuracy target.", "",
                 table(["instance", "rows", "nnz", "r²HPDHG fp64 s→1e-8", "HiGHS s"], body), ""]
+
+    if simplex_scales:
+        p = latest(simplex_scales, "scale-simplex-")
+        rows = load(p)
+        body = [[r["instance"], r["rows"], r["nnz"], r["status"], r["iterations"], fnum(r["seconds"]),
+                 r["rel_err_known"] or "–", r["verify"] or "–"] for r in rows]
+        doc += ["### 2c. The simplex engine on the same generated models", "",
+                f"Source: `{p}` — commit `{rows[0]['git_hash']}`. Why `auto` sends large models to r²HPDHG: the "
+                "primal simplex prices every column and computes the Devex row every iteration.", "",
+                table(["instance", "rows", "nnz", "status", "iterations", "s", "rel. err vs known opt", "verify"], body), ""]
 
     doc += ["", "## 3. CPU vs GPU", ""]
     if gpu_scales or net_gpu:
@@ -355,8 +404,10 @@ def main():
         rows = load(p)
         r0 = rows[0]
         solved = [r for r in rows if r["status"] == "Optimal" and r["verify"] == "PASS"]
-        doc += [f"Source: `{p}` — `{r0['machine']}`, commit `{r0['git_hash']}`. Prototype: dense double-double "
-                "simplex as node solver, depth-first then best-bound, most-fractional branching, no cuts. "
+        node = ("dense double-double simplex as node solver" if r0["git_hash"] == "0935157" else
+                "sparse primal simplex as node solver, pruning by certified dual bounds (DECISIONS #28)")
+        doc += [f"Source: `{p}` — `{r0['machine']}`, commit `{r0['git_hash']}`, time limit per model in the CSV. "
+                f"Prototype: {node}, depth-first then best-bound, most-fractional branching, no cuts. "
                 f"**{len(solved)} of {len(rows)}** solved to proven optimality within the limit, each verified "
                 "(feasibility + integrality) and equal to the HiGHS optimum.", "",
                 table(["instance", "rows", "cols", "int", "status", "objective", "HiGHS", "gap", "s", "verify"],
@@ -367,27 +418,28 @@ def main():
 
     doc += ["", "## 5. What we do NOT do yet (honest list)", "",
             "- **No GPU number is claimed** unless a GPU CSV appears in §3. The CUDA backend has not yet been "
-            "compiled by nvcc or run at the time this list was written.",
-            "- **No MPS reader of our own in this build** — it is owned by a teammate; until it lands, MPS files are "
-            "converted with `tools/mps_to_lpm.py` (highspy, tooling only, never linked).",
-            "- **No sparse simplex and no crossover** yet: first-order solutions are accurate to the stated "
-            "tolerance but are not vertices; exact duals/ranging need the (planned) crossover. Presolve is basic "
-            "(empty rows, fixed/empty columns, singleton rows) — no doubleton/dominated-column reductions.",
-            "- **Infeasibility / unboundedness detection in the first-order engines is new and only lightly "
-            "tested** (ray certificates, checked in fp64 on the original problem; unit-tested on hand-made "
-            "infeasible/unbounded LPs, not yet on the Netlib infeasible set).",
-            "- **MILP is a prototype** (§4d): branch-and-bound over a dense double-double simplex, no cuts, "
-            "no warm-started node LPs — correct on small models only. **No QP** yet.",
+            "compiled by nvcc or run on NVIDIA hardware.",
+            "- **No crossover** from a first-order solution to a vertex, and **no simplex warm start / dual "
+            "simplex** yet (the integrated primal simplex starts from the slack basis every time). First-order "
+            "solutions are accurate to the stated tolerance but are not vertices.",
+            "- The primal simplex prices every column and uses product-form updates without hypersparsity: fast "
+            "on Netlib-size models, slow beyond ~10⁴ rows (§2c); dfl001 is not solved by it within 60 s.",
+            "- Presolve is basic (empty rows, fixed/empty columns, singleton rows) — no doubleton/dominated-column "
+            "reductions.",
+            "- **MILP is a prototype** (§4d): branch-and-bound with cold-started sparse simplex node LPs, "
+            "most-fractional branching, a rounding heuristic, **no cuts**, no strong branching. **No QP** yet.",
             "- **Generated instances**: the refinery LP has refinery structure, but its prices and inequality "
             "right-hand sides come from the KKT construction (synthetic), not from plant data; random LPs of this "
-            "kind are friendly to first-order methods. Netlib / Mittelmann large models are the next evidence step.",
+            "kind are friendly to first-order methods. Mittelmann large models are the next evidence step.",
             "- Batched scenarios (§4c) run on the CPU only (no GPU SpMM kernel yet) and without infeasibility "
-            "detection; certified bounds are −∞ whenever a dual multiplier points at an infinite bound (no bound "
-            "tightening yet to repair this).",
+            "detection.",
+            "- The `auto` engine rule and the adaptive-scaling threshold are tuned constants (on Netlib and the "
+            "generated models).",
             "- Laptop timings vary run to run (a fanless MacBook Air throttles and macOS moves threads between "
             "performance and efficiency cores): the same 1e6-row run has taken 294 s and 539 s for identical "
             "iteration counts. Iteration counts are deterministic; compare those first.",
-            "- CPU runs are single-threaded (deterministic by default; OpenMP is optional and off)."]
+            "- First-order CPU runs default to 1 thread (deterministic pool, bit-identical for any thread count); "
+            "the simplex and the MILP tree are single-threaded."]
     with open(OUT, "w") as f:
         f.write("\n".join(doc) + "\n")
     print(f"wrote {OUT}")
