@@ -49,6 +49,7 @@ const char* to_string(Algorithm a) {
     case Algorithm::Oracle: return "oracle";
     case Algorithm::Pdlp: return "pdlp";
     case Algorithm::R2hpdhg: return "r2hpdhg";
+    case Algorithm::Simplex: return "simplex";
   }
   return "auto";
 }
@@ -56,7 +57,7 @@ const char* to_string(Algorithm a) {
 const char* to_string(Precision p) { return p == Precision::Mixed ? "mixed" : "fp64"; }
 
 bool algorithm_from_string(const std::string& s, Algorithm& out) {
-  for (Algorithm a : {Algorithm::Auto, Algorithm::Oracle, Algorithm::Pdlp, Algorithm::R2hpdhg}) {
+  for (Algorithm a : {Algorithm::Auto, Algorithm::Oracle, Algorithm::Pdlp, Algorithm::R2hpdhg, Algorithm::Simplex}) {
     if (s == to_string(a)) {
       out = a;
       return true;

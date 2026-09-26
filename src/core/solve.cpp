@@ -1,5 +1,7 @@
 // solve.cpp — the solve() dispatcher. Validates the model, routes to an engine, stamps
-// provenance (fingerprint, engine, precision, wall time) into the Solution.
+// provenance (fingerprint, engine, precision, wall time) into the Solution, and gates every
+// Optimal LP answer through the in-process checker on the ORIGINAL model (gate() below):
+// every engine consumes the same Model and returns the same Solution.
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -9,8 +11,10 @@
 
 #include "ps26119/solve.h"
 
+#include "core/gate.h"
 #include "core/presolve.h"
 #include "core/safe_bound.h"
+#include "core/solution_checker.h"
 #include "pdhg/backend.h"
 #include "ps26119/tolerances.h"
 #include "la/parallel.h"
@@ -18,13 +22,31 @@
 #include "oracle/dense_simplex.h"
 #include "pdhg/pdlp.h"
 #include "pdhg/r2hpdhg.h"
+#include "simplex/primal_simplex.h"
 
 namespace ps26119 {
 
 namespace {
 Solution solve_direct(const Model& model, const Options& options);
 
-bool first_order(Algorithm a) { return a != Algorithm::Oracle; }
+bool first_order(Algorithm a) { return a == Algorithm::Auto || a == Algorithm::Pdlp || a == Algorithm::R2hpdhg; }
+
+// Simplex options from the generic Options (limits + simplex_* engine knobs). Returns the
+// name of an unknown or non-simplex knob, or "" on success.
+std::string simplex_options_from(const Options& o, simplex::SimplexOptions& so) {
+  so.time_limit_seconds = o.time_limit;
+  so.max_iterations = o.iteration_limit;
+  so.log_every = o.verbosity >= 2 ? 1000 : 0;
+  for (const auto& [name, v] : o.engine_params) {
+    if (name == "simplex_pricing") so.pricing = v != 0 ? simplex::Pricing::kDevex : simplex::Pricing::kDantzig;
+    else if (name == "simplex_scale") so.scale = v != 0;
+    else if (name == "simplex_perturb") so.perturb = v != 0;
+    else if (name == "simplex_primal_tolerance") so.primal_tolerance = v;
+    else if (name == "simplex_dual_tolerance") so.dual_tolerance = v;
+    else return name;
+  }
+  return {};
+}
 
 // A model whose bounds cross is infeasible; the crossing itself is the certificate.
 Solution trivially_infeasible(const Model& model, const Options& options, const std::string& why) {
@@ -54,10 +76,60 @@ pdhg::KktStats original_kkt(const Model& M, const Solution& s) {
 }
 }  // namespace
 
+namespace {
+Solution solve_impl(const Model& model, const Options& options);
+
+bool treat_as_mip(const Model& m, const Options& o) { return has_integers(m) && !o.relax_integrality; }
+
+}  // namespace
+
+namespace core {
+// The verification gate (CLAUDE.md §5.4: a wrong answer is worse than no answer). An Optimal
+// LP answer is re-checked on the ORIGINAL model by the in-process checker with the verifier
+// tolerances. Exact engines (simplex, oracle) and first-order runs that asked for
+// verifier-grade accuracy are demoted to NumericalError when the check fails. MILP answers
+// are verified by the branch-and-bound / presolve safety net instead (integrality, rows).
+void gate(const Model& model, const Options& options, Solution& s) {
+  if (s.status != Status::Optimal || treat_as_mip(model, options)) return;
+  if (static_cast<int>(s.x.size()) != model.num_cols || static_cast<int>(s.y.size()) != model.num_rows) {
+    s.status = Status::NumericalError;
+    s.message += std::string(s.message.empty() ? "" : "; ") + "engine reported Optimal without primal and dual vectors";
+    return;
+  }
+  const CheckReport rep = check_solution(model, s.x, s.y);
+  s.check = rep.passed() ? "PASS" : "FAIL";
+  s.check_primal = rep.max_primal_violation;
+  s.check_dual = rep.max_dual_violation;
+  s.check_gap = rep.relative_gap;
+  if (std::isnan(s.dual_objective)) s.dual_objective = rep.dual_objective;
+  if (std::isnan(s.primal_residual)) s.primal_residual = rep.max_primal_violation;
+  if (std::isnan(s.dual_residual)) s.dual_residual = rep.max_dual_violation;
+  if (std::isnan(s.gap)) s.gap = rep.relative_gap;
+  if (rep.passed()) return;
+  // Same boundary as pdhg::KktStats::converged(): a first-order tolerance strictly tighter
+  // than the verifier's promises verifier-grade per-row accuracy; 1e-6 and looser do not.
+  const bool claims_verifier_grade = !first_order(options.algorithm) || options.tolerance < tol::kVerifyPrimal;
+  const std::string what = "in-process check on the original model: " + rep.summary();
+  if (claims_verifier_grade) {
+    s.status = Status::NumericalError;
+    s.message += std::string(s.message.empty() ? "" : "; ") + "Optimal withdrawn, " + what;
+  } else {
+    s.message += std::string(s.message.empty() ? "" : "; ") + what + " (requested tolerance is looser than the verifier's)";
+  }
+}
+}  // namespace core
+
+Solution solve(const Model& model, const Options& options) {
+  Solution s = solve_impl(model, options);
+  core::gate(model, options, s);
+  return s;
+}
+
+namespace {
 // Presolve wrapper: reduce, solve the reduced model, postsolve, and re-check optimality on the
 // ORIGINAL model; if a first-order answer misses the tolerance there, polish it by a
 // warm-started solve of the original (so presolve never weakens what "Optimal" means).
-Solution solve(const Model& model, const Options& options) {
+Solution solve_impl(const Model& model, const Options& options) {
   // Invalid input (model or warm-start sizes) is reported by solve_direct before any
   // presolve work touches it (mapping a wrong-sized warm start would read out of bounds).
   const bool bad_warm = (!options.warm_x.empty() && static_cast<int>(options.warm_x.size()) != model.num_cols) ||
@@ -161,7 +233,16 @@ Solution solve(const Model& model, const Options& options) {
                       "; postsolved point missed the tolerance, fell back to solving the original";
       post = cold;
     }
-  } else if (!is_mip && post.status == Status::Optimal && first_order(options.algorithm) && post.x.empty()) {
+  } else if (!is_mip && post.status == Status::Optimal && !first_order(options.algorithm) &&
+             !check_solution(model, post.x, post.y).passed()) {
+    // Exact engine: a postsolved vertex that fails on the original model is not trusted;
+    // solve the original without presolve instead (never worse than no presolve).
+    Solution cold = solve_direct(model, inner);
+    cold.iterations += red.iterations;
+    cold.message += std::string(cold.message.empty() ? "" : "; ") + note +
+                    "; postsolved point failed the check on the original, solved the original instead";
+    post = cold;
+  } else if (!is_mip && post.status == Status::Optimal && post.x.empty()) {
     post.status = Status::NumericalError;  // never claim Optimal without a point
   }
   if (static_cast<int>(post.y.size()) == model.num_rows && model.num_rows + model.num_cols > 0)
@@ -169,8 +250,6 @@ Solution solve(const Model& model, const Options& options) {
   post.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
   return post;
 }
-
-namespace {
 
 Solution solve_direct(const Model& model, const Options& options) {
   const auto t0 = std::chrono::steady_clock::now();
@@ -213,6 +292,16 @@ Solution solve_direct(const Model& model, const Options& options) {
         o.time_limit = options.time_limit;
         o.verbosity = options.verbosity;
         sol = oracle::solve_dense_simplex(model, o);
+        break;
+      }
+      case Algorithm::Simplex: {
+        simplex::SimplexOptions so;
+        if (auto bad = simplex_options_from(options, so); !bad.empty()) {
+          sol.status = Status::NotSolved;
+          sol.message = "unknown simplex engine parameter '" + bad + "'";
+          break;
+        }
+        sol = simplex::solve_primal_simplex(model, so);
         break;
       }
       case Algorithm::Pdlp:

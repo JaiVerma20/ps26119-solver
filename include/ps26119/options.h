@@ -15,6 +15,7 @@ enum class Algorithm {
   Oracle,   // dense double-double simplex — TEST ORACLE ONLY, small models
   Pdlp,     // restarted PDHG, PDLP-style (Applegate et al.)
   R2hpdhg,  // restarted Halpern PDHG with reflection (Lu & Yang; cuPDLPx)
+  Simplex,  // bounded revised primal simplex, sparse LU (src/simplex; from gpuopt)
 };
 
 enum class Precision {
@@ -63,6 +64,9 @@ struct Options {
   // restart_artificial, pid_kp, pid_ki, pid_kd, pid_integral_decay, pid_max_log_step,
   // bound_objective_rescaling, geometric_mean_iterations, geometric_mean_min_log10_range,
   // ruiz_iterations, pock_chambolle).
+  // Simplex engine knobs (src/simplex/primal_simplex.h): simplex_pricing (0 Dantzig,
+  // 1 Devex), simplex_scale (0/1), simplex_perturb (0/1), simplex_primal_tolerance,
+  // simplex_dual_tolerance.
   // An unknown name makes solve() return NotSolved.
   std::vector<std::pair<std::string, double>> engine_params;
 };

@@ -32,6 +32,8 @@ bool write_solution(const std::string& path, const Model& m, const Solution& s, 
     std::fprintf(f, "iterations_to_fast %lld\n", static_cast<long long>(s.iterations_to_fast));
     std::fprintf(f, "seconds_to_fast %.6f\n", s.seconds_to_fast);
   }
+  if (!s.check.empty())
+    std::fprintf(f, "check %s primal %.3g dual %.3g gap %.3g\n", s.check.c_str(), s.check_primal, s.check_dual, s.check_gap);
   if (!s.message.empty()) std::fprintf(f, "message %s\n", s.message.c_str());
 
   const bool have_primal = static_cast<int>(s.x.size()) == m.num_cols;
