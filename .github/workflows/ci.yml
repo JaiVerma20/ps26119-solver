@@ -16,6 +16,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # validate_results.py checks that every CSV's commit is in the history
 
       - uses: actions/setup-python@v5
         with:
@@ -39,6 +41,9 @@ jobs:
 
       - name: No foreign solver linked
         run: scripts/check_no_solver_linked.sh build
+
+      - name: Committed benchmark evidence has valid provenance
+        run: python bench/validate_results.py
 
   sanitizers:
     strategy:
