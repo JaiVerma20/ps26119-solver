@@ -20,4 +20,4 @@ State at the end of the integration (benchmark binary `d824f82`, 2026-09-26).
 | Presolve | safe reductions + postsolve re-check | PARTIAL | `Presolve.*` | Netlib ablations | 85 vs 83 (PDHG, `01f2eec`) | doubletons, dominated columns |
 | APIs (library use in industry) | C API, Python (ctypes), CLI | DONE | `CApi.*`, `python.binding`, `cli.contract` | — | — | packaging (pip wheel) |
 | Reproducible evidence | hash-named CSVs, frozen binary, `make_evidence.py` | DONE | `bench.generators`, provenance columns | all | `docs/EVIDENCE.md` | GPU CSVs |
-| Team workflow | one repository, feature branches, PRs, CI | DONE locally; GitHub pending owner push | CI workflow | — | `docs/CONTRIBUTING.md` | branch protection (needs a paid plan for private repos) |
+| Team workflow | one private repository (github.com/JaiVerma20/ps26119-solver), feature branches, PRs; `main` protected (PR + 4 green CI jobs, no force push) | DONE | CI workflow (Ubuntu, macOS, ASan/UBSan, TSan) | — | PR #1, `docs/CONTRIBUTING.md` | teammate accepts the invitation; optionally enforce the rules for admins too |

@@ -233,9 +233,15 @@ Claude` where AI-assisted; the teammate's original commit carries his name, emai
 
 ## 30. Exact next steps
 
-1. `gh auth login`, then `scripts/setup_github.sh ps26119-solver shivanshu24-code` (creates the
-   private repo, pushes `main` + tags, invites the teammate, tries to protect `main`).
-2. Teammate: clone the canonical repo, `git switch -c feature/shivanshu/gpu-validation`,
+Done in this session: private repository https://github.com/JaiVerma20/ps26119-solver created;
+`main` (+ tag `pre-teammate-integration`) pushed; integration merged through PR #1 with a merge
+commit after all 8 CI jobs passed; `main` protected (PR + `build-test (ubuntu-latest)`,
+`build-test (macos-latest)`, `asan-ubsan`, `tsan` required; no force push/deletion);
+`shivanshu24-code` invited with write access.
+
+1. Teammate: accept the invitation, clone the canonical repo, stop using the old
+   `gpu_optimization` repository (archive it), `git switch -c feature/shivanshu/gpu-validation`,
    run `QUICK=1 scripts/gpu_check.sh` under WSL2, open a PR with the logs and CSVs.
-3. Jai: fix whatever nvcc reports; merge the GPU CSVs; regenerate `docs/EVIDENCE.md`.
-4. Start basis I/O (Shivanshu) and crossover (Jai) on separate feature branches.
+2. Jai: fix whatever nvcc reports; merge the GPU CSVs; regenerate `docs/EVIDENCE.md`.
+3. Start basis I/O (Shivanshu) and crossover (Jai) on separate feature branches.
+4. Optional: enable "Do not allow bypassing the above settings" so admins also go through PRs.
