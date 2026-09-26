@@ -16,3 +16,4 @@ out/
 *.exe
 *.o
 *.obj
+.venv*/
