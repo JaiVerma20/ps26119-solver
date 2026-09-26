@@ -182,3 +182,8 @@ Newest last. Each entry: what, why, evidence, how to undo.
       cancelling reduced costs on free columns; fixed with exact expansion arithmetic (`1f2102c`).
     - *Evidence*: Differential.* — every Infeasible/Unbounded verdict certified: simplex
       2192/2192, r²HPDHG 1032/1032 (1,800 random LPs), 0 mismatches, 0 extra first-order limits.
+    - *Independent check* (`tools/verify.py`): L₀ in exact rational arithmetic, with column bounds
+      implied by iterated one-row propagation where a multiplier points at an infinite bound. Each
+      implied bound is exact for one step and then rounded outward to a double, so it stays valid
+      and denominators cannot grow across passes (unrounded, wood1p + objective cut ran > 10 min in
+      gcd; rounded: 1.8 s, same verdict).
