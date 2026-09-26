@@ -191,14 +191,35 @@ def verify(model_path: str, solution_path: str, expected: float | None = None) -
 EXACT_MAX_NNZ = 300_000
 
 
+def _round_out(q, up: bool):
+    """The double nearest to the rational q, moved one ulp outward if needed so that it is >= q
+    (up=True) or <= q (up=False), as an exact Fraction; None if q is outside the double range."""
+    from fractions import Fraction
+    try:
+        f = float(q)
+    except OverflowError:
+        return None
+    if not math.isfinite(f):
+        return None
+    if up and Fraction(f) < q:
+        f = math.nextafter(f, math.inf)
+    elif not up and Fraction(f) > q:
+        f = math.nextafter(f, -math.inf)
+    return Fraction(f) if math.isfinite(f) else None
+
+
 def _implied_bounds(m, passes: int = 20):
     """Column bounds implied by the rows, by iterated one-row propagation, EXACTLY (Fraction).
     Each pass uses only bounds already proven (original bounds, then earlier implied ones), so
     every derived bound holds for every feasible x — usable in a proof that no feasible x exists.
     For a row a_i x <= U_i (or -a_i x <= -L_i) and a coefficient c = a_ij > 0:
         x_j <= (U_i - sum_{k != j} min_{x_k in [lo_k, up_k]} a_ik x_k) / a_ij   (symmetric for c < 0).
-    Independent of the C++ implementation (src/core/implied_bounds.cpp). Returns (lo, up) lists
-    with None for "no finite bound"."""
+    Each derived bound is computed exactly, then rounded OUTWARD to a double (upper bounds up, lower
+    bounds down) before it is stored: the stored bound is still valid (only looser, by <= 1 ulp),
+    and every stored value stays a dyadic rational. Without the rounding, the divisions make the
+    denominators grow with every pass (wood1p + objective cut: > 10 minutes in gcd); with it, the
+    cost per pass is bounded. Independent of the C++ implementation (src/core/implied_bounds.cpp).
+    Returns (lo, up) lists with None for "no finite bound"."""
     from fractions import Fraction
     cache = getattr(m, "_implied_cache", None)
     if cache is not None:
@@ -208,41 +229,69 @@ def _implied_bounds(m, passes: int = 20):
     rows = [[] for _ in range(m.num_rows)]
     for jj in range(m.num_cols):
         for k in range(m.col_start[jj], m.col_start[jj + 1]):
-            rows[m.row_index[k]].append((jj, Fraction(m.value[k])))
+            rows[m.row_index[k]].append((jj, Fraction(m.value[k]), m.value[k]))
+    # Speed without giving up rigour: (1) worklist — a row is re-examined only when one of its
+    # columns' bounds changed; (2) a floating-point estimate first, the exact computation only when
+    # the estimate promises an improvement; (3) an improvement must exceed 1e-9 (1 + |old|), which
+    # stops endless micro-tightening. (2) and (3) can only make a bound looser, never invalid:
+    # every stored bound is still the exact, outward-rounded result of one propagation step.
+    flo = [float(v) if v is not None else None for v in lo]
+    fup = [float(v) if v is not None else None for v in up]
+    dirty = set(range(m.num_rows))
     for _ in range(passes):
-        changed = False
-        for i in range(m.num_rows):
+        if not dirty:
+            break
+        changed_cols = set()
+        for i in sorted(dirty):
             for sgn, rhs in ((1, m.row_upper[i]), (-1, m.row_lower[i])):
                 if not math.isfinite(rhs):
                     continue
-                # minimum of sgn*a_i x over the box, with the count of unbounded terms
-                total, unb, unb_col = Fraction(0), 0, -1
-                for kk, v in rows[i]:
-                    c = sgn * v
-                    b = lo[kk] if c > 0 else up[kk]
+                unb, unb_col, ftotal = 0, -1, 0.0
+                for kk, v, fv in rows[i]:
+                    b = flo[kk] if sgn * fv > 0 else fup[kk]
                     if b is None:
                         unb += 1
                         unb_col = kk
+                        if unb > 1:
+                            break
                     else:
-                        total += c * b
+                        ftotal += sgn * fv * b
                 if unb > 1:
                     continue
+                total = None  # exact minimum of sgn*a_i x over the box, computed on first need
                 R = Fraction(sgn) * Fraction(rhs)
-                for kk, v in rows[i]:
-                    c = sgn * v
+                for kk, v, fv in rows[i]:
                     if unb == 1 and kk != unb_col:
                         continue
-                    own = (lo[kk] if c > 0 else up[kk])
+                    fc = sgn * fv
+                    fown = flo[kk] if fc > 0 else fup[kk]
+                    old = fup[kk] if fc > 0 else flo[kk]
+                    est = (sgn * rhs - (ftotal if fown is None else ftotal - fc * fown)) / fc
+                    thr = 1e-9 * (1.0 + abs(old)) if old is not None else 0.0
+                    if old is not None and math.isfinite(est) and (est >= old - thr if fc > 0 else est <= old + thr):
+                        continue
+                    if total is None:
+                        total = Fraction(0)
+                        for k2, v2, _ in rows[i]:
+                            c2 = sgn * v2
+                            b2 = lo[k2] if c2 > 0 else up[k2]
+                            if b2 is not None:
+                                total += c2 * b2
+                    c = sgn * v
+                    own = lo[kk] if c > 0 else up[kk]
                     rest = total if own is None else total - c * own
-                    bound = (R - rest) / c
-                    if c > 0 and (up[kk] is None or bound < up[kk]):
-                        up[kk] = bound
-                        changed = True
-                    elif c < 0 and (lo[kk] is None or bound > lo[kk]):
-                        lo[kk] = bound
-                        changed = True
-        if not changed:
-            break
+                    bound = _round_out((R - rest) / c, up=c > 0)
+                    if bound is None:
+                        continue
+                    fb = float(bound)
+                    if c > 0 and (up[kk] is None or fb < fup[kk] - thr):
+                        up[kk], fup[kk] = bound, fb
+                        changed_cols.add(kk)
+                    elif c < 0 and (lo[kk] is None or fb > flo[kk] + thr):
+                        lo[kk], flo[kk] = bound, fb
+                        changed_cols.add(kk)
+                    # 'total' keeps kk's previous bound for the rest of this row: still valid, only looser
+        dirty = {m.row_index[k] for jj in changed_cols for k in range(m.col_start[jj], m.col_start[jj + 1])}
     m._implied_cache = (lo, up)
     return lo, up
 

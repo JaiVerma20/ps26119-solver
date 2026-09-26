@@ -187,6 +187,44 @@ class CertificateVerifier(unittest.TestCase):
         self.assertEqual(self._check(m, "Infeasible", dual_ray=[1.0, -1.0])["verdict"], "FAIL")
         self.assertEqual(self._check(m, "Infeasible")["verdict"], "FAIL")  # no certificate
 
+    def test_implied_bounds_valid_dyadic_and_fast(self):
+        # Chain 3 x_{k+1} - x_k <= 0, x_0 in [0, 1], x_k >= 0: the tight bounds are 3^-k. Exact
+        # propagation without rounding grows denominators 3^k per pass; the stored bounds must be
+        # doubles (power-of-two denominators), valid (>= 3^-k) and at most slightly looser.
+        from fractions import Fraction
+        import time
+        inf, n = float("inf"), 40
+        rows = [[(3 if j == k + 1 else -1 if j == k else 0) for j in range(n)] for k in range(n - 1)]
+        m = self._model([0] * n, rows, [-inf] * (n - 1), [0] * (n - 1), [0] * n, [1] + [inf] * (n - 1))
+        t = time.time()
+        lo, up = verify._implied_bounds(m)
+        self.assertLess(time.time() - t, 5.0)
+        for k in range(1, 21):  # 20 passes reach at least x_20
+            self.assertIsNotNone(up[k])
+            self.assertGreaterEqual(up[k], Fraction(1, 3 ** k))
+            self.assertLessEqual(float(up[k]), (1 + 1e-6) / 3 ** k)
+            d = up[k].denominator
+            self.assertEqual(d & (d - 1), 0, "bound is not a double")
+        # validity on random feasible models: a known feasible x0 satisfies every implied bound
+        import random
+        rng = random.Random(11)
+        for _ in range(200):
+            mr, nc = rng.randint(1, 5), rng.randint(1, 5)
+            x0 = [rng.uniform(-3, 3) for _ in range(nc)]
+            rws = [[rng.choice([0, rng.uniform(-4, 4)]) for _ in range(nc)] for _ in range(mr)]
+            ax = [sum(r[j] * x0[j] for j in range(nc)) for r in rws]
+            rl = [a - rng.choice([1e-9, 1, inf]) for a in ax]
+            ru = [a + rng.choice([1e-9, 1, inf]) for a in ax]
+            cl = [x - rng.choice([0.5, inf]) for x in x0]
+            cu = [x + rng.choice([0.5, inf]) for x in x0]
+            mm = self._model([0] * nc, rws, rl, ru, cl, cu)
+            lo2, up2 = verify._implied_bounds(mm)
+            for j in range(nc):
+                if lo2[j] is not None:
+                    self.assertLessEqual(lo2[j], Fraction(x0[j]))
+                if up2[j] is not None:
+                    self.assertGreaterEqual(up2[j], Fraction(x0[j]))
+
     def test_soundness_no_certificate_for_feasible_models(self):
         import random
         rng = random.Random(3)
