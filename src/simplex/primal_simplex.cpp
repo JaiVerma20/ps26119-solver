@@ -484,7 +484,7 @@ Solution PrimalSimplex::run() {
   while (true) {
     if (iterations_ >= opt_.max_iterations) return finish(Status::IterationLimit, "iteration limit");
     if ((iterations_ & 63) == 0 && elapsed() > opt_.time_limit_seconds) {
-      return finish(Status::IterationLimit, "time limit");
+      return finish(Status::TimeLimit, "time limit");
     }
     if (lu_.needs_refactor()) refactor();
 
@@ -516,11 +516,20 @@ Solution PrimalSimplex::run() {
       // iterating with tighter tolerances.
       double primal_viol, dual_viol;
       unscaled_violations(primal_viol, dual_viol);
-      if ((primal_viol > opt_.primal_tolerance || dual_viol > opt_.dual_tolerance) && tightenings_ < 4) {
+      const bool within = primal_viol <= opt_.primal_tolerance && dual_viol <= opt_.dual_tolerance;
+      if (!within && tightenings_ < 4) {
         ptol_ = std::max(ptol_ * 0.1, 1e-12);
         dtol_ = std::max(dtol_ * 0.1, 1e-12);
         ++tightenings_;
         continue;
+      }
+      // Never claim Optimal with violations above the tolerance (audit finding S1: this
+      // used to return Optimal after the 4th tightening regardless).
+      if (!within) {
+        char buf[160];
+        std::snprintf(buf, sizeof buf, "unscaled violations primal %.2e / dual %.2e above tolerance after %d tightenings",
+                      primal_viol, dual_viol, tightenings_);
+        return finish(Status::NumericalError, buf);
       }
       return finish(Status::Optimal, "");
     }

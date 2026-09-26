@@ -122,3 +122,30 @@ TEST(Simplex, agrees_with_oracle_under_every_option_combination) {
   expect_agreement("no scaling, no perturbation", 1000, 4, 10, 12, 0.5, raw);
 }
 
+
+// Integration audit finding S1: whatever happens with an unreachable tolerance (a limit,
+// NumericalError), the result is never an Optimal whose unscaled violations exceed it.
+TEST(Simplex, never_optimal_above_the_requested_tolerance) {
+  const Model lp = read_mps_file(kData + "/netlib_small/adlittle.mps").problem;
+  for (double tol : {1e-13, 1e-15, 1e-300}) {
+    SimplexOptions opt;
+    opt.primal_tolerance = tol;
+    opt.dual_tolerance = tol;
+    opt.max_iterations = 20000;
+    opt.time_limit_seconds = 5.0;
+    const Solution res = solve_primal_simplex(lp, opt);
+    if (res.status == Status::Optimal) {
+      const CheckReport rep = check_solution(lp, res.x, res.y, {tol, tol, 1.0});
+      EXPECT_TRUE(rep.primal_ok && rep.dual_ok) << "tol " << tol << ": " << rep.summary();
+    }
+  }
+}
+
+// Audit finding S2: the time limit is reported as TimeLimit, not IterationLimit.
+TEST(Simplex, time_limit_is_reported_as_time_limit) {
+  const Model lp = read_mps_file(kData + "/netlib_small/adlittle.mps").problem;
+  SimplexOptions opt;
+  opt.time_limit_seconds = 0.0;
+  const Solution res = solve_primal_simplex(lp, opt);
+  EXPECT_EQ(res.status, Status::TimeLimit) << res.message;
+}
