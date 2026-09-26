@@ -98,18 +98,16 @@ bool parse_number(std::string_view s, double& out) {
   }
   if (buf.empty()) return false;
   // Portable replacement for std::from_chars(double), which Apple's libc++ does not
-  // provide. Accepts the same language: [-]digits[.digits][(e|E)[+-]digits], or
-  // inf / infinity / nan (any case); an out-of-range value is an error.
+  // provide: [-]digits[.digits][(e|E)[+-]digits], or inf / infinity (any case).
+  // "nan" is rejected (a NaN coefficient once produced a "proven optimal" garbage model,
+  // docs/audit/INITIAL_AUDIT.md R1). Overflow gives +-inf (the >= 1e30 convention treats
+  // such values as infinite anyway); underflow gives the correctly rounded tiny value.
   std::string body = buf;
   for (char& ch : body) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
   const bool neg = body[0] == '-';
   const std::string word = neg ? body.substr(1) : body;
   if (word == "inf" || word == "infinity") {
     out = neg ? -kInf : kInf;
-    return true;
-  }
-  if (word == "nan") {
-    out = std::nan("");
     return true;
   }
   if (word.empty() || !(std::isdigit(static_cast<unsigned char>(word[0])) || word[0] == '.')) return false;
@@ -119,7 +117,7 @@ bool parse_number(std::string_view s, double& out) {
   char* end = nullptr;
   errno = 0;
   out = std::strtod(buf.c_str(), &end);
-  return errno != ERANGE && end == buf.c_str() + buf.size();
+  return end == buf.c_str() + buf.size();
 }
 
 class Parser {
@@ -310,6 +308,7 @@ class Parser {
     rhs_.push_back(0.0);
     range_.push_back(0.0);
     has_range_.push_back(0);
+    has_rhs_.push_back(0);
   }
 
   // ----------------------------------------------------------------- COLUMNS
@@ -317,7 +316,8 @@ class Parser {
   //   fixed: col 5-12, row 15-22, value 25-36, row 40-47, value 50-61
   //   integer blocks:  <name> 'MARKER' 'INTORG'  ...  <name> 'MARKER' 'INTEND'
   void read_column(std::string_view line) {
-    if (line.find("'MARKER'") != std::string_view::npos) {
+    // Case-insensitive 'MARKER' (only lines with a quote can contain it).
+    if (line.find('\'') != std::string_view::npos && upper(line).find("'MARKER'") != std::string::npos) {
       const std::string u = upper(line);
       if (u.find("'INTORG'") != std::string::npos) {
         in_integer_block_ = true;
@@ -377,6 +377,9 @@ class Parser {
 
   void add_coefficient(int col, std::string_view row_name, double value) {
     const int i = find_row(row_name);
+    if (!std::isfinite(value)) {
+      fail("coefficient of column '" + col_names_[col] + "' in row '" + std::string(row_name) + "' is not finite");
+    }
     if (i == kObjectiveRow) {
       obj_[col] += value;
     } else if (i >= 0 && value != 0.0) {
@@ -429,15 +432,21 @@ class Parser {
       if (is_range) {
         warn("RANGES entry on the objective row ignored");
       } else {
+        if (!std::isfinite(value)) fail("objective constant (RHS on the objective row) is not finite");
         obj_offset_ = -value;  // MPS convention: RHS on the objective = -constant
       }
       return;
     }
+    // A second entry for the same row overwrites the first; say so (readers differ here:
+    // highspy keeps the first, so tools/verify.py would report a fingerprint mismatch).
     if (is_range) {
+      if (has_range_[i]) warn("row '" + row_names_[i] + "' has more than one RANGES entry; the last one is used");
       range_[i] = value;
       has_range_[i] = 1;
     } else {
+      if (has_rhs_[i]) warn("row '" + row_names_[i] + "' has more than one RHS entry; the last one is used");
       rhs_[i] = value;
+      has_rhs_[i] = 1;
     }
   }
 
@@ -628,7 +637,7 @@ class Parser {
   std::vector<std::string> row_names_;
   std::vector<RowType> row_types_;
   std::vector<double> rhs_, range_;
-  std::vector<char> has_range_;
+  std::vector<char> has_range_, has_rhs_;
 
   std::unordered_map<std::string, int> col_index_;
   std::vector<std::string> col_names_;

@@ -182,3 +182,54 @@ TEST(MpsReader, reports_errors_with_line_numbers) {
   EXPECT_ANY_THROW(read_mps_file("model.mps.gz"));
 }
 
+
+// ---- regression tests for the integration audit findings (docs/audit/INITIAL_AUDIT.md)
+
+TEST(MpsReader, rejects_nan_and_non_finite_coefficients) {  // R1
+  const std::string head = "NAME T\nROWS\n N obj\n L c1\nCOLUMNS\n";
+  EXPECT_ANY_THROW(read_mps_string(head + "    x obj 1 c1 nan\nRHS\n    rhs c1 4\nENDATA\n"));
+  EXPECT_ANY_THROW(read_mps_string(head + "    x obj 1 c1 1\nRHS\n    rhs c1 NaN\nENDATA\n"));
+  EXPECT_ANY_THROW(read_mps_string(head + "    x obj 1 c1 1\nRHS\n    rhs c1 4\nBOUNDS\n UP bnd x nan\nENDATA\n"));
+  EXPECT_ANY_THROW(read_mps_string(head + "    x obj 1 c1 inf\nRHS\n    rhs c1 4\nENDATA\n"));
+  EXPECT_ANY_THROW(read_mps_string(head + "    x obj 1e400 c1 1\nRHS\n    rhs c1 4\nENDATA\n"));
+  EXPECT_ANY_THROW(read_mps_string(head + "    x obj 1 c1 1\nRHS\n    rhs obj inf\nENDATA\n"));
+  try {
+    read_mps_string(head + "    x obj 1 c1 nan\nENDATA\n", {MpsFormat::kFree});
+    ADD_FAILURE() << "nan accepted";
+  } catch (const MpsParseError& e) {
+    EXPECT_EQ(e.line(), 6);
+  }
+}
+
+TEST(MpsReader, huge_values_are_infinite_bounds) {  // R0: overflow is +-inf, not an error
+  const auto r = read_mps_string(
+      "NAME T\nROWS\n N obj\n L c1\nCOLUMNS\n    x obj -1 c1 1\nRHS\n    rhs c1 1e400\n"
+      "BOUNDS\n LO bnd x -1e500\n UP bnd x Infinity\nENDATA\n");
+  EXPECT_EQ(r.problem.row_upper[0], kInf);
+  EXPECT_EQ(r.problem.col_lower[0], -kInf);
+  EXPECT_EQ(r.problem.col_upper[0], kInf);
+  const auto t = read_mps_string("NAME T\nROWS\n N obj\n L c1\nCOLUMNS\n    x obj 1e-400 c1 1\nENDATA\n");
+  EXPECT_EQ(t.problem.obj[0], 0.0);  // underflow: correctly rounded to 0
+  EXPECT_ANY_THROW(read_mps_string("NAME T\nROWS\n N obj\n L c1\nCOLUMNS\n    x obj 0x10 c1 1\nENDATA\n"));
+  EXPECT_ANY_THROW(read_mps_string("NAME T\nROWS\n N obj\n L c1\nCOLUMNS\n    x obj 4x c1 1\nENDATA\n"));
+}
+
+TEST(MpsReader, marker_is_case_insensitive) {  // R2
+  const auto r = read_mps_string(
+      "NAME T\nROWS\n N obj\n L c1\nCOLUMNS\n    m1 'marker' 'intorg'\n    x obj 1 c1 1\n"
+      "    m2 'Marker' 'IntEnd'\n    y obj 1 c1 1\nRHS\n    rhs c1 4\nENDATA\n");
+  ASSERT_EQ(r.problem.num_cols, 2);
+  EXPECT_EQ(r.problem.is_integer[0], 1);
+  EXPECT_EQ(r.problem.is_integer[1], 0);
+}
+
+TEST(MpsReader, duplicate_rhs_entry_warns) {  // R3
+  const auto r = read_mps_string(
+      "NAME T\nROWS\n N obj\n L c1\nCOLUMNS\n    x obj -1 c1 1\nRHS\n    rhs c1 4\n    rhs c1 7\n"
+      "RANGES\n    rng c1 2\n    rng c1 3\nENDATA\n");
+  EXPECT_EQ(r.problem.row_upper[0], 7.0);
+  EXPECT_EQ(r.problem.row_lower[0], 4.0);
+  ASSERT_EQ(r.warnings.size(), size_t{2});
+  EXPECT_NE(r.warnings[0].find("more than one RHS"), std::string::npos);
+  EXPECT_NE(r.warnings[1].find("more than one RANGES"), std::string::npos);
+}
