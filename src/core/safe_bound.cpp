@@ -36,6 +36,29 @@ double up(const dd& v, double err) {
 // two_prod is exact unless the product is subnormal/underflows; flag that case.
 bool may_underflow(const dd& p) { return p.hi != 0.0 && std::fabs(p.hi) < 1e-280; }
 
+// Exact sum of doubles as a nonoverlapping expansion (Shewchuk, "Adaptive precision
+// floating-point arithmetic and fast robust geometric predicates", 1997: GROW-EXPANSION with
+// zero elimination). Knuth's two-sum is error-free barring overflow, so `e` represents the sum
+// exactly. Returns false (caller falls back) on non-finite values or a too-long expansion.
+bool grow_expansion(std::vector<double>& e, double b, std::vector<double>& scratch) {
+  if (b == 0.0) return true;
+  if (!std::isfinite(b)) return false;
+  scratch.clear();
+  double q = b;
+  for (double ei : e) {
+    const double sum = q + ei;
+    const double bv = sum - q;
+    const double av = sum - bv;
+    const double err = (q - av) + (ei - bv);
+    q = sum;
+    if (err != 0.0) scratch.push_back(err);
+  }
+  if (!std::isfinite(q)) return false;
+  if (q != 0.0) scratch.push_back(q);
+  e.swap(scratch);
+  return e.size() <= 64;
+}
+
 // Accumulates dd terms with a running error bound.
 struct SafeSum {
   dd sum = 0.0;
@@ -83,6 +106,9 @@ SafeBound bound_with(const Model& M, const std::vector<double>& y_orig, const st
     else L.add(t);
   }
   // ---- column terms with z_j enclosed in an interval
+  std::vector<double> ex, scratch;
+  ex.reserve(16);
+  scratch.reserve(17);
   for (int j = 0; j < n; ++j) {
     dd z = sense * M.obj[j];
     double mag = 0.0;  // Σ|terms| except the first (the first assignment is exact)
@@ -97,7 +123,31 @@ SafeBound bound_with(const Model& M, const std::vector<double>& y_orig, const st
       ++cnt;
     }
     const double ez = cnt == 0 ? 0.0 : (cnt + 2) * (kRel * mag * 1.0000001 + (uf ? kAbs : 0.0));
-    const double zlo = down(z, ez), zhi = up(z, ez);
+    double zlo = down(z, ez), zhi = up(z, ez);
+    if (cnt > 0 && !uf) {
+      // Tighter, still rigorous: the exact value of z as an expansion. Exact cancellation gives
+      // exactly 0 (a FREE column then contributes 0 instead of −∞), a one-component expansion
+      // is an exact double. Otherwise enclose the dd sum of the components.
+      ex.clear();
+      bool ok = grow_expansion(ex, sense * M.obj[j], scratch);
+      for (int p = M.col_start[j]; ok && p < M.col_start[j + 1]; ++p) {
+        const dd prod = la::mul_exact(M.value[p], sense * y_orig[M.row_index[p]]);
+        ok = grow_expansion(ex, -prod.hi, scratch) && grow_expansion(ex, -prod.lo, scratch);
+      }
+      if (ok) {
+        if (ex.empty()) {
+          zlo = zhi = 0.0;
+        } else if (ex.size() == 1) {
+          zlo = zhi = ex[0];
+        } else {
+          dd v = 0.0;
+          for (double c : ex) v += c;  // smallest first
+          const double ev = static_cast<double>(ex.size() + 2) * kRel * std::fabs(v.to_double()) * 1.0000001;
+          zlo = std::max(zlo, down(v, ev));
+          zhi = std::min(zhi, up(v, ev));
+        }
+      }
+    }
     bool inf_lo = false, inf_hi = false;
     const dd tlo = term(zlo, col_lo[j], col_up[j], inf_lo);
     const dd thi = term(zhi, col_lo[j], col_up[j], inf_hi);
