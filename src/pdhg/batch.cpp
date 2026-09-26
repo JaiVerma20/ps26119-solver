@@ -163,6 +163,8 @@ std::vector<Solution> solve_batch(const Model& base, const std::vector<Scenario>
   const std::size_t NK = static_cast<std::size_t>(n) * K, MK = static_cast<std::size_t>(m) * K;
   std::vector<double> C(NK), L(NK), U(NK), RL(MK), RU(MK), bs(K, 1.0), os(K, 1.0);
   for (int k = 0; k < K; ++k) {
+    // A rejected scenario may have wrong-sized vectors: never read them (found by ASan).
+    if (!out[k].message.empty()) continue;
     if (eo.scaling.bound_objective_rescaling) {
       double b2 = 0, c2 = 0;
       for (int i = 0; i < m; ++i) {
