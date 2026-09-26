@@ -81,7 +81,8 @@ $PY bench/netlib_small.py --bin "$BUILD/ps26119" --engines pdlp,r2hpdhg --gpu | 
 
 if [ -z "${QUICK:-}" ] && [ -f bench/scale.py ]; then
   echo "=== bench: scaling (generated LPs + refinery), CPU vs GPU, fp64 vs mixed"
-  $PY bench/scale.py --bin "$BUILD/ps26119" --gpu ${SCALE_SIZES:+--sizes $SCALE_SIZES} \
+  # CPU baseline on 1 thread AND all cores (0), so a GPU is never compared only with one core.
+  $PY bench/scale.py --bin "$BUILD/ps26119" --gpu --threads 1,0 ${SCALE_SIZES:+--sizes $SCALE_SIZES} \
       ${REFINERY_T:+--refinery $REFINERY_T} ${SCALE_TIME_LIMIT:+--time-limit $SCALE_TIME_LIMIT}
 fi
 

@@ -188,32 +188,33 @@ def scale_section(path):
 
 
 def gpu_vs_cpu(paths):
+    """GPU vs CPU tables; the pairing rules live in bench/gpu_compare.py."""
+    import gpu_compare
     out = []
     for p in paths:
         rows = load(p)
-        gpu_rows = [r for r in rows if r.get("backend") == "gpu"]
-        if not gpu_rows:
+        prs = gpu_compare.pairs(rows)
+        if not prs:
             continue
-        out.append(f"Source: `{p}` — GPU `{rows[0]['gpu']}` (driver {rows[0]['driver']}, CUDA {rows[0]['cuda']}), "
-                   f"commit `{rows[0]['git_hash']}`.\n")
+        g0 = prs[0]["gpu"]
+        out.append(f"Source: `{p}` — GPU `{g0.get('gpu')}` (driver {g0.get('driver')}, CUDA {g0.get('cuda')}), CPU "
+                   f"`{g0.get('cpu')}` ({g0.get('cpu_cores') or '?'} cores), machine `{g0.get('machine')}`, commit "
+                   f"`{g0.get('git_hash')}`. CPU and GPU rows come from the same run.\n")
         body = []
-        for g in gpu_rows:
-            c = next((x for x in rows if x.get("backend") == "cpu" and x["instance"] == g["instance"]
-                      and x["engine"] == g["engine"] and x["precision"] == g["precision"]), None)
-            if not c:
-                continue
-
-            def sp(k):
-                try:
-                    return f"{float(c[k]) / float(g[k]):.2f}×"
-                except (ValueError, KeyError, ZeroDivisionError):
-                    return "–"
-            body.append([g["instance"], g["engine"], g["precision"], fnum(c.get("seconds_to_1e-4")),
-                         fnum(g.get("seconds_to_1e-4")), sp("seconds_to_1e-4"), fnum(c.get("seconds_to_1e-8")),
-                         fnum(g.get("seconds_to_1e-8")), sp("seconds_to_1e-8")])
-        out.append(table(["instance", "engine", "prec", "CPU s→1e-4", "GPU s→1e-4", "speed-up", "CPU s→1e-8",
-                          "GPU s→1e-8", "speed-up"], body))
-        out.append("\nSpeed-up < 1× means the GPU is slower (reported, not hidden).\n")
+        for q in prs:
+            g, c1, b = q["gpu"], q["cpu1"], q["best"]
+            body.append([g["instance"], g["engine"], g["precision"], g.get("status"),
+                         fnum(g.get("seconds_to_1e-4")), fnum(g.get("seconds_to_1e-8")),
+                         fnum(c1.get("seconds_to_1e-8")) if c1 else "–", gpu_compare.fmt_ratio(q["vs1_1e-8"]),
+                         (f"{fnum(b.get('seconds_to_1e-8'))} ({b.get('threads')} thr)" if b else "–"),
+                         gpu_compare.fmt_ratio(q["vsbest_1e-4"]), gpu_compare.fmt_ratio(q["vsbest_1e-8"]),
+                         gpu_compare.status_note(q) or "–"])
+        out.append(table(["instance", "engine", "prec", "GPU status", "GPU s→1e-4", "GPU s→1e-8",
+                          "CPU 1 thr s→1e-8", "ratio vs 1 thr", "best CPU s→1e-8", "ratio vs best 1e-4",
+                          "ratio vs best 1e-8", "not comparable because"], body))
+        out.append("\nRatio = CPU seconds / GPU seconds: < 1× means the GPU is slower (reported, not hidden). "
+                   "Only Optimal, verified runs are compared; the headline number is the ratio against the "
+                   "FASTEST CPU configuration, not against one core.\n")
     return "\n".join(out)
 
 

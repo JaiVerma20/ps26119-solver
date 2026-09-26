@@ -32,6 +32,18 @@ independent reader → agreement with HiGHS/published/known optimum), and the sa
 with provenance columns. A model counts as solved only if all of these hold. Time limits and
 failures stay in the tables. Numbers from different machines are never mixed in one claim.
 
+## GPU vs CPU (bench/gpu_compare.py)
+
+- CPU and GPU rows must come from the same CSV: same machine, same binary (commit), same instance,
+  engine and precision. `scripts/gpu_check.sh` measures the CPU on 1 thread and on all cores.
+- Each GPU run is compared with two labelled baselines: 1 CPU thread, and the **fastest** CPU
+  configuration measured in that run (by wall time to 1e-8). The headline ratio is the one against
+  the fastest CPU configuration — never against a single core only.
+- Ratio = CPU seconds / GPU seconds; < 1 means the GPU is slower and is reported as such.
+- Only runs that are Optimal and not verify=FAIL are compared; otherwise the table shows the
+  statuses instead of a ratio. GPU and CPU iteration counts differ slightly (reduction order), so
+  both wall time and iterations are in the CSV.
+
 ## Definitions
 - **Relative KKT** (first-order engines): see `src/pdhg/termination.h` — L2 primal residual
   / (1+‖b‖), L2 dual residual / (1+‖c‖), relative gap; both 1e-4 and 1e-8 are reported
