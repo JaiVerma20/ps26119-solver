@@ -44,6 +44,21 @@ if(Python3_Interpreter_FOUND)
     endif()
     add_test(NAME bench.generators COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/bench/test_generators.py)
   else()
-    message(STATUS "highspy/numpy not found: python tooling tests skipped")
+    set(_py_skip_reason "highspy/numpy not importable by ${Python3_EXECUTABLE}")
+  endif()
+else()
+  set(_py_skip_reason "no Python 3 interpreter found")
+endif()
+if(DEFINED _py_skip_reason)
+  # These tests cover the CLI contract, the independent verifier and the Python binding;
+  # silently losing them hides regressions (found in the integration audit: a fresh
+  # configure picked a Python without highspy). CI sets PS26119_REQUIRE_PYTHON_TESTS=ON.
+  if(PS26119_REQUIRE_PYTHON_TESTS)
+    message(FATAL_ERROR "Python tests required but unavailable: ${_py_skip_reason}. "
+                        "Pass -DPython3_EXECUTABLE=/path/to/python-with-highspy.")
+  else()
+    message(WARNING "Python tests SKIPPED (${_py_skip_reason}): CLI contract, verifier and "
+                    "Python binding are not tested in this build. "
+                    "Pass -DPython3_EXECUTABLE=/path/to/python-with-highspy.")
   endif()
 endif()

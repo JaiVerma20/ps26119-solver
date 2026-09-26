@@ -4,6 +4,7 @@ project(ps26119 VERSION 0.1.0 LANGUAGES C CXX)
 option(PS26119_ENABLE_CUDA "Build the CUDA backend (GPU machines only)" OFF)
 option(PS26119_ENABLE_OPENMP "Use OpenMP in CPU kernels" OFF)
 option(PS26119_BUILD_TESTS "Build unit tests (GoogleTest via FetchContent)" ON)
+option(PS26119_REQUIRE_PYTHON_TESTS "Fail configuration if the Python/CLI tests cannot run" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
