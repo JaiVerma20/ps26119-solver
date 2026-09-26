@@ -204,11 +204,21 @@ Solution solve_impl(const Model& model, const Options& options) {
   // presolve infeasibility verdict carries none: for an LP, re-derive Infeasible / Unbounded
   // by solving the original directly (rare, so the extra cost is small; it also cross-checks
   // presolve's own verdict).
+  // Every follow-up solve (original-space re-solve, polish, fallback) gets only what is LEFT of
+  // the caller's time and iteration budgets, so --time-limit / --iteration-limit bound the whole
+  // call, not each internal solve.
+  auto elapsed = [&] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(); };
+  auto budget = [&](Options o, std::int64_t used_iterations) {
+    o.time_limit = std::max(0.0, options.time_limit - elapsed());
+    o.iteration_limit = std::max<std::int64_t>(0, options.iteration_limit - used_iterations);
+    return o;
+  };
   auto on_original = [&](const Solution& why, const std::string& what) {
-    Options direct = options;
+    Options direct = budget(options, why.iterations);
     direct.presolve = false;
     Solution d = solve_direct(model, direct);
     d.iterations += why.iterations;
+    d.seconds = elapsed();
     d.message += std::string(d.message.empty() ? "" : "; ") + "presolve: " + what +
                  "; re-solved the original model for an original-space certificate";
     return d;
@@ -239,7 +249,7 @@ Solution solve_impl(const Model& model, const Options& options) {
     red.status = Status::Optimal;
     red.engine = "presolve";
   } else {
-    red = solve_direct(pr.reduced, inner);
+    red = solve_direct(pr.reduced, budget(inner, 0));
   }
   if (lp_model && (red.status == Status::Infeasible || red.status == Status::Unbounded))
     return on_original(red, std::string("reduced model ") + to_string(red.status));
@@ -284,7 +294,7 @@ Solution solve_impl(const Model& model, const Options& options) {
     tight.tolerance = std::max(options.tolerance * 1e-2, 1e-13);
     tight.warm_x = red.x;
     tight.warm_y = red.y;
-    const Solution red2 = solve_direct(pr.reduced, tight);
+    const Solution red2 = solve_direct(pr.reduced, budget(tight, red.iterations));
     Solution post2 = postsolve(model, pr, red2);
     post2.iterations += red.iterations;
     if (post2.status == Status::Optimal && passes(post2)) {
@@ -293,7 +303,7 @@ Solution solve_impl(const Model& model, const Options& options) {
       post2.message = note + "; reduced model re-solved to " + buf + " to pass on the original";
       post = post2;
     } else {
-      Solution cold = solve_direct(model, inner);
+      Solution cold = solve_direct(model, budget(inner, red.iterations + red2.iterations));
       cold.iterations += red.iterations + red2.iterations;
       cold.message += std::string(cold.message.empty() ? "" : "; ") + note +
                       "; postsolved point missed the tolerance, fell back to solving the original";
@@ -303,7 +313,7 @@ Solution solve_impl(const Model& model, const Options& options) {
              !check_solution(model, post.x, post.y).passed()) {
     // Exact engine: a postsolved vertex that fails on the original model is not trusted;
     // solve the original without presolve instead (never worse than no presolve).
-    Solution cold = solve_direct(model, inner);
+    Solution cold = solve_direct(model, budget(inner, red.iterations));
     cold.iterations += red.iterations;
     cold.message += std::string(cold.message.empty() ? "" : "; ") + note +
                     "; postsolved point failed the check on the original, solved the original instead";

@@ -92,3 +92,40 @@ TEST(Presolve, SmallNetlibSameOptimumAndOriginalKkt) {
     }
   }
 }
+
+TEST(Presolve, FollowUpSolvesShareTheCallersBudget) {
+  // x_i + x_{i+1} >= 2 (cyclic, i < 10) and sum x_i + z <= 7 with z fixed at 2: infeasible (the
+  // pair rows need sum x >= 10), not visible to presolve's row tests, and phase 1 needs several
+  // pivots. Presolve removes z (Reduced), the reduced solve finds infeasibility and the original
+  // is re-solved for a certificate. That re-solve must get only the iterations the reduced solve
+  // left: the TOTAL never exceeds the caller's limit (it used to be up to twice the limit).
+  const int k = 10;
+  std::vector<std::vector<double>> rows(k + 1, std::vector<double>(k + 1, 0.0));
+  std::vector<double> rl(k + 1, 2.0), ru(k + 1, kInf);
+  for (int i = 0; i < k; ++i) rows[i][i] = rows[i][(i + 1) % k] = 1.0;
+  for (int j = 0; j <= k; ++j) rows[k][j] = 1.0;
+  rl[k] = -kInf;
+  ru[k] = 7.0;
+  std::vector<double> c(k + 1, 1.0), cl(k + 1, 0.0), cu(k + 1, kInf);
+  c[k] = 0.0;
+  cl[k] = cu[k] = 2.0;
+  const Model m = make_model(c, rows, rl, ru, cl, cu);
+  ASSERT_EQ(presolve(m).outcome, PresolveResult::Outcome::Reduced);
+  bool saw_limit = false, saw_certified = false;
+  for (std::int64_t n = 0; n <= 40; ++n) {
+    Options o;
+    o.algorithm = Algorithm::Simplex;
+    o.iteration_limit = n;
+    const Solution s = solve(m, o);
+    EXPECT_LE(s.iterations, n) << "limit " << n << ": " << s.message;
+    ASSERT_TRUE(s.status == Status::Infeasible || s.status == Status::IterationLimit) << to_string(s.status);
+    if (s.status == Status::Infeasible) {
+      EXPECT_EQ(s.check, "PASS") << s.message;
+      saw_certified = true;
+    } else {
+      saw_limit = true;
+    }
+  }
+  EXPECT_TRUE(saw_limit);
+  EXPECT_TRUE(saw_certified);
+}
