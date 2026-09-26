@@ -109,7 +109,7 @@ if(PS26119_BUILD_SHARED)
   add_library(ps26119_shared SHARED src/core/c_api.cpp)
   set_target_properties(ps26119_shared PROPERTIES OUTPUT_NAME ps26119)
   target_link_libraries(ps26119_shared PRIVATE ps26119_core)
-  target_include_directories(ps26119_shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_include_directories(ps26119_shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 endif()
 
 # ---------------------------------------------------------------- build provenance
@@ -122,7 +122,7 @@ add_custom_target(ps26119_git_info ALL
   COMMENT "git hash for --version")
 
 # ---------------------------------------------------------------- CLI
-add_executable(ps26119_cli apps/cli/main.cpp apps/cli/lu_bench.cpp)
+add_executable(ps26119_cli apps/cli/main.cpp apps/cli/lu_bench.cpp apps/cli/model_report.cpp)
 add_dependencies(ps26119_cli ps26119_git_info)
 # Explicit dependency so Ninja re-checks main.cpp AFTER the stamp step has (re)written the
 # header in the same build (otherwise the binary lags one build behind).

@@ -22,7 +22,7 @@ __all__ = ["solve_lp", "Result", "version", "OPTIMAL", "INFEASIBLE", "UNBOUNDED"
 OPTIMAL, INFEASIBLE, UNBOUNDED, ITERATION_LIMIT, TIME_LIMIT, NUMERICAL_ERROR, NOT_SOLVED, INVALID_ARGUMENT = range(8)
 _STATUS = ["Optimal", "Infeasible", "Unbounded", "IterationLimit", "TimeLimit", "NumericalError", "NotSolved",
            "InvalidArgument"]
-_ALG = {"auto": 0, "oracle": 1, "pdlp": 2, "r2hpdhg": 3}
+_ALG = {"auto": 0, "oracle": 1, "pdlp": 2, "r2hpdhg": 3, "simplex": 4}
 _PREC = {"fp64": 0, "mixed": 1}
 
 
@@ -37,7 +37,7 @@ class _Result(ctypes.Structure):
     _fields_ = [("status", ctypes.c_int), ("objective", ctypes.c_double), ("dual_objective", ctypes.c_double),
                 ("primal_residual", ctypes.c_double), ("dual_residual", ctypes.c_double), ("gap", ctypes.c_double),
                 ("certified_bound", ctypes.c_double), ("iterations", ctypes.c_longlong), ("seconds", ctypes.c_double), ("engine", ctypes.c_char * 16),
-                ("message", ctypes.c_char * 160)]
+                ("message", ctypes.c_char * 160), ("check", ctypes.c_int)]
 
 
 def _load():
@@ -63,6 +63,8 @@ def _load():
                                      ctypes.POINTER(_Options), ctypes.POINTER(_Result), D, D, D]
     lib.ps26119_solve_lp.restype = ctypes.c_int
     lib.ps26119_default_options.argtypes = [ctypes.POINTER(_Options)]
+    lib.ps26119_solve_mps.argtypes = [ctypes.c_char_p, ctypes.POINTER(_Options), ctypes.POINTER(_Result), ctypes.c_char_p]
+    lib.ps26119_solve_mps.restype = ctypes.c_int
     lib.ps26119_version.restype = ctypes.c_char_p
     return lib
 
@@ -95,6 +97,7 @@ class Result:
     seconds: float
     engine: str
     message: str
+    check: str = ""  # "PASS" / "FAIL" / "" (in-process verification of an Optimal LP answer)
     x: np.ndarray = field(repr=False, default=None)
     y: np.ndarray = field(repr=False, default=None)
     z: np.ndarray = field(repr=False, default=None)
@@ -160,5 +163,36 @@ def solve_lp(c, A, row_lower, row_upper, col_lower=None, col_upper=None, sense=1
     have = st in (OPTIMAL, ITERATION_LIMIT, TIME_LIMIT)
     return Result(st, _STATUS[st] if 0 <= st < len(_STATUS) else str(st), res.objective, res.dual_objective,
                   res.primal_residual, res.dual_residual, res.gap, res.certified_bound, res.iterations, res.seconds,
-                  res.engine.decode(), res.message.decode(), x if have else None, y if have else None,
-                  z if have else None)
+                  res.engine.decode(), res.message.decode(), _CHECK[res.check], x if have else None,
+                  y if have else None, z if have else None)
+
+
+_CHECK = {1: "PASS", 0: "FAIL", -1: ""}
+
+
+def _options(algorithm, precision, gpu, tolerance, time_limit, iteration_limit, verbosity, threads):
+    lib = _get()
+    opt = _Options()
+    lib.ps26119_default_options(ctypes.byref(opt))
+    opt.algorithm = _ALG[algorithm]
+    opt.precision = _PREC[precision]
+    opt.use_gpu = int(bool(gpu))
+    opt.tolerance = tolerance
+    opt.time_limit = time_limit
+    opt.iteration_limit = iteration_limit
+    opt.verbosity = verbosity
+    opt.threads = threads
+    return opt
+
+
+def solve_mps(path, algorithm="auto", precision="fp64", gpu=False, tolerance=1e-8, time_limit=3600.0,
+              iteration_limit=0, verbosity=0, threads=1, out=None) -> Result:
+    """Read an MPS file and solve it. `out`: also write the solution file (tools/verify.py format).
+    The returned Result has no x/y/z vectors; read them from `out` if needed."""
+    opt = _options(algorithm, precision, gpu, tolerance, time_limit, iteration_limit, verbosity, threads)
+    res = _Result()
+    st = _get().ps26119_solve_mps(os.fsencode(path), ctypes.byref(opt), ctypes.byref(res),
+                                  None if out is None else os.fsencode(out))
+    return Result(st, _STATUS[st] if 0 <= st < len(_STATUS) else str(st), res.objective, res.dual_objective,
+                  res.primal_residual, res.dual_residual, res.gap, res.certified_bound, res.iterations, res.seconds,
+                  res.engine.decode(), res.message.decode(), _CHECK[res.check])

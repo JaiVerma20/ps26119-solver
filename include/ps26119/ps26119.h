@@ -27,7 +27,7 @@ enum {
   PS26119_INVALID_ARGUMENT = 7 /* C API only: null pointer, bad size, invalid model */
 };
 
-enum { PS26119_ALG_AUTO = 0, PS26119_ALG_ORACLE = 1, PS26119_ALG_PDLP = 2, PS26119_ALG_R2HPDHG = 3 };
+enum { PS26119_ALG_AUTO = 0, PS26119_ALG_ORACLE = 1, PS26119_ALG_PDLP = 2, PS26119_ALG_R2HPDHG = 3, PS26119_ALG_SIMPLEX = 4 };
 enum { PS26119_PREC_FP64 = 0, PS26119_PREC_MIXED = 1 };
 
 typedef struct {
@@ -57,6 +57,8 @@ typedef struct {
   double seconds;
   char engine[16];
   char message[160];
+  int check;              /* in-process verification of an Optimal LP answer on the original model:
+                             1 PASS, 0 FAIL, -1 not applicable (see Solution::check) */
 } ps26119_result;
 
 /* Library version string, e.g. "0.1.0". */
@@ -73,6 +75,12 @@ int ps26119_solve_lp(int num_rows, int num_cols, int sense, double obj_offset, c
                      const double* row_upper, const int* col_start, const int* row_index,
                      const double* value, const ps26119_options* opt, ps26119_result* result,
                      double* x, double* y, double* z);
+
+/* Reads an MPS file (free or fixed format) and solves it. When solution_path is non-NULL the
+ * solution file (the format tools/verify.py checks) is written there. Read errors return
+ * PS26119_INVALID_ARGUMENT with the reason (and line number) in result->message. */
+int ps26119_solve_mps(const char* path, const ps26119_options* opt, ps26119_result* result,
+                      const char* solution_path);
 
 #ifdef __cplusplus
 }
