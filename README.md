@@ -24,9 +24,9 @@ simplex, checker) — with both histories preserved: `docs/FINAL_INTEGRATION_REP
 
 | Benchmark | Result | Source CSV |
 |---|---|---|
-| Netlib, all 93 LPs, 60 s each, `--algorithm auto` | **93/93** solved, verified by `tools/verify.py`, equal to HiGHS to 1e-6 (auto threshold chosen on this set) | `bench/results/netlib-full-auto-fp64-macbook-air-m4-d824f82.csv` |
-| Netlib, simplex alone / r²HPDHG alone | 92/93 / 85/93 | `netlib-full-{simplex,r2hpdhg}-fp64-macbook-air-m4-d824f82.csv` |
-| Small MIPLIB 3 (branch-and-bound, 300 s) | 10/14 proven optimal, verified, equal to HiGHS | `miplib3-macbook-air-m4-d824f82.csv` |
+| Netlib, all 93 LPs, 60 s each, `--algorithm auto` | **93/93** solved, verified by `tools/verify.py`, equal to HiGHS to 1e-6 (auto threshold chosen on this set) | `bench/results/netlib-full-auto-fp64-macbook-air-m4-{d824f82,eb90bbf}.csv` |
+| Netlib, simplex alone / r²HPDHG alone | 92/93 / 85/93 | `netlib-full-simplex-…-eb90bbf.csv`, `netlib-full-r2hpdhg-…-d824f82.csv` |
+| Small MIPLIB 3 (branch-and-bound, 300 s) | 10/14 proven optimal, verified, equal to HiGHS | `miplib3-macbook-air-m4-eb90bbf.csv` |
 | Refinery planning LP, hourly year (429k rows, 1.5M nnz), r²HPDHG to 1e-8 | 19.2 s (1 thread) / 14.7 s (10 threads, mixed); equal to the known optimum, verified | `scale-macbook-air-m4-d824f82.csv` |
 | GPU | **not measured yet** — the CUDA backend has not run on NVIDIA hardware | — |
 

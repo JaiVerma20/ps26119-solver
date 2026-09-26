@@ -10,7 +10,9 @@ Files used:
 - `bench/results/batch-macbook-air-m4-ea97521.csv` (committed 2026-09-25)
 - `bench/results/miplib3-macbook-air-m4-0935157.csv` (committed 2026-09-25)
 - `bench/results/miplib3-macbook-air-m4-d824f82.csv` (committed 2026-09-26)
+- `bench/results/miplib3-macbook-air-m4-eb90bbf.csv` (committed 2026-09-26)
 - `bench/results/netlib-full-auto-fp64-macbook-air-m4-d824f82.csv` (committed 2026-09-26)
+- `bench/results/netlib-full-auto-fp64-macbook-air-m4-eb90bbf.csv` (committed 2026-09-26)
 - `bench/results/netlib-full-auto-fp64-macbook-air-m4-fc3f29c.csv` (committed 2026-09-26)
 - `bench/results/netlib-full-r2hpdhg-fp64-gm12-macbook-air-m4-4f0db8c.csv` (committed 2026-09-25)
 - `bench/results/netlib-full-r2hpdhg-fp64-gm4-macbook-air-m4-4f0db8c-dirty.csv` (committed 2026-09-25)
@@ -25,6 +27,7 @@ Files used:
 - `bench/results/netlib-full-r2hpdhg-fp64-presolve-macbook-air-m4-83736ba.csv` (committed 2026-09-25)
 - `bench/results/netlib-full-simplex-fp64-dantzig-macbook-air-m4-fc3f29c.csv` (committed 2026-09-26)
 - `bench/results/netlib-full-simplex-fp64-macbook-air-m4-d824f82.csv` (committed 2026-09-26)
+- `bench/results/netlib-full-simplex-fp64-macbook-air-m4-eb90bbf.csv` (committed 2026-09-26)
 - `bench/results/netlib-full-simplex-fp64-macbook-air-m4-fc3f29c.csv` (committed 2026-09-26)
 - `bench/results/netlib-full-simplex-fp64-noscale-macbook-air-m4-fc3f29c.csv` (committed 2026-09-26)
 - `bench/results/netlib-small-3318a86.csv` (committed 2026-09-24)
@@ -32,6 +35,7 @@ Files used:
 - `bench/results/netlib-small-62a13f2.csv` (committed 2026-09-24)
 - `bench/results/netlib-small-8fd5170.csv` (committed 2026-09-25)
 - `bench/results/netlib-small-d824f82.csv` (committed 2026-09-26)
+- `bench/results/netlib-small-eb90bbf.csv` (committed 2026-09-26)
 - `bench/results/netlib-small-f10527c.csv` (committed 2026-09-25)
 - `bench/results/netlib-small-fc3f29c.csv` (committed 2026-09-26)
 - `bench/results/scale-macbook-air-m4-62a13f2.csv` (committed 2026-09-24)
@@ -47,7 +51,7 @@ Files used:
 
 ## 1. Correctness on small Netlib (oracle, PDLP-style PDHG, r²HPDHG; fp64 and mixed)
 
-Source: `bench/results/netlib-small-d824f82.csv` — machine `macbook-air-m4` (Apple M4), commit `d824f82`.
+Source: `bench/results/netlib-small-eb90bbf.csv` — machine `macbook-air-m4` (Apple M4), commit `eb90bbf`.
 
 | instance | rows×cols | published optimum | oracle dd | simplex fp64 | pdlp fp64 | pdlp mixed | r2hpdhg fp64 | r2hpdhg mixed |
 |---|---|---|---|---|---|---|---|---|
@@ -68,17 +72,17 @@ Iterations to 1e-8 (fp64): r²HPDHG needs fewer than PDLP-style PDHG on 10 of 10
 
 ## 1b. Full Netlib LP set (every engine)
 
-Same machine, same binary (commit `d824f82`), same 60 s limit, same verification (engine Optimal + in-process gate + `tools/verify.py` PASS + |obj − HiGHS|/(1+|HiGHS|) ≤ 1e-6):
+Newest run of each engine; same machine, same 60 s limit, same verification (engine Optimal + in-process gate + `tools/verify.py` PASS + |obj − HiGHS|/(1+|HiGHS|) ≤ 1e-6):
 
-| engine | solved + verified | total s (solved) | not solved | source |
-|---|---|---|---|---|
-| auto | 93/93 | 70.6 | – | `netlib-full-auto-fp64-macbook-air-m4-d824f82.csv` |
-| r2hpdhg | 85/93 | 171.8 | d2q06c, fit2d, greenbea, greenbeb, pilot, pilot.ja, pilot.we, pilot87 | `netlib-full-r2hpdhg-fp64-macbook-air-m4-d824f82.csv` |
-| simplex | 92/93 | 70.4 | dfl001 | `netlib-full-simplex-fp64-macbook-air-m4-d824f82.csv` |
+| engine | commit | solved + verified | total s (solved) | not solved | source |
+|---|---|---|---|---|---|
+| auto | eb90bbf | 93/93 | 137.0 | – | `netlib-full-auto-fp64-macbook-air-m4-eb90bbf.csv` |
+| r2hpdhg | d824f82 | 85/93 | 171.8 | d2q06c, fit2d, greenbea, greenbeb, pilot, pilot.ja, pilot.we, pilot87 | `netlib-full-r2hpdhg-fp64-macbook-air-m4-d824f82.csv` |
+| simplex | eb90bbf | 92/93 | 134.0 | dfl001 | `netlib-full-simplex-fp64-macbook-air-m4-eb90bbf.csv` |
 
 `auto` = simplex when rows·nnz ≤ 2·10⁸, else r²HPDHG (docs/DECISIONS.md #29). The threshold was chosen on this set and on the generated models, so the `auto` row is an in-sample result.
 
-Source: `bench/results/netlib-full-auto-fp64-macbook-air-m4-d824f82.csv` — auto fp64 on cpu (`macbook-air-m4`, Apple M4), commit `d824f82`, time limit 60.0 s per model.
+Source: `bench/results/netlib-full-auto-fp64-macbook-air-m4-eb90bbf.csv` — auto fp64 on cpu (`macbook-air-m4`, Apple M4), commit `eb90bbf`, time limit 60.0 s per model.
 
 - **93 of 93** Netlib LPs solved (engine Optimal — first-order engines at relative KKT 1e-8 — and the in-process gate) and verified PASS by `tools/verify.py`; **93** of those agree with HiGHS to 1e-6 relative.
 - 0 hit the time/iteration limit (listed below, not hidden); 0 other outcomes.
@@ -101,7 +105,7 @@ Source: `bench/results/netlib-full-r2hpdhg-fp64-macbook-air-m4-d824f82.csv` — 
 | pilot.we | 722 | 2789 | 9126 | TimeLimit | 5147904 | 2.13e-10 |
 | pilot87 | 2030 | 4883 | 73152 | TimeLimit | 784256 | 8.13e-06 |
 
-Source: `bench/results/netlib-full-simplex-fp64-macbook-air-m4-d824f82.csv` — simplex fp64 on cpu (`macbook-air-m4`, Apple M4), commit `d824f82`, time limit 60.0 s per model.
+Source: `bench/results/netlib-full-simplex-fp64-macbook-air-m4-eb90bbf.csv` — simplex fp64 on cpu (`macbook-air-m4`, Apple M4), commit `eb90bbf`, time limit 60.0 s per model.
 
 - **92 of 93** Netlib LPs solved (engine Optimal — first-order engines at relative KKT 1e-8 — and the in-process gate) and verified PASS by `tools/verify.py`; **92** of those agree with HiGHS to 1e-6 relative.
 - 1 hit the time/iteration limit (listed below, not hidden); 0 other outcomes.
@@ -109,7 +113,7 @@ Source: `bench/results/netlib-full-simplex-fp64-macbook-air-m4-d824f82.csv` — 
 
 | model | rows | cols | nnz | status | iterations | rel. err vs HiGHS at stop |
 |---|---|---|---|---|---|---|
-| dfl001 | 6071 | 12230 | 35632 | TimeLimit | 107520 | nan |
+| dfl001 | 6071 | 12230 | 35632 | TimeLimit | 59584 | nan |
 
 ### 1c. Ablations (full Netlib, 60 s per model)
 
@@ -267,24 +271,24 @@ Source: `bench/results/batch-T8760-macbook-air-m4-8fd5170.csv`, `bench/results/b
 
 ## 4d. MILP prototype (branch-and-bound, small MIPLIB 3)
 
-Source: `bench/results/miplib3-macbook-air-m4-d824f82.csv` — `macbook-air-m4`, commit `d824f82`, time limit per model in the CSV. Prototype: sparse primal simplex as node solver, pruning by certified dual bounds (DECISIONS #28), depth-first then best-bound, most-fractional branching, no cuts. **10 of 14** solved to proven optimality within the limit, each verified (feasibility + integrality) and equal to the HiGHS optimum.
+Source: `bench/results/miplib3-macbook-air-m4-eb90bbf.csv` — `macbook-air-m4`, commit `eb90bbf`, time limit per model in the CSV. Prototype: sparse primal simplex as node solver, pruning by certified dual bounds (DECISIONS #28), depth-first then best-bound, most-fractional branching, no cuts. **10 of 14** solved to proven optimality within the limit, each verified (feasibility + integrality) and equal to the HiGHS optimum.
 
 | instance | rows | cols | int | status | objective | HiGHS | gap | s | verify |
 |---|---|---|---|---|---|---|---|---|---|
-| p0033 | 16 | 33 | 33 | Optimal | 3089 | 3088.9999999999995 | 0 | 0.905 | PASS |
-| flugpl | 18 | 18 | 11 | Optimal | 1201500 | 1201500.0 | 0 | 1.19 | PASS |
-| egout | 98 | 141 | 55 | Optimal | 568.10070000000007 | 568.1007000000001 | 0 | 6.1 | PASS |
-| enigma | 21 | 100 | 100 | Optimal | 0 | 0.0 | 0 | 0.672 | PASS |
-| lseu | 28 | 89 | 89 | Optimal | 1120 | 1120.0 | 0 | 15.5 | PASS |
-| mod008 | 6 | 319 | 319 | Optimal | 307 | 306.99999999996334 | 0 | 4.9 | PASS |
-| stein27 | 118 | 27 | 27 | Optimal | 18 | 17.99999999999989 | 0 | 3.26 | PASS |
-| pk1 | 45 | 86 | 55 | TimeLimit | 30 | 11.000000000000178 | 0.676076 | 300 | — |
-| gt2 | 29 | 188 | 188 | TimeLimit | 139479 | 21166.0 | 0.899725 | 302 | — |
+| p0033 | 16 | 33 | 33 | Optimal | 3089 | 3088.9999999999995 | 0 | 0.889 | PASS |
+| flugpl | 18 | 18 | 11 | Optimal | 1201500 | 1201500.0 | 0 | 1.15 | PASS |
+| egout | 98 | 141 | 55 | Optimal | 568.10070000000007 | 568.1007000000001 | 0 | 6.13 | PASS |
+| enigma | 21 | 100 | 100 | Optimal | 0 | 0.0 | 0 | 0.668 | PASS |
+| lseu | 28 | 89 | 89 | Optimal | 1120 | 1120.0 | 0 | 15.7 | PASS |
+| mod008 | 6 | 319 | 319 | Optimal | 307 | 306.99999999996334 | 0 | 5.04 | PASS |
+| stein27 | 118 | 27 | 27 | Optimal | 18 | 17.99999999999989 | 0 | 3.27 | PASS |
+| pk1 | 45 | 86 | 55 | TimeLimit | 30 | 11.000000000000178 | 0.676064 | 300 | — |
+| gt2 | 29 | 188 | 188 | TimeLimit | 139479 | 21166.0 | 0.899724 | 302 | — |
 | rgn | 24 | 180 | 100 | Optimal | 82.199999239999983 | 82.19999923999372 | 0 | 2 | PASS |
 | bell5 | 91 | 104 | 58 | TimeLimit | nan | 8966413.70538 | nan | 300 | — |
-| bell3a | 123 | 133 | 71 | TimeLimit | 878430.31599999999 | 878430.3159999951 | 0.00058877 | 300 | — |
+| bell3a | 123 | 133 | 71 | TimeLimit | 878430.31599999999 | 878430.3159999951 | 0.000577381 | 300 | — |
 | misc03 | 96 | 160 | 159 | Optimal | 3360 | 3359.9999999999295 | 0 | 1.19 | PASS |
-| p0201 | 133 | 201 | 201 | Optimal | 7615 | 7615.000000000004 | 0 | 6.77 | PASS |
+| p0201 | 133 | 201 | 201 | Optimal | 7615 | 7615.000000000004 | 0 | 6.95 | PASS |
 
 ## 5. What we do NOT do yet (honest list)
 

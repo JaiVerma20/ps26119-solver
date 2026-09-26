@@ -128,32 +128,27 @@ def netlib_full_section(path):
 
 
 def netlib_engine_comparison(fulls):
-    """One row per engine for the newest commit that has full-Netlib runs of several engines."""
-    by_hash = {}
+    """Newest CPU full-Netlib run of each engine (same machine label), one row per engine."""
+    by_engine = {}
     for p in fulls:
         rows = load(p)
         if rows and rows[0].get("backend") != "gpu":
-            by_hash.setdefault(rows[0]["git_hash"], []).append((p, rows))
-    multi = {h: v for h, v in by_hash.items() if len({r[0]["engine"] for _, r in v}) > 1}
-    if not multi:
+            by_engine.setdefault(rows[0]["engine"], []).append(p)
+    if len(by_engine) < 2:
         return ""
-    # newest commit among those: pick by the most recently committed file
-    newest = latest([p for v in multi.values() for p, _ in v], "netlib-full-")
-    h = load(newest)[0]["git_hash"]
-    runs = multi[h]
-    solved_by = {}
     body = []
-    for p, rows in sorted(runs, key=lambda t: t[1][0]["engine"]):
+    for eng in sorted(by_engine):
+        p = latest(by_engine[eng], "netlib-full-")
+        rows = load(p)
         ok = [r for r in rows if r["status"] == "Optimal" and r["verify"] == "PASS"
               and r["rel_err_highs"] and float(r["rel_err_highs"]) <= 1e-6]
-        solved_by[rows[0]["engine"]] = {r["instance"] for r in ok}
         secs = sum(float(r["seconds"]) for r in ok if r.get("seconds"))
-        body.append([rows[0]["engine"], f"{len(ok)}/{len(rows)}", fnum(secs, "{:.1f}"),
+        body.append([eng, rows[0]["git_hash"], f"{len(ok)}/{len(rows)}", fnum(secs, "{:.1f}"),
                      ", ".join(sorted(r["instance"] for r in rows if r not in ok)) or "–", f"`{os.path.basename(p)}`"])
-    lines = [f"Same machine, same binary (commit `{h}`), same 60 s limit, same verification "
-             "(engine Optimal + in-process gate + `tools/verify.py` PASS + |obj − HiGHS|/(1+|HiGHS|) ≤ 1e-6):", "",
-             table(["engine", "solved + verified", "total s (solved)", "not solved", "source"], body)]
-    if "auto" in solved_by:
+    lines = ["Newest run of each engine; same machine, same 60 s limit, same verification (engine Optimal + "
+             "in-process gate + `tools/verify.py` PASS + |obj − HiGHS|/(1+|HiGHS|) ≤ 1e-6):", "",
+             table(["engine", "commit", "solved + verified", "total s (solved)", "not solved", "source"], body)]
+    if "auto" in by_engine:
         lines += ["", "`auto` = simplex when rows·nnz ≤ 2·10⁸, else r²HPDHG (docs/DECISIONS.md #29). The threshold was "
                   "chosen on this set and on the generated models, so the `auto` row is an in-sample result."]
     return "\n".join(lines)

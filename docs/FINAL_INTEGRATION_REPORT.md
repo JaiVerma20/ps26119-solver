@@ -3,7 +3,8 @@
 Date: 2026-09-26. Integration lead: Claude (for Jai), under the brief "correctness >
 performance > feature count > code size". Machine for every number below: MacBook Air M4
 (10 cores, 16 GB), CPU only. Benchmark CSVs carry the git hash of the binary that produced
-them; the final suite ran from a frozen binary built at **`d824f82`**.
+them; the final suite ran from a frozen binary built at **`d824f82`**, and the simplex-dependent
+part was re-run at **`eb90bbf`** (the commit merged to `main`) with identical results (§18b).
 
 ## 1. Executive summary
 
@@ -17,7 +18,8 @@ engines plus a MILP branch-and-bound. Both histories are preserved (the teammate
   92/93; r²HPDHG alone 85/93 (identical to before the merge — no regression).
 - **Small MIPLIB 3**: 10/14 proven optimal and verified (unchanged count), total time on those
   10 down from 383.9 s to 42.5 s after the node LPs moved to the sparse simplex.
-- **Bugs found and fixed: 12** — 9 in the teammate's code (reader NaN/non-finite acceptance,
+- **Bugs found and fixed: 15** (12 in the audit and merge, 3 more from the first Linux CI run, §18b) —
+  of the audit's 12: 9 in the teammate's code (reader NaN/non-finite acceptance,
   macOS build, case-sensitive MARKER, silent duplicate RHS, false Optimal above the requested
   tolerance, time limit reported as iteration limit, checker blind to NaN/wrong sizes,
   explicit-zero division in scaling, a test depending on an untracked file) and 3 in mine or
@@ -26,7 +28,7 @@ engines plus a MILP branch-and-bound. Both histories are preserved (the teammate
   scaling and over-read cases it was shown to fail without the fix). Three of them were
   paths to a false "Optimal" inside an engine; the new in-process gate now catches that class.
 - **Tests: 165 CTest cases** (C++ unit, differential, CLI, Python, random-MPS cross-checks),
-  all passing; ASan/UBSan and TSan clean on the C++ suite.
+  all passing locally and in GitHub CI (Ubuntu + macOS); ASan/UBSan and TSan clean in CI.
 - **GPU: NOT VERIFIED.** The CUDA backend has still never been compiled by nvcc or run; no GPU
   claim is made. The procedure (`scripts/gpu_check.sh`, WSL2 on the teammate's laptop) is ready.
 
@@ -148,6 +150,18 @@ models are slower than with the dense oracle (p0033 0.9 vs 0.2 s).
 
 Small Netlib: 60/60 runs verified (10 models × oracle, simplex, PDLP ×2, r²HPDHG ×2).
 
+### 18b. Re-run after the CI fixes (`eb90bbf`, the commit merged to `main`)
+
+The first GitHub CI run exposed three problems that macOS could not: an `int64_t`/`long long`
+mismatch and missing standard headers (libstdc++), and a simplex final check that trusted its
+internal violation measure (Linux rounding gave Optimal at tolerance 1e-300 with a recomputed
+violation of 5.7e-14; the simplex now also runs the checker on its candidate answer). After the
+fixes all 8 CI jobs are green and the simplex-dependent suite was re-run from a frozen binary at
+`eb90bbf`: small Netlib 60/60, simplex 92/93, auto 93/93, MIPLIB 10/14 — **identical results and
+identical iteration counts on all 92 solved simplex models**. Wall times in that run were a
+uniform ~1.9× slower (afiro 0.15 → 0.29 ms; the laptop had been benchmarking for over 3 h), so
+compare iteration counts, not seconds, across these CSVs.
+
 ## 19–21. MIPLIB, refinery, CPU results
 
 MIPLIB: §17. Refinery and CPU scaling (`scale-macbook-air-m4-d824f82.csv`, r²HPDHG, to 1e-8,
@@ -199,8 +213,10 @@ Netlib: dfl001 (simplex, 60 s), 8 models for r²HPDHG (above). MIPLIB: pk1, gt2,
 - Pre-merge checkpoint: tag `pre-teammate-integration` (`20033bf`) + bundle
   `~/Desktop/SIH26119-backups/ps26119-pre-integration-20033bf.bundle`.
 - Audit: `ce09c27`. Import: `56a559d` (merge, second parent `c192dd0`). Renames: `670e9d9`.
-  Adaptation: `7fe5eaf`. Final benchmark binary: `d824f82`.
-- Branch `integration/gpuopt` merged into `main`; no history rewritten, no force pushes.
+  Adaptation: `7fe5eaf`. Final benchmark binaries: `d824f82` (full suite), `eb90bbf`
+  (simplex/auto/MIPLIB re-run after the CI fixes).
+- Branch `integration/gpuopt` merged into `main` through PR #1 (merge commit, CI green on Ubuntu,
+  macOS, ASan/UBSan, TSan); no history rewritten, no force pushes.
 - Provenance checks: `scripts/check_no_solver_linked.sh` (binaries, shared library, Python
   package, CMake) — PASS. See `docs/PROVENANCE.md`.
 
