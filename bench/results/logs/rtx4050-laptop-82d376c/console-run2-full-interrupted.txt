@@ -1,0 +1,646 @@
+=== ps26119 gpu_check  commit 82d376c  machine rtx4050-laptop  2026-09-26T19:47:33+00:00
+=== machine
+Linux LAPTOP-A5GQSGG5 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+name, driver_version, memory.total [MiB], clocks.max.sm [MHz]
+NVIDIA GeForce RTX 4050 Laptop GPU, 616.64, 6141 MiB, 3105 MHz
+Cuda compilation tools, release 13.3, V13.3.73
+Build cuda_13.3.r13.3/compiler.38244171_0
+=== python tools (private venv: cmake, ninja, highspy, numpy, scipy, matplotlib)
+cmake version 4.4.3
+=== configure + build (CUDA ON)
+-- The C compiler identification is GNU 13.3.0
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- The CUDA compiler identification is NVIDIA 13.3.73 with host compiler GNU 13.3.0
+-- Detecting CUDA compiler ABI info
+-- Detecting CUDA compiler ABI info - done
+-- Check for working CUDA compiler: /usr/local/cuda/bin/nvcc - skipped
+-- Detecting CUDA compile features
+-- Detecting CUDA compile features - done
+-- Found CUDAToolkit: /usr/local/cuda/targets/x86_64-linux/include;/usr/local/cuda/targets/x86_64-linux/include/cccl (found version "13.3.73")
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Found Python3: /home/vatsshivanshu/ps26119-solver/.venv-gpu/bin/python (found version "3.12.3") found components: Interpreter
+-- Configuring done (9.9s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/vatsshivanshu/ps26119-solver/build-gpu
+[1/65] Building CXX object CMakeFiles/ps26119_core.dir/src/core/status.cpp.o
+[2/65] Building CXX object CMakeFiles/ps26119_core.dir/src/core/safe_bound.cpp.o
+[3/65] Building CXX object CMakeFiles/ps26119_core.dir/src/io/solution_writer.cpp.o
+[4/65] Building CXX object CMakeFiles/ps26119_core.dir/src/io/solution_reader.cpp.o
+[5/65] Building CXX object CMakeFiles/ps26119_core.dir/src/core/solution_checker.cpp.o
+[6/65] Building CXX object CMakeFiles/ps26119_core.dir/src/core/c_api.cpp.o
+[7/65] Building CXX object CMakeFiles/ps26119_core.dir/src/core/model.cpp.o
+[8/65] Building CXX object CMakeFiles/ps26119_core.dir/src/core/implied_bounds.cpp.o
+[9/65] Building CXX object CMakeFiles/ps26119_core.dir/src/io/lpm_reader.cpp.o
+[10/65] Building CXX object CMakeFiles/ps26119_core.dir/src/la/csc.cpp.o
+[11/65] Building CXX object CMakeFiles/ps26119_core.dir/src/core/presolve.cpp.o
+[12/65] Building CXX object CMakeFiles/ps26119_core.dir/src/la/csr.cpp.o
+[13/65] Building CXX object CMakeFiles/ps26119_core.dir/src/simplex/simplex_scaling.cpp.o
+[14/65] Building CXX object CMakeFiles/ps26119_core.dir/src/oracle/dense_tableau.cpp.o
+[15/65] Building CXX object CMakeFiles/ps26119_core.dir/src/oracle/dense_simplex.cpp.o
+[16/65] git hash for --version
+[17/65] Building CXX object CMakeFiles/ps26119_core.dir/src/pdhg/scaling.cpp.o
+[18/65] Building CXX object CMakeFiles/ps26119_core.dir/src/io/mps_reader.cpp.o
+[19/65] Building CXX object CMakeFiles/ps26119_core.dir/src/la/sparse_lu.cpp.o
+[20/65] Building CXX object CMakeFiles/ps26119_core.dir/src/core/solve.cpp.o
+[21/65] Building CXX object CMakeFiles/ps26119_shared.dir/src/core/c_api.cpp.o
+[22/65] Building CXX object CMakeFiles/ps26119_core.dir/src/pdhg/r2hpdhg.cpp.o
+[23/65] Building CXX object CMakeFiles/ps26119_core.dir/src/simplex/primal_simplex.cpp.o
+[24/65] Building CXX object CMakeFiles/ps26119_cli.dir/apps/cli/main.cpp.o
+[25/65] Building CXX object CMakeFiles/ps26119_core.dir/src/mip/branch_and_bound.cpp.o
+[26/65] Building CXX object _deps/googletest-build/googletest/CMakeFiles/gtest_main.dir/src/gtest_main.cc.o
+[27/65] Building CXX object CMakeFiles/ps26119_core.dir/src/pdhg/pdlp.cpp.o
+[28/65] Building CXX object CMakeFiles/ps26119_cli.dir/apps/cli/model_report.cpp.o
+[29/65] Building CXX object CMakeFiles/ps26119_cli.dir/apps/cli/lu_bench.cpp.o
+[30/65] Building CXX object CMakeFiles/ps26119_core.dir/src/pdhg/engine.cpp.o
+[31/65] Building CXX object _deps/googletest-build/googlemock/CMakeFiles/gmock_main.dir/src/gmock_main.cc.o
+[32/65] Building CXX object CMakeFiles/ps26119_core.dir/src/pdhg/cpu_backend.cpp.o
+/home/vatsshivanshu/ps26119-solver/src/pdhg/cpu_backend.cpp: In function ‘std::unique_ptr<ps26119::pdhg::Backend> ps26119::pdhg::make_backend(bool, std::string&)’:
+/home/vatsshivanshu/ps26119-solver/src/pdhg/cpu_backend.cpp:292:66: warning: unused parameter ‘error’ [-Wunused-parameter]
+  292 | std::unique_ptr<Backend> make_backend(bool use_gpu, std::string& error) {
+      |                                                     ~~~~~~~~~~~~~^~~~~
+[33/65] Building CXX object CMakeFiles/ps26119_core.dir/src/pdhg/batch.cpp.o
+[34/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_dd.cpp.o
+[35/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_la.cpp.o
+[36/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_lpm.cpp.o
+[37/65] Building CXX object _deps/googletest-build/googlemock/CMakeFiles/gmock.dir/src/gmock-all.cc.o
+[38/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_model.cpp.o
+[39/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_c_api.cpp.o
+[40/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_oracle.cpp.o
+[41/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_batch.cpp.o
+[42/65] Building CUDA object CMakeFiles/ps26119_core.dir/src/gpu/cuda_backend.cu.o
+[43/65] Linking CXX static library libps26119_core.a
+[44/65] Building C object tests/CMakeFiles/c_api_smoke.dir/c_api_smoke.c.o
+[45/65] Linking CXX shared library libps26119.so
+[46/65] Linking CXX executable ps26119
+[47/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_presolve.cpp.o
+[48/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_safe_bound.cpp.o
+[49/65] Linking CXX executable tests/c_api_smoke
+[50/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_mip.cpp.o
+[51/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_mps_reader.cpp.o
+[52/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_sparse_lu.cpp.o
+[53/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_dense_tableau_random.cpp.o
+[54/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_dense_tableau.cpp.o
+[55/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_differential.cpp.o
+[56/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_pdhg.cpp.o
+[57/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_integration.cpp.o
+[58/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_simplex.cpp.o
+[59/65] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_gpu.cpp.o
+[60/65] Building CXX object _deps/googletest-build/googletest/CMakeFiles/gtest.dir/src/gtest-all.cc.o
+[61/65] Linking CXX static library lib/libgtest.a
+[62/65] Linking CXX static library lib/libgtest_main.a
+[63/65] Linking CXX static library lib/libgmock.a
+[64/65] Linking CXX static library lib/libgmock_main.a
+[65/65] Linking CXX executable tests/ps26119_tests
+=== tests (CPU + GPU)
+Test project /home/vatsshivanshu/ps26119-solver/build-gpu
+        Start   1: Model.HandBuiltIsValid
+  1/168 Test   #1: Model.HandBuiltIsValid ..................................................   Passed    0.00 sec
+        Start   2: Model.DetectsBrokenInvariants
+  2/168 Test   #2: Model.DetectsBrokenInvariants ...........................................   Passed    0.00 sec
+        Start   3: Model.EmptyModelIsValid
+  3/168 Test   #3: Model.EmptyModelIsValid .................................................   Passed    0.00 sec
+        Start   4: Model.FingerprintIsStableAndSensitive
+  4/168 Test   #4: Model.FingerprintIsStableAndSensitive ...................................   Passed    0.00 sec
+        Start   5: Model.ObjectiveAndActivity
+  5/168 Test   #5: Model.ObjectiveAndActivity ..............................................   Passed    0.00 sec
+        Start   6: Status.RoundTripsAndExitCodes
+  6/168 Test   #6: Status.RoundTripsAndExitCodes ...........................................   Passed    0.00 sec
+        Start   7: Solve.InvalidModelIsNotSolved
+  7/168 Test   #7: Solve.InvalidModelIsNotSolved ...........................................   Passed    0.00 sec
+        Start   8: Version.HasName
+  8/168 Test   #8: Version.HasName .........................................................   Passed    0.00 sec
+        Start   9: Lpm.AfiroSizesFromMpsBridge
+  9/168 Test   #9: Lpm.AfiroSizesFromMpsBridge .............................................   Passed    0.00 sec
+        Start  10: Lpm.FingerprintMatchesPythonForAllSmallNetlib
+ 10/168 Test  #10: Lpm.FingerprintMatchesPythonForAllSmallNetlib ...........................   Passed    0.00 sec
+        Start  11: Lpm.WriteReadRoundTrip
+ 11/168 Test  #11: Lpm.WriteReadRoundTrip ..................................................   Passed    0.00 sec
+        Start  12: Lpm.RejectsMalformedInput
+ 12/168 Test  #12: Lpm.RejectsMalformedInput ...............................................   Passed    0.00 sec
+        Start  13: SolutionFile.WriteReadRoundTrip
+ 13/168 Test  #13: SolutionFile.WriteReadRoundTrip .........................................   Passed    0.00 sec
+        Start  14: DoubleDouble.ErrorFreeTransforms
+ 14/168 Test  #14: DoubleDouble.ErrorFreeTransforms ........................................   Passed    0.00 sec
+        Start  15: DoubleDouble.AbsorptionThatPlainDoubleLoses
+ 15/168 Test  #15: DoubleDouble.AbsorptionThatPlainDoubleLoses .............................   Passed    0.00 sec
+        Start  16: DoubleDouble.ProductBeyondDoublePrecision
+ 16/168 Test  #16: DoubleDouble.ProductBeyondDoublePrecision ...............................   Passed    0.00 sec
+        Start  17: DoubleDouble.TenthsSumToOne
+ 17/168 Test  #17: DoubleDouble.TenthsSumToOne .............................................   Passed    0.00 sec
+        Start  18: DoubleDouble.DivisionKnownExact
+ 18/168 Test  #18: DoubleDouble.DivisionKnownExact .........................................   Passed    0.00 sec
+        Start  19: DoubleDouble.SqrtTwo
+ 19/168 Test  #19: DoubleDouble.SqrtTwo ....................................................   Passed    0.00 sec
+        Start  20: DoubleDouble.PiByMachin
+ 20/168 Test  #20: DoubleDouble.PiByMachin .................................................   Passed    0.00 sec
+        Start  21: DoubleDouble.ComparisonsAndAbs
+ 21/168 Test  #21: DoubleDouble.ComparisonsAndAbs ..........................................   Passed    0.00 sec
+        Start  22: DoubleDouble.CancellationInDotProduct
+ 22/168 Test  #22: DoubleDouble.CancellationInDotProduct ...................................   Passed    0.00 sec
+        Start  23: Norm2.DiagonalWithClusteredTopSingularValues
+ 23/168 Test  #23: Norm2.DiagonalWithClusteredTopSingularValues ............................   Passed    0.00 sec
+        Start  24: Norm2.RandomSparseNeverBelowTrueNorm
+ 24/168 Test  #24: Norm2.RandomSparseNeverBelowTrueNorm ....................................   Passed    0.00 sec
+        Start  25: Norm2.ZeroAndTransposeRoundTrip
+ 25/168 Test  #25: Norm2.ZeroAndTransposeRoundTrip .........................................   Passed    0.00 sec
+        Start  26: Oracle.WyndorMaxWithShadowPrices
+ 26/168 Test  #26: Oracle.WyndorMaxWithShadowPrices ........................................   Passed    0.00 sec
+        Start  27: Oracle.Infeasible
+ 27/168 Test  #27: Oracle.Infeasible .......................................................   Passed    0.00 sec
+        Start  28: Oracle.InfeasibleByBounds
+ 28/168 Test  #28: Oracle.InfeasibleByBounds ...............................................   Passed    0.00 sec
+        Start  29: Oracle.Unbounded
+ 29/168 Test  #29: Oracle.Unbounded ........................................................   Passed    0.00 sec
+        Start  30: Oracle.UnboundedFree
+ 30/168 Test  #30: Oracle.UnboundedFree ....................................................   Passed    0.00 sec
+        Start  31: Oracle.BealeCyclingExample
+ 31/168 Test  #31: Oracle.BealeCyclingExample ..............................................   Passed    0.00 sec
+        Start  32: Oracle.FreeVariablesAbsoluteValue
+ 32/168 Test  #32: Oracle.FreeVariablesAbsoluteValue .......................................   Passed    0.00 sec
+        Start  33: Oracle.Equalities
+ 33/168 Test  #33: Oracle.Equalities .......................................................   Passed    0.00 sec
+        Start  34: Oracle.RangedRow
+ 34/168 Test  #34: Oracle.RangedRow ........................................................   Passed    0.00 sec
+        Start  35: Oracle.NegativeAndUpperOnlyBounds
+ 35/168 Test  #35: Oracle.NegativeAndUpperOnlyBounds .......................................   Passed    0.00 sec
+        Start  36: Oracle.RedundantEqualities
+ 36/168 Test  #36: Oracle.RedundantEqualities ..............................................   Passed    0.00 sec
+        Start  37: Oracle.NoRowsAndFixedColumn
+ 37/168 Test  #37: Oracle.NoRowsAndFixedColumn .............................................   Passed    0.00 sec
+        Start  38: Oracle.MaxRangedFromBridge
+ 38/168 Test  #38: Oracle.MaxRangedFromBridge ..............................................   Passed    0.00 sec
+        Start  39: Oracle.RandomLpsSatisfyKkt
+ 39/168 Test  #39: Oracle.RandomLpsSatisfyKkt ..............................................   Passed    0.00 sec
+        Start  40: Oracle.SmallNetlibMatchesPublishedOptima
+ 40/168 Test  #40: Oracle.SmallNetlibMatchesPublishedOptima ................................   Passed    0.06 sec
+        Start  41: PdhgBackend.StepsMatchDefinitionsInBothPrecisions
+ 41/168 Test  #41: PdhgBackend.StepsMatchDefinitionsInBothPrecisions .......................   Passed    0.00 sec
+        Start  42: PdhgScaling.UnscaleInvertsScale
+ 42/168 Test  #42: PdhgScaling.UnscaleInvertsScale .........................................   Passed    0.00 sec
+        Start  43: PdhgScaling.GeometricMeanIsAdaptive
+ 43/168 Test  #43: PdhgScaling.GeometricMeanIsAdaptive .....................................   Passed    0.00 sec
+        Start  44: PdhgEngines.GpuRequestWithoutCudaIsNotSolved
+ 44/168 Test  #44: PdhgEngines.GpuRequestWithoutCudaIsNotSolved ............................   Passed    0.00 sec
+        Start  45: PdhgWarmStart.WrongSizeIsNotSolved
+ 45/168 Test  #45: PdhgWarmStart.WrongSizeIsNotSolved ......................................   Passed    0.00 sec
+        Start  46: PdhgWarmStart.PerturbedObjectiveNeedsFewerIterations
+ 46/168 Test  #46: PdhgWarmStart.PerturbedObjectiveNeedsFewerIterations ....................   Passed    0.01 sec
+        Start  47: PdhgEngineParams.KnownAndUnknownNames
+ 47/168 Test  #47: PdhgEngineParams.KnownAndUnknownNames ...................................   Passed    0.00 sec
+        Start  48: PdhgThreads.BitIdenticalForAnyThreadCount
+ 48/168 Test  #48: PdhgThreads.BitIdenticalForAnyThreadCount ...............................   Passed    3.68 sec
+        Start  49: CApi.StatusCodesMatchCppEnum
+ 49/168 Test  #49: CApi.StatusCodesMatchCppEnum ............................................   Passed    0.00 sec
+        Start  50: CApi.SolvesWyndorWithEveryAlgorithm
+ 50/168 Test  #50: CApi.SolvesWyndorWithEveryAlgorithm .....................................   Passed    0.00 sec
+        Start  51: CApi.SolveMpsFile
+ 51/168 Test  #51: CApi.SolveMpsFile .......................................................   Passed    0.00 sec
+        Start  52: CApi.NullOptionsAndOutputsAreAllowed
+ 52/168 Test  #52: CApi.NullOptionsAndOutputsAreAllowed ....................................   Passed    0.00 sec
+        Start  53: CApi.InvalidArgumentsNeverCrash
+ 53/168 Test  #53: CApi.InvalidArgumentsNeverCrash .........................................   Passed    0.00 sec
+        Start  54: CApi.Version
+ 54/168 Test  #54: CApi.Version ............................................................   Passed    0.00 sec
+        Start  55: CApi.WarmStartFromOptimum
+ 55/168 Test  #55: CApi.WarmStartFromOptimum ...............................................   Passed    0.00 sec
+        Start  56: Batch.ScenariosMatchSingleSolves
+ 56/168 Test  #56: Batch.ScenariosMatchSingleSolves ........................................   Passed    0.19 sec
+        Start  57: Batch.BadScenarioFailsAloneAndMaxSenseWorks
+ 57/168 Test  #57: Batch.BadScenarioFailsAloneAndMaxSenseWorks .............................   Passed    0.00 sec
+        Start  58: Batch.EmptyAndUnknownKnob
+ 58/168 Test  #58: Batch.EmptyAndUnknownKnob ...............................................   Passed    0.00 sec
+        Start  59: SafeBound.TightAtOptimalDualsOnSmallNetlib
+ 59/168 Test  #59: SafeBound.TightAtOptimalDualsOnSmallNetlib ..............................   Passed    0.06 sec
+        Start  60: SafeBound.ImpliedBoundsContainTheOptimum
+ 60/168 Test  #60: SafeBound.ImpliedBoundsContainTheOptimum ................................   Passed    0.06 sec
+        Start  61: SafeBound.ValidForRandomMultipliers
+ 61/168 Test  #61: SafeBound.ValidForRandomMultipliers .....................................   Passed    0.04 sec
+        Start  62: SafeBound.MaxSenseIsAnUpperBound
+ 62/168 Test  #62: SafeBound.MaxSenseIsAnUpperBound ........................................   Passed    0.00 sec
+        Start  63: SafeBound.InfiniteBoundsAreReportedNotFaked
+ 63/168 Test  #63: SafeBound.InfiniteBoundsAreReportedNotFaked .............................   Passed    0.00 sec
+        Start  64: Presolve.EachReductionAndCascade
+ 64/168 Test  #64: Presolve.EachReductionAndCascade ........................................   Passed    0.00 sec
+        Start  65: Presolve.DetectsInfeasibility
+ 65/168 Test  #65: Presolve.DetectsInfeasibility ...........................................   Passed    0.00 sec
+        Start  66: Presolve.DualsMatchWithoutPresolve
+ 66/168 Test  #66: Presolve.DualsMatchWithoutPresolve ......................................   Passed    0.00 sec
+        Start  67: Presolve.SmallNetlibSameOptimumAndOriginalKkt
+ 67/168 Test  #67: Presolve.SmallNetlibSameOptimumAndOriginalKkt ...........................   Passed    0.19 sec
+        Start  68: Mip.KnapsackMatchesEnumeration
+ 68/168 Test  #68: Mip.KnapsackMatchesEnumeration ..........................................   Passed    0.00 sec
+        Start  69: Mip.RandomPureIntegerProgramsMatchEnumeration
+ 69/168 Test  #69: Mip.RandomPureIntegerProgramsMatchEnumeration ...........................   Passed    0.01 sec
+        Start  70: Mip.MixedIntegerMatchesEnumerationOverIntegerPart
+ 70/168 Test  #70: Mip.MixedIntegerMatchesEnumerationOverIntegerPart .......................   Passed    0.00 sec
+        Start  71: Mip.RelaxationIsLabelledAndLargeModelsAreRefused
+ 71/168 Test  #71: Mip.RelaxationIsLabelledAndLargeModelsAreRefused ........................   Passed    0.00 sec
+        Start  72: Mip.SimplexAndOracleNodeSolversAgree
+ 72/168 Test  #72: Mip.SimplexAndOracleNodeSolversAgree ....................................   Passed    0.01 sec
+        Start  73: Mip.PresolveRoundsIntegerBoundsInward
+ 73/168 Test  #73: Mip.PresolveRoundsIntegerBoundsInward ...................................   Passed    0.00 sec
+        Start  74: MpsReader.reads_tiny_max_model
+ 74/168 Test  #74: MpsReader.reads_tiny_max_model ..........................................   Passed    0.00 sec
+        Start  75: MpsReader.reads_ranges_bounds_and_offset
+ 75/168 Test  #75: MpsReader.reads_ranges_bounds_and_offset ................................   Passed    0.00 sec
+        Start  76: MpsReader.falls_back_to_fixed_format_for_names_with_spaces
+ 76/168 Test  #76: MpsReader.falls_back_to_fixed_format_for_names_with_spaces ..............   Passed    0.00 sec
+        Start  77: MpsReader.reads_integer_markers_and_binary_bounds
+ 77/168 Test  #77: MpsReader.reads_integer_markers_and_binary_bounds .......................   Passed    0.00 sec
+        Start  78: MpsReader.sums_duplicate_entries_and_accepts_missing_set_names
+ 78/168 Test  #78: MpsReader.sums_duplicate_entries_and_accepts_missing_set_names ..........   Passed    0.00 sec
+        Start  79: MpsReader.parses_number_formats
+ 79/168 Test  #79: MpsReader.parses_number_formats .........................................   Passed    0.00 sec
+        Start  80: MpsReader.extra_free_rows_are_dropped
+ 80/168 Test  #80: MpsReader.extra_free_rows_are_dropped ...................................   Passed    0.00 sec
+        Start  81: MpsReader.reports_errors_with_line_numbers
+ 81/168 Test  #81: MpsReader.reports_errors_with_line_numbers ..............................   Passed    0.00 sec
+        Start  82: MpsReader.rejects_nan_and_non_finite_coefficients
+ 82/168 Test  #82: MpsReader.rejects_nan_and_non_finite_coefficients .......................   Passed    0.00 sec
+        Start  83: MpsReader.huge_values_are_infinite_bounds
+ 83/168 Test  #83: MpsReader.huge_values_are_infinite_bounds ...............................   Passed    0.00 sec
+        Start  84: MpsReader.marker_is_case_insensitive
+ 84/168 Test  #84: MpsReader.marker_is_case_insensitive ....................................   Passed    0.00 sec
+        Start  85: MpsReader.duplicate_rhs_entry_warns
+ 85/168 Test  #85: MpsReader.duplicate_rhs_entry_warns .....................................   Passed    0.00 sec
+        Start  86: DenseTableau.solves_maximisation_example
+ 86/168 Test  #86: DenseTableau.solves_maximisation_example ................................   Passed    0.00 sec
+        Start  87: DenseTableau.solves_model_with_ranges_free_fixed_and_negative_bounds
+ 87/168 Test  #87: DenseTableau.solves_model_with_ranges_free_fixed_and_negative_bounds ....   Passed    0.00 sec
+        Start  88: DenseTableau.terminates_on_beale_cycling_example
+ 88/168 Test  #88: DenseTableau.terminates_on_beale_cycling_example ........................   Passed    0.00 sec
+        Start  89: DenseTableau.solves_fixed_format_model
+ 89/168 Test  #89: DenseTableau.solves_fixed_format_model ..................................   Passed    0.00 sec
+        Start  90: DenseTableau.solves_lp_relaxation_of_mip
+ 90/168 Test  #90: DenseTableau.solves_lp_relaxation_of_mip ................................   Passed    0.00 sec
+        Start  91: DenseTableau.detects_infeasibility
+ 91/168 Test  #91: DenseTableau.detects_infeasibility ......................................   Passed    0.00 sec
+        Start  92: DenseTableau.detects_unboundedness
+ 92/168 Test  #92: DenseTableau.detects_unboundedness ......................................   Passed    0.00 sec
+        Start  93: DenseTableau.contradictory_bounds_are_infeasible_without_pivoting
+ 93/168 Test  #93: DenseTableau.contradictory_bounds_are_infeasible_without_pivoting .......   Passed    0.00 sec
+        Start  94: DenseTableau.handles_redundant_equality_rows
+ 94/168 Test  #94: DenseTableau.handles_redundant_equality_rows ............................   Passed    0.00 sec
+        Start  95: DenseTableau.handles_free_variables_and_empty_constraints
+ 95/168 Test  #95: DenseTableau.handles_free_variables_and_empty_constraints ...............   Passed    0.00 sec
+        Start  96: DenseTableau.checker_rejects_a_wrong_answer
+ 96/168 Test  #96: DenseTableau.checker_rejects_a_wrong_answer .............................   Passed    0.00 sec
+        Start  97: DenseTableau.iteration_limit_is_reported
+ 97/168 Test  #97: DenseTableau.iteration_limit_is_reported ................................   Passed    0.00 sec
+        Start  98: DenseTableau.checker_rejects_non_finite_and_wrong_sizes
+ 98/168 Test  #98: DenseTableau.checker_rejects_non_finite_and_wrong_sizes .................   Passed    0.00 sec
+        Start  99: DenseTableauRandom.random_lps_are_certified
+ 99/168 Test  #99: DenseTableauRandom.random_lps_are_certified .............................   Passed    0.03 sec
+        Start 100: SparseLU.solves_small_known_system
+100/168 Test #100: SparseLU.solves_small_known_system ......................................   Passed    0.00 sec
+        Start 101: SparseLU.identity_and_permutation_have_no_fill
+101/168 Test #101: SparseLU.identity_and_permutation_have_no_fill ..........................   Passed    0.00 sec
+        Start 102: SparseLU.threshold_pivoting_avoids_tiny_pivot
+102/168 Test #102: SparseLU.threshold_pivoting_avoids_tiny_pivot ...........................   Passed    0.00 sec
+        Start 103: SparseLU.matches_dense_reference_on_random_matrices
+103/168 Test #103: SparseLU.matches_dense_reference_on_random_matrices .....................   Passed    0.02 sec
+        Start 104: SparseLU.singular_basis_is_completed_with_unit_columns
+104/168 Test #104: SparseLU.singular_basis_is_completed_with_unit_columns ..................   Passed    0.00 sec
+        Start 105: SparseLU.pfi_updates_match_fresh_factorization
+105/168 Test #105: SparseLU.pfi_updates_match_fresh_factorization ..........................   Passed    0.00 sec
+        Start 106: SparseLU.large_random_sparse_matrix
+106/168 Test #106: SparseLU.large_random_sparse_matrix .....................................   Passed    0.24 sec
+        Start 107: SparseLU.two_dimensional_grid_laplacian
+107/168 Test #107: SparseLU.two_dimensional_grid_laplacian .................................   Passed    0.03 sec
+        Start 108: SparseLU.bases_from_afiro
+108/168 Test #108: SparseLU.bases_from_afiro ...............................................   Passed    0.00 sec
+        Start 109: Simplex.solves_the_example_models
+109/168 Test #109: Simplex.solves_the_example_models .......................................   Passed    0.00 sec
+        Start 110: Simplex.detects_infeasible_and_unbounded
+110/168 Test #110: Simplex.detects_infeasible_and_unbounded ................................   Passed    0.00 sec
+        Start 111: Simplex.solves_netlib_afiro_and_adlittle
+111/168 Test #111: Simplex.solves_netlib_afiro_and_adlittle ................................   Passed    0.00 sec
+        Start 112: Simplex.agrees_with_oracle_on_small_random_lps
+112/168 Test #112: Simplex.agrees_with_oracle_on_small_random_lps ..........................   Passed    0.10 sec
+        Start 113: Simplex.agrees_with_oracle_on_medium_random_lps
+113/168 Test #113: Simplex.agrees_with_oracle_on_medium_random_lps .........................   Passed    0.06 sec
+        Start 114: Simplex.agrees_with_oracle_under_every_option_combination
+114/168 Test #114: Simplex.agrees_with_oracle_under_every_option_combination ...............   Passed    0.05 sec
+        Start 115: Simplex.never_optimal_above_the_requested_tolerance
+115/168 Test #115: Simplex.never_optimal_above_the_requested_tolerance .....................   Passed    0.00 sec
+        Start 116: Simplex.time_limit_is_reported_as_time_limit
+116/168 Test #116: Simplex.time_limit_is_reported_as_time_limit ............................   Passed    0.00 sec
+        Start 117: Simplex.explicit_zero_coefficients_are_harmless
+117/168 Test #117: Simplex.explicit_zero_coefficients_are_harmless .........................   Passed    0.00 sec
+        Start 118: Integration.MpsReaderMatchesLpmBridgeOnCommittedData
+118/168 Test #118: Integration.MpsReaderMatchesLpmBridgeOnCommittedData ....................   Passed    0.00 sec
+        Start 119: Integration.ReadMpsReportsErrorsWithoutThrowing
+119/168 Test #119: Integration.ReadMpsReportsErrorsWithoutThrowing .........................   Passed    0.00 sec
+        Start 120: Integration.AllEnginesAgreeAndPassTheGate
+120/168 Test #120: Integration.AllEnginesAgreeAndPassTheGate ...............................   Passed    0.07 sec
+        Start 121: Integration.SimplexEngineIdentityAndKnobs
+121/168 Test #121: Integration.SimplexEngineIdentityAndKnobs ...............................   Passed    0.00 sec
+        Start 122: Integration.InfeasibleAndUnboundedExamples
+122/168 Test #122: Integration.InfeasibleAndUnboundedExamples ..............................   Passed    0.00 sec
+        Start 123: Integration.AutoEngineChoice
+123/168 Test #123: Integration.AutoEngineChoice ............................................   Passed    0.17 sec
+        Start 124: Integration.DegenerateShapes
+124/168 Test #124: Integration.DegenerateShapes ............................................   Passed    0.00 sec
+        Start 125: Gate.DemotesAWrongOptimalFromAnExactEngine
+125/168 Test #125: Gate.DemotesAWrongOptimalFromAnExactEngine ..............................   Passed    0.00 sec
+        Start 126: Gate.FirstOrderKeepsItsLooserToleranceButRecordsTheFailure
+126/168 Test #126: Gate.FirstOrderKeepsItsLooserToleranceButRecordsTheFailure ..............   Passed    0.00 sec
+        Start 127: Gate.LeavesNonOptimalAndMilpAlone
+127/168 Test #127: Gate.LeavesNonOptimalAndMilpAlone .......................................   Passed    0.00 sec
+        Start 128: Differential.IntegerCoefficientLps
+128/168 Test #128: Differential.IntegerCoefficientLps ......................................   Passed    0.10 sec
+        Start 129: Differential.RealCoefficientsBadlyScaledRows
+129/168 Test #129: Differential.RealCoefficientsBadlyScaledRows ............................   Passed    0.37 sec
+        Start 130: Differential.SparserMediumLps
+130/168 Test #130: Differential.SparserMediumLps ...........................................   Passed    1.16 sec
+        Start 131: Gpu.BackendOpsMatchCpu
+131/168 Test #131: Gpu.BackendOpsMatchCpu ..................................................***Failed    0.62 sec
+Running main() from /home/vatsshivanshu/ps26119-solver/build-gpu/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = Gpu.BackendOpsMatchCpu
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from Gpu
+[ RUN      ] Gpu.BackendOpsMatchCpu
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:81: Failure
+The difference between k[0].primal_residual and k[1].primal_residual is 4.1938800251273278e-05, which exceeds 1e-9 * (1 + k[0].primal_residual), where
+k[0].primal_residual evaluates to 235.49995910087196,
+k[1].primal_residual evaluates to 235.49991716207171, and
+1e-9 * (1 + k[0].primal_residual) evaluates to 2.3649995910087198e-07.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: afiro mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:82: Failure
+The difference between k[0].dual_residual and k[1].dual_residual is 5.0321664613051098e-08, which exceeds 1e-9 * (1 + k[0].dual_residual), where
+k[0].dual_residual evaluates to 3.0599519064967309,
+k[1].dual_residual evaluates to 3.0599519568183955, and
+1e-9 * (1 + k[0].dual_residual) evaluates to 4.0599519064967311e-09.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: afiro mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:83: Failure
+The difference between k[0].primal_obj and k[1].primal_obj is 4.1956966114753413e-05, which exceeds 1e-9 * (1 + std::fabs(k[0].primal_obj)), where
+k[0].primal_obj evaluates to -68.747985447552551,
+k[1].primal_obj evaluates to -68.748027404518666, and
+1e-9 * (1 + std::fabs(k[0].primal_obj)) evaluates to 6.9747985447552551e-08.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: afiro mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:84: Failure
+The difference between k[0].dual_obj and k[1].dual_obj is 0.00035656389218274853, which exceeds 1e-9 * (1 + std::fabs(k[0].dual_obj)), where
+k[0].dual_obj evaluates to -1173.9391946905112,
+k[1].dual_obj evaluates to -1173.9395512544033, and
+1e-9 * (1 + std::fabs(k[0].dual_obj)) evaluates to 1.1749391946905113e-06.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: afiro mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:85: Failure
+The difference between k[0].primal_max_rel and k[1].primal_max_rel is 4.6511171490237757e-05, which exceeds 1e-12 + 1e-9 * k[0].primal_max_rel, where
+k[0].primal_max_rel evaluates to 181.89013552615768,
+k[1].primal_max_rel evaluates to 181.89008901498619, and
+1e-12 + 1e-9 * k[0].primal_max_rel evaluates to 1.8189113552615769e-07.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: afiro mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:86: Failure
+The difference between k[0].dual_max_rel and k[1].dual_max_rel is 1.2290186285346394e-08, which exceeds 1e-12 + 1e-9 * k[0].dual_max_rel, where
+k[0].dual_max_rel evaluates to 0.18587197343255327,
+k[1].dual_max_rel evaluates to 0.18587198572273955, and
+1e-12 + 1e-9 * k[0].dual_max_rel evaluates to 1.8687197343255328e-10.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: afiro mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:81: Failure
+The difference between k[0].primal_residual and k[1].primal_residual is 0.00019752691096641684, which exceeds 1e-9 * (1 + k[0].primal_residual), where
+k[0].primal_residual evaluates to 123.40966754690368,
+k[1].primal_residual evaluates to 123.40947001999271, and
+1e-9 * (1 + k[0].primal_residual) evaluates to 1.2440966754690368e-07.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: share2b mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:82: Failure
+The difference between k[0].dual_residual and k[1].dual_residual is 2.0274086907079436e-06, which exceeds 1e-9 * (1 + k[0].dual_residual), where
+k[0].dual_residual evaluates to 39.327043604882668,
+k[1].dual_residual evaluates to 39.327041577473977, and
+1e-9 * (1 + k[0].dual_residual) evaluates to 4.032704360488267e-08.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: share2b mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:83: Failure
+The difference between k[0].primal_obj and k[1].primal_obj is 8.7261032660990168e-05, which exceeds 1e-9 * (1 + std::fabs(k[0].primal_obj)), where
+k[0].primal_obj evaluates to -290.8628634152978,
+k[1].primal_obj evaluates to -290.86277615426513, and
+1e-9 * (1 + std::fabs(k[0].primal_obj)) evaluates to 2.918628634152978e-07.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: share2b mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:84: Failure
+The difference between k[0].dual_obj and k[1].dual_obj is 3.406973702269056e-05, which exceeds 1e-9 * (1 + std::fabs(k[0].dual_obj)), where
+k[0].dual_obj evaluates to 25.160942046558763,
+k[1].dual_obj evaluates to 25.160976116295785, and
+1e-9 * (1 + std::fabs(k[0].dual_obj)) evaluates to 2.6160942046558764e-08.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: share2b mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:85: Failure
+The difference between k[0].primal_max_rel and k[1].primal_max_rel is 9.786189364291431e-05, which exceeds 1e-12 + 1e-9 * k[0].primal_max_rel, where
+k[0].primal_max_rel evaluates to 63.288374312033255,
+k[1].primal_max_rel evaluates to 63.288276450139612, and
+1e-12 + 1e-9 * k[0].primal_max_rel evaluates to 6.3289374312033265e-08.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: share2b mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:86: Failure
+The difference between k[0].dual_max_rel and k[1].dual_max_rel is 3.7033972333233578e-07, which exceeds 1e-12 + 1e-9 * k[0].dual_max_rel, where
+k[0].dual_max_rel evaluates to 4.3860427442766809,
+k[1].dual_max_rel evaluates to 4.3860431146164043, and
+1e-12 + 1e-9 * k[0].dual_max_rel evaluates to 4.3870427442766813e-09.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: share2b mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:81: Failure
+The difference between k[0].primal_residual and k[1].primal_residual is 5.1387283974690945e-05, which exceeds 1e-9 * (1 + k[0].primal_residual), where
+k[0].primal_residual evaluates to 741.13011422538227,
+k[1].primal_residual evaluates to 741.13016561266625, and
+1e-9 * (1 + k[0].primal_residual) evaluates to 7.4213011422538237e-07.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: stocfor1 mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:82: Failure
+The difference between k[0].dual_residual and k[1].dual_residual is 0.00020095577042411605, which exceeds 1e-9 * (1 + k[0].dual_residual), where
+k[0].dual_residual evaluates to 1369.7098299948063,
+k[1].dual_residual evaluates to 1369.7100309505768, and
+1e-9 * (1 + k[0].dual_residual) evaluates to 1.3707098299948064e-06.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: stocfor1 mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:83: Failure
+The difference between k[0].primal_obj and k[1].primal_obj is 0.0042356132325949147, which exceeds 1e-9 * (1 + std::fabs(k[0].primal_obj)), where
+k[0].primal_obj evaluates to -34116.724501194316,
+k[1].primal_obj evaluates to -34116.720265581083, and
+1e-9 * (1 + std::fabs(k[0].primal_obj)) evaluates to 3.4117724501194321e-05.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: stocfor1 mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:84: Failure
+The difference between k[0].dual_obj and k[1].dual_obj is 0.032717203401261941, which exceeds 1e-9 * (1 + std::fabs(k[0].dual_obj)), where
+k[0].dual_obj evaluates to 96160.372259288881,
+k[1].dual_obj evaluates to 96160.404976492282, and
+1e-9 * (1 + std::fabs(k[0].dual_obj)) evaluates to 9.6161372259288881e-05.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: stocfor1 mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:85: Failure
+The difference between k[0].primal_max_rel and k[1].primal_max_rel is 3.6937784045676381e-05, which exceeds 1e-12 + 1e-9 * k[0].primal_max_rel, where
+k[0].primal_max_rel evaluates to 397.97563213166245,
+k[1].primal_max_rel evaluates to 397.97559519387841, and
+1e-12 + 1e-9 * k[0].primal_max_rel evaluates to 3.9797663213166246e-07.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: stocfor1 mixed
+
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:86: Failure
+The difference between k[0].dual_max_rel and k[1].dual_max_rel is 3.4467188303466401e-07, which exceeds 1e-12 + 1e-9 * k[0].dual_max_rel, where
+k[0].dual_max_rel evaluates to 2.460193799465658,
+k[1].dual_max_rel evaluates to 2.4601934547937749, and
+1e-12 + 1e-9 * k[0].dual_max_rel evaluates to 2.4611937994656581e-09.
+Google Test trace:
+/home/vatsshivanshu/ps26119-solver/tests/unit/test_gpu.cpp:38: stocfor1 mixed
+
+[  FAILED  ] Gpu.BackendOpsMatchCpu (583 ms)
+[----------] 1 test from Gpu (583 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (583 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] Gpu.BackendOpsMatchCpu
+
+ 1 FAILED TEST
+
+        Start 132: Gpu.EnginesMatchCpuOnSmallNetlib
+132/168 Test #132: Gpu.EnginesMatchCpuOnSmallNetlib ........................................   Passed   40.11 sec
+        Start 133: Gpu.LongRowKernelMatchesCpu
+133/168 Test #133: Gpu.LongRowKernelMatchesCpu .............................................   Passed    0.40 sec
+        Start 134: All/PdhgEngines.DualSignsMatchOracleOnWyndor/pdlp_fp64
+134/168 Test #134: All/PdhgEngines.DualSignsMatchOracleOnWyndor/pdlp_fp64 ..................   Passed    0.00 sec
+        Start 135: All/PdhgEngines.DualSignsMatchOracleOnWyndor/pdlp_mixed
+135/168 Test #135: All/PdhgEngines.DualSignsMatchOracleOnWyndor/pdlp_mixed .................   Passed    0.00 sec
+        Start 136: All/PdhgEngines.DualSignsMatchOracleOnWyndor/r2hpdhg_fp64
+136/168 Test #136: All/PdhgEngines.DualSignsMatchOracleOnWyndor/r2hpdhg_fp64 ...............   Passed    0.00 sec
+        Start 137: All/PdhgEngines.DualSignsMatchOracleOnWyndor/r2hpdhg_mixed
+137/168 Test #137: All/PdhgEngines.DualSignsMatchOracleOnWyndor/r2hpdhg_mixed ..............   Passed    0.00 sec
+        Start 138: All/PdhgEngines.HandLpsAgreeWithOracle/pdlp_fp64
+138/168 Test #138: All/PdhgEngines.HandLpsAgreeWithOracle/pdlp_fp64 ........................   Passed    0.00 sec
+        Start 139: All/PdhgEngines.HandLpsAgreeWithOracle/pdlp_mixed
+139/168 Test #139: All/PdhgEngines.HandLpsAgreeWithOracle/pdlp_mixed .......................   Passed    0.00 sec
+        Start 140: All/PdhgEngines.HandLpsAgreeWithOracle/r2hpdhg_fp64
+140/168 Test #140: All/PdhgEngines.HandLpsAgreeWithOracle/r2hpdhg_fp64 .....................   Passed    0.00 sec
+        Start 141: All/PdhgEngines.HandLpsAgreeWithOracle/r2hpdhg_mixed
+141/168 Test #141: All/PdhgEngines.HandLpsAgreeWithOracle/r2hpdhg_mixed ....................   Passed    0.00 sec
+        Start 142: All/PdhgEngines.SmallNetlibAgreesWithOracleAndPassesKkt/pdlp_fp64
+142/168 Test #142: All/PdhgEngines.SmallNetlibAgreesWithOracleAndPassesKkt/pdlp_fp64 .......   Passed    0.17 sec
+        Start 143: All/PdhgEngines.SmallNetlibAgreesWithOracleAndPassesKkt/pdlp_mixed
+143/168 Test #143: All/PdhgEngines.SmallNetlibAgreesWithOracleAndPassesKkt/pdlp_mixed ......   Passed    0.17 sec
+        Start 144: All/PdhgEngines.SmallNetlibAgreesWithOracleAndPassesKkt/r2hpdhg_fp64
+144/168 Test #144: All/PdhgEngines.SmallNetlibAgreesWithOracleAndPassesKkt/r2hpdhg_fp64 ....   Passed    0.12 sec
+        Start 145: All/PdhgEngines.SmallNetlibAgreesWithOracleAndPassesKkt/r2hpdhg_mixed
+145/168 Test #145: All/PdhgEngines.SmallNetlibAgreesWithOracleAndPassesKkt/r2hpdhg_mixed ...   Passed    0.14 sec
+        Start 146: All/PdhgEngines.IterationLimitIsNotOptimal/pdlp_fp64
+146/168 Test #146: All/PdhgEngines.IterationLimitIsNotOptimal/pdlp_fp64 ....................   Passed    0.00 sec
+        Start 147: All/PdhgEngines.IterationLimitIsNotOptimal/pdlp_mixed
+147/168 Test #147: All/PdhgEngines.IterationLimitIsNotOptimal/pdlp_mixed ...................   Passed    0.00 sec
+        Start 148: All/PdhgEngines.IterationLimitIsNotOptimal/r2hpdhg_fp64
+148/168 Test #148: All/PdhgEngines.IterationLimitIsNotOptimal/r2hpdhg_fp64 .................   Passed    0.00 sec
+        Start 149: All/PdhgEngines.IterationLimitIsNotOptimal/r2hpdhg_mixed
+149/168 Test #149: All/PdhgEngines.IterationLimitIsNotOptimal/r2hpdhg_mixed ................   Passed    0.00 sec
+        Start 150: All/PdhgEngines.DetectsInfeasibleAndUnbounded/pdlp_fp64
+150/168 Test #150: All/PdhgEngines.DetectsInfeasibleAndUnbounded/pdlp_fp64 .................   Passed    0.00 sec
+        Start 151: All/PdhgEngines.DetectsInfeasibleAndUnbounded/pdlp_mixed
+151/168 Test #151: All/PdhgEngines.DetectsInfeasibleAndUnbounded/pdlp_mixed ................   Passed    0.00 sec
+        Start 152: All/PdhgEngines.DetectsInfeasibleAndUnbounded/r2hpdhg_fp64
+152/168 Test #152: All/PdhgEngines.DetectsInfeasibleAndUnbounded/r2hpdhg_fp64 ..............   Passed    0.00 sec
+        Start 153: All/PdhgEngines.DetectsInfeasibleAndUnbounded/r2hpdhg_mixed
+153/168 Test #153: All/PdhgEngines.DetectsInfeasibleAndUnbounded/r2hpdhg_mixed .............   Passed    0.00 sec
+        Start 154: All/PdhgEngines.NoFalseCertificatesOnFeasibleModels/pdlp_fp64
+154/168 Test #154: All/PdhgEngines.NoFalseCertificatesOnFeasibleModels/pdlp_fp64 ...........   Passed    0.10 sec
+        Start 155: All/PdhgEngines.NoFalseCertificatesOnFeasibleModels/pdlp_mixed
+155/168 Test #155: All/PdhgEngines.NoFalseCertificatesOnFeasibleModels/pdlp_mixed ..........   Passed    0.11 sec
+        Start 156: All/PdhgEngines.NoFalseCertificatesOnFeasibleModels/r2hpdhg_fp64
+156/168 Test #156: All/PdhgEngines.NoFalseCertificatesOnFeasibleModels/r2hpdhg_fp64 ........   Passed    0.06 sec
+        Start 157: All/PdhgEngines.NoFalseCertificatesOnFeasibleModels/r2hpdhg_mixed
+157/168 Test #157: All/PdhgEngines.NoFalseCertificatesOnFeasibleModels/r2hpdhg_mixed .......   Passed    0.07 sec
+        Start 158: All/PdhgEngines.WarmStartFromOptimumStopsAtFirstCheck/pdlp_fp64
+158/168 Test #158: All/PdhgEngines.WarmStartFromOptimumStopsAtFirstCheck/pdlp_fp64 .........   Passed    0.09 sec
+        Start 159: All/PdhgEngines.WarmStartFromOptimumStopsAtFirstCheck/pdlp_mixed
+159/168 Test #159: All/PdhgEngines.WarmStartFromOptimumStopsAtFirstCheck/pdlp_mixed ........   Passed    0.09 sec
+        Start 160: All/PdhgEngines.WarmStartFromOptimumStopsAtFirstCheck/r2hpdhg_fp64
+160/168 Test #160: All/PdhgEngines.WarmStartFromOptimumStopsAtFirstCheck/r2hpdhg_fp64 ......   Passed    0.05 sec
+        Start 161: All/PdhgEngines.WarmStartFromOptimumStopsAtFirstCheck/r2hpdhg_mixed
+161/168 Test #161: All/PdhgEngines.WarmStartFromOptimumStopsAtFirstCheck/r2hpdhg_mixed .....   Passed    0.05 sec
+        Start 162: c_api.smoke
+162/168 Test #162: c_api.smoke .............................................................   Passed    0.00 sec
+        Start 163: tools.python
+163/168 Test #163: tools.python ............................................................   Passed    0.28 sec
+        Start 164: cli.contract
+164/168 Test #164: cli.contract ............................................................   Passed    0.22 sec
+        Start 165: python.binding
+165/168 Test #165: python.binding ..........................................................   Passed    0.15 sec
+        Start 166: bench.generators
+166/168 Test #166: bench.generators ........................................................   Passed    0.45 sec
+        Start 167: tools.crosscheck.simplex
+167/168 Test #167: tools.crosscheck.simplex ................................................   Passed    0.94 sec
+        Start 168: tools.crosscheck.r2hpdhg
+168/168 Test #168: tools.crosscheck.r2hpdhg ................................................   Passed    0.90 sec
+
+99% tests passed, 1 tests failed out of 168
+
+Total Test time (real) =  52.29 sec
+
+The following tests FAILED:
+	131 - Gpu.BackendOpsMatchCpu (Failed)
+Errors while running CTest
+OK: no foreign solver linked or included
+=== compute-sanitizer (memcheck, racecheck) on the GPU tests
+  memcheck: ERRORS (see bench/results/logs/rtx4050-laptop-82d376c/sanitizer-memcheck.log)
+  racecheck: ERRORS (see bench/results/logs/rtx4050-laptop-82d376c/sanitizer-racecheck.log)
+=== bench: small Netlib (CPU and GPU, fp64 + mixed, verified)
+
+60/60 verified PASS -> /home/vatsshivanshu/ps26119-solver/bench/results/netlib-small-82d376c.csv
+
+40/40 verified PASS -> /home/vatsshivanshu/ps26119-solver/bench/results/netlib-small-gpu-82d376c.csv
+=== bench: scaling (generated LPs + refinery), CPU vs GPU, fp64 vs mixed
+/home/vatsshivanshu/ps26119-solver/bench/generated/rand-10000-s1.lpm: 10000 rows, 15000 cols, 60024 nnz, optimum -13805.501052078082 (0.1s)
+/home/vatsshivanshu/ps26119-solver/bench/generated/rand-100000-s1.lpm: 100000 rows, 150000 cols, 600228 nnz, optimum -109311.46887857676 (0.5s)
+/home/vatsshivanshu/ps26119-solver/bench/generated/rand-1000000-s1.lpm: 1000000 rows, 1500000 cols, 6002453 nnz, optimum -1138593.9295595926 (7.4s)
+/home/vatsshivanshu/ps26119-solver/bench/generated/refinery-T12-s1.lpm: T=12  588 rows, 708 cols, 2065 nnz, optimum 12118.440547364007 (0.0s)
+/home/vatsshivanshu/ps26119-solver/bench/generated/refinery-T365-s1.lpm: T=365  17885 rows, 21535 cols, 63134 nnz, optimum 843641.450693402 (0.1s)
+/home/vatsshivanshu/ps26119-solver/bench/generated/refinery-T8760-s1.lpm: T=8760  429240 rows, 516840 cols, 1515469 nnz, optimum 21158525.625104126 (1.2s)
+rand-10000-s1          r2hpdhg  cpu  1 fp64  Optimal        it     1536 t    0.4707s (1e-4:  0.111028s) ms/it   0.2896 err 6.34e-10 verify PASS
+rand-10000-s1          r2hpdhg  cpu  1 mixed Optimal        it     1536 t    0.5077s (1e-4:  0.130058s) ms/it   0.3086 err 1.74e-10 verify PASS
+rand-10000-s1          r2hpdhg  gpu    fp64  Optimal        it     1536 t    0.7334s (1e-4:  0.523762s) ms/it   0.1592 err 6.34e-10 verify PASS
+rand-10000-s1          r2hpdhg  gpu    mixed Optimal        it     1536 t    0.5311s (1e-4:  0.332001s) ms/it   0.1473 err 1.78e-10 verify PASS
+rand-100000-s1         r2hpdhg  cpu  1 fp64  Optimal        it     2496 t   10.3055s (1e-4:  1.885967s) ms/it   4.0187 err 2.44e-10 verify PASS
+rand-100000-s1         r2hpdhg  cpu  1 mixed Optimal        it     2944 t   11.0894s (1e-4:  1.805751s) ms/it   3.6638 err 5.12e-11 verify PASS
+rand-100000-s1         r2hpdhg  gpu    fp64  Optimal        it     2496 t    2.9277s (1e-4:  0.838287s) ms/it   0.8995 err 2.44e-10 verify PASS
+rand-100000-s1         r2hpdhg  gpu    mixed Optimal        it     2944 t    2.8739s (1e-4:  0.634065s) ms/it   0.7913 err 5.09e-11 verify PASS
+rand-1000000-s1        r2hpdhg  cpu  1 fp64  TimeLimit      it     8512 t  626.7195s (1e-4: 39.848948s) ms/it  72.4778 err 1.65e-09 verify skipped
+rand-1000000-s1        r2hpdhg  cpu  1 mixed TimeLimit      it     9216 t  625.3029s (1e-4: 30.209349s) ms/it  66.7981 err 1.66e-09 verify skipped
+rand-1000000-s1        r2hpdhg  gpu    fp64  Optimal        it    17600 t  103.6514s (1e-4: 10.813002s) ms/it   5.3734 err 1.42e-11 verify skipped
+Traceback (most recent call last):
+  File "/home/vatsshivanshu/ps26119-solver/bench/scale.py", line 248, in <module>
+  File "/home/vatsshivanshu/ps26119-solver/bench/scale.py", line 199, in main
+  File "/home/vatsshivanshu/ps26119-solver/bench/scale.py", line 55, in run
+  File "/home/vatsshivanshu/ps26119-solver/bench/lpgen.py", line 161, in read_sidecar
+FileNotFoundError: [Errno 2] No such file or directory: '/home/vatsshivanshu/ps26119-solver/bench/generated/rand-1000000-s1.json'
