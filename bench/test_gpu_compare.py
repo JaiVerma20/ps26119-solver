@@ -3,9 +3,11 @@
 inputs (no benchmark numbers): they only exercise the pairing and ratio logic."""
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 import gpu_compare  # noqa: E402
 
 
@@ -43,6 +45,25 @@ class Pairing(unittest.TestCase):
         (p,) = gpu_compare.pairs(rows)
         self.assertIsNone(p["cpu1"])
         self.assertIsNone(p["best"])
+
+
+class ScaleSummaryAfterPlot(unittest.TestCase):
+    """Regression (first GPU run, 82d376c): scale.plot() rewrote backend to "cpu1t" in the rows
+    when threads was the integer 1, so the GPU-vs-CPU summary printed an empty table."""
+
+    def test_plot_does_not_mutate_rows(self):
+        import copy
+        import scale
+        extra = dict(family="random", nnz="100", ms_per_iteration="1", machine="m", cpu="c", gpu="g", git_hash="h")
+        rows = [dict(row("cpu", 1), **extra), dict(row("cpu", 10, t8="5"), **extra), dict(row("gpu", "", t8="2"), **extra)]
+        before = copy.deepcopy(rows)
+        with tempfile.TemporaryDirectory() as d:
+            scale.plot(rows, os.path.join(d, "x.png"))
+        self.assertEqual(rows, before)
+        (p,) = gpu_compare.pairs(rows)
+        self.assertIsNotNone(p["cpu1"])  # int threads == 1 is the 1-thread baseline
+        self.assertEqual(p["best"]["threads"], 10)
+        self.assertAlmostEqual(p["vsbest_1e-8"], 2.5)
 
 
 if __name__ == "__main__":

@@ -132,16 +132,22 @@ def plot(rows, png):
         print("matplotlib not available: no PNG")
         return
     fig, axes = plt.subplots(1, 3, figsize=(16, 4.8))
-    for r in rows:  # a CPU thread count is part of the configuration
-        if r.get("threads") not in (None, "", "1") and r["backend"] == "cpu":
-            r["backend"] = f"cpu{r['threads']}t"
-    configs = sorted({(r["engine"], r["backend"], r["precision"]) for r in rows})
+
+    # A CPU thread count is part of the configuration label. NEVER write it into the rows: the
+    # GPU-vs-CPU summary runs after plotting and pairs rows by backend == "cpu" (the old code
+    # rewrote backend to "cpu1t" when threads was the integer 1, which emptied that summary in
+    # the first GPU run, 82d376c).
+    def backend_label(r):
+        th = str(r.get("threads", "") or "")
+        return f"cpu{th}t" if r["backend"] == "cpu" and th not in ("", "1") else r["backend"]
+
+    configs = sorted({(r["engine"], backend_label(r), r["precision"]) for r in rows})
     # one fixed colour per configuration so every panel matches the legend
     palette = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     color = {cfg: palette[i % len(palette)] for i, cfg in enumerate(configs)}
     for fam, marker, ls in (("random", "o", "-"), ("refinery", "s", "--")):
         for cfg in configs:
-            pts = [r for r in rows if (r["engine"], r["backend"], r["precision"]) == cfg and r["family"] == fam]
+            pts = [r for r in rows if (r["engine"], backend_label(r), r["precision"]) == cfg and r["family"] == fam]
             if not pts:
                 continue
             pts.sort(key=lambda r: int(r["nnz"]))
