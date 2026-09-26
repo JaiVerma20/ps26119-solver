@@ -10,6 +10,7 @@
 
 #include "core/certificates.h"
 #include "core/gate.h"
+#include "io/lpm_reader.h"
 #include "model_builder.h"
 #include "ps26119/solve.h"
 
@@ -168,4 +169,68 @@ TEST(Certificates, SimplexTightensPhaseOneUntilTheFarkasRayPasses) {
   EXPECT_GE(infeasible_models, 20);
   EXPECT_GE(tightened, 1) << "the loose tolerance never exercised the tightening path";
   std::printf("infeasible models %d, phase-1 tightenings needed on %d\n", infeasible_models, tightened);
+}
+
+namespace {
+// The model plus one "objective cut" row  sense·cᵀx ≤ sense·(f* − offset) − δ: infeasible by LP
+// duality, and its Farkas certificate is essentially the optimal dual — a realistic, "barely"
+// infeasible LP (same construction as bench/netlib_infeasible_cut.py).
+Model with_objective_cut(const Model& m, double fstar, double delta) {
+  Model c = m;
+  const int r = m.num_rows;
+  c.col_start.assign(1, 0);
+  c.row_index.clear();
+  c.value.clear();
+  for (int j = 0; j < m.num_cols; ++j) {
+    for (int k = m.col_start[j]; k < m.col_start[j + 1]; ++k) {
+      c.row_index.push_back(m.row_index[k]);
+      c.value.push_back(m.value[k]);
+    }
+    if (m.obj[j] != 0.0) {
+      c.row_index.push_back(r);
+      c.value.push_back(m.obj[j]);
+    }
+    c.col_start.push_back(static_cast<int>(c.value.size()));
+  }
+  if (m.sense > 0) {
+    c.row_lower.push_back(-kInf);
+    c.row_upper.push_back(fstar - m.obj_offset - delta);
+  } else {
+    c.row_lower.push_back(fstar - m.obj_offset + delta);
+    c.row_upper.push_back(kInf);
+  }
+  if (!c.row_names.empty()) c.row_names.push_back("OBJCUT");
+  c.num_rows = r + 1;
+  return c;
+}
+}  // namespace
+
+TEST(Certificates, R2hpdhgDetectsBarelyInfeasibleNetlibCuts) {
+  // Each of the 10 small Netlib LPs with an objective cut 1e-4 (1 + |f*|) below its optimum.
+  // Detection tests two directions: T(z) − z and the drift z − z0 since the restart anchor.
+  // With T(z) − z alone, adlittle + cut took 56M iterations; the budget here is 3M in total.
+  int certified = 0;
+  for (const char* name :
+       {"afiro", "sc50a", "sc50b", "kb2", "adlittle", "blend", "share2b", "sc105", "stocfor1", "recipe"}) {
+    SCOPED_TRACE(name);
+    Model m;
+    ASSERT_TRUE(io::read_lpm(std::string(PS26119_SOURCE_DIR) + "/data/netlib_small/" + name + ".lpm", m).ok);
+    Options ref;
+    ref.algorithm = Algorithm::Simplex;
+    const Solution opt = solve(m, ref);
+    ASSERT_EQ(opt.status, Status::Optimal);
+    const Model cut = with_objective_cut(m, opt.objective, 1e-4 * (1 + std::fabs(opt.objective)));
+    Options o;
+    o.algorithm = Algorithm::R2hpdhg;
+    o.iteration_limit = 3'000'000;
+    const Solution s = solve(cut, o);
+    EXPECT_NE(s.status, Status::NumericalError) << s.message;
+    EXPECT_NE(s.status, Status::Optimal) << s.message;
+    if (s.status == Status::Infeasible) {
+      EXPECT_EQ(s.check, "PASS") << s.message;
+      ++certified;
+    }
+    std::printf("  %-9s %-15s %10lld it\n", name, to_string(s.status), static_cast<long long>(s.iterations));
+  }
+  EXPECT_GE(certified, 9);
 }

@@ -85,7 +85,21 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
     if (ctx.out_of_time()) return ctx.finish(Status::TimeLimit, xh, yh, it, msg);
     if (it >= 4 * K) {  // dx, dy still hold T(z) − z from fixed_point_residual()
       std::string why;
-      const Status st = ctx.check_infeasibility(dx, dy, k, why);
+      Status st = ctx.check_infeasibility(dx, dy, k, why);
+      if (st == Status::NotSolved && inner >= K && (it / K) % 4 == 0) {
+        // Second candidate: the drift since the epoch's anchor, z − z0. For an infeasible or
+        // unbounded LP it also tends to the infimal displacement direction and is much less
+        // noisy than a single T(z) − z (Applegate, Lubin, Hinder, Math. Program. 2023, use
+        // iterate differences / normalized iterates the same way). Every 4th check only: it
+        // costs another download + two fp64 SpMVs (adlittle + objective cut: 56M -> 84k
+        // iterations; refinery T8760, feasible: iteration count unchanged).
+        b.copy(dx, xh);
+        b.axpby(-1.0, x0, 1.0, dx);
+        b.copy(dy, yh);
+        b.axpby(-1.0, y0, 1.0, dy);
+        st = ctx.check_infeasibility(dx, dy, k, why);
+        if (st != Status::NotSolved) why += " (drift since the restart anchor)";
+      }
       if (st != Status::NotSolved) return ctx.finish(st, xh, yh, it, why);
     }
 
