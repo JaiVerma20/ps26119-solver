@@ -36,6 +36,10 @@ private venv `.venv-gpu/` (Ubuntu refuses `pip install --user`), keeps going aft
 failures to collect every log, and runs `compute-sanitizer` (memcheck + racecheck) on the GPU
 tests when the toolkit provides it; its logs go to `bench/results/logs/`.
 
+Before a GPU run, `tools/check_cuda_syntax.sh` type-checks `src/gpu/*.cu` on any machine with
+clang (host and device passes, stub header in `tools/cuda_stub/`; CI runs it). It catches compile
+errors early but proves nothing about nvcc or the hardware.
+
 ## A. Build (step "configure + build" in gpu_check.sh)
 | # | Check | Why it can fail | Pass criterion |
 |---|---|---|---|
@@ -72,7 +76,7 @@ fp64 and mixed): 20 reflected-Halpern steps, then primal/dual steps, axpby, dot,
 | D3 | refinery LP T = 12 / 365 / 8760 on GPU (hourly year: 429k rows, 517k cols) | same |
 | D4 | the crossover size where the GPU starts to win (expected: GPU LOSES on small models — must be reported) | GPU-vs-CPU summary printed by `scale.py` |
 | D5 | mixed precision gain on a consumer card (fp64 is 1/32–1/64 rate on GeForce) vs a datacentre card | laptop vs university CSVs |
-| D6 | GPU memory headroom for 1e6 rows (fp64 + fp32 copies of Ã, Ãᵀ, original A) | `nvidia-smi` during the run; OOM → NotSolved "out of memory" (never a crash) |
+| D6 | GPU memory headroom for 1e6 rows (fp64 + fp32 copies of Ã, Ãᵀ, original A) | `nvidia-smi` during the run; OOM → NotSolved "out of memory" (never a crash): `cudaErrorMemoryAllocation` is turned into `std::bad_alloc` (since 2026-09-27); try a model larger than the card's memory and check the status line |
 
 ## E. Known design limits to look at once real numbers exist
 - Kernel launch overhead: ~6 launches per iteration, no CUDA Graphs yet (cuPDLPx uses

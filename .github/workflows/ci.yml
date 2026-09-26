@@ -74,3 +74,6 @@ jobs:
         run: cmake --build build -j
       - name: Tests (C++ only; the Python tests load the library through ctypes)
         run: ctest --test-dir build --output-on-failure -E "python|tools|cli|bench"
+      - name: CUDA sources type-check without the toolkit (clang CUDA front end + stub header)
+        if: matrix.name == 'asan-ubsan'
+        run: tools/check_cuda_syntax.sh
