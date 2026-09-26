@@ -150,3 +150,8 @@ Newest last. Each entry: what, why, evidence, how to undo.
     (rows*nnz = …)"). The threshold is a tuned constant (Netlib + generated models) — an
     explicit `--algorithm` always overrides it. An explicitly chosen simplex reports "warm
     start ignored" instead of silently dropping it.
+30. **Simplex defaults kept: geometric scaling + Devex pricing** (teammate's choices, now
+    measured on the full set). Full Netlib, 60 s, at `fc3f29c`: default 92/93 solved and
+    verified (68.6 s total for the solved ones); no scaling 91/93 (`cycle` lost; pilot87 passes
+    every check but is 1.1e-6 from HiGHS); Dantzig pricing 90/93. PDHG scaling decisions are
+    separate (#17). CSVs: `netlib-full-simplex-fp64[-noscale|-dantzig]-macbook-air-m4-fc3f29c.csv`.
