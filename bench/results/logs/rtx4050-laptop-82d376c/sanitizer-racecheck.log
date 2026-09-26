@@ -1,0 +1,172 @@
+========= COMPUTE-SANITIZER
+Running main() from /home/vatsshivanshu/ps26119-build-gpu/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = Gpu.*
+[==========] Running 3 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 3 tests from Gpu
+[ RUN      ] Gpu.BackendOpsMatchCpu
+========= Error: Failed to initialize WDDM debugger interface. Please run EnableDebuggerInterface.bat as an administrator
+========= 
+========= Error: Device not supported. Please refer to the "Supported Devices" section of the sanitizer documentation
+========= 
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:81: Failure
+The difference between k[0].primal_residual and k[1].primal_residual is 4.1938800251273278e-05, which exceeds 1e-9 * (1 + k[0].primal_residual), where
+k[0].primal_residual evaluates to 235.49995910087196,
+k[1].primal_residual evaluates to 235.49991716207171, and
+1e-9 * (1 + k[0].primal_residual) evaluates to 2.3649995910087198e-07.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: afiro mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:82: Failure
+The difference between k[0].dual_residual and k[1].dual_residual is 5.0321664613051098e-08, which exceeds 1e-9 * (1 + k[0].dual_residual), where
+k[0].dual_residual evaluates to 3.0599519064967309,
+k[1].dual_residual evaluates to 3.0599519568183955, and
+1e-9 * (1 + k[0].dual_residual) evaluates to 4.0599519064967311e-09.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: afiro mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:83: Failure
+The difference between k[0].primal_obj and k[1].primal_obj is 4.1956966114753413e-05, which exceeds 1e-9 * (1 + std::fabs(k[0].primal_obj)), where
+k[0].primal_obj evaluates to -68.747985447552551,
+k[1].primal_obj evaluates to -68.748027404518666, and
+1e-9 * (1 + std::fabs(k[0].primal_obj)) evaluates to 6.9747985447552551e-08.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: afiro mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:84: Failure
+The difference between k[0].dual_obj and k[1].dual_obj is 0.00035656389218274853, which exceeds 1e-9 * (1 + std::fabs(k[0].dual_obj)), where
+k[0].dual_obj evaluates to -1173.9391946905112,
+k[1].dual_obj evaluates to -1173.9395512544033, and
+1e-9 * (1 + std::fabs(k[0].dual_obj)) evaluates to 1.1749391946905113e-06.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: afiro mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:85: Failure
+The difference between k[0].primal_max_rel and k[1].primal_max_rel is 4.6511171490237757e-05, which exceeds 1e-12 + 1e-9 * k[0].primal_max_rel, where
+k[0].primal_max_rel evaluates to 181.89013552615768,
+k[1].primal_max_rel evaluates to 181.89008901498619, and
+1e-12 + 1e-9 * k[0].primal_max_rel evaluates to 1.8189113552615769e-07.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: afiro mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:86: Failure
+The difference between k[0].dual_max_rel and k[1].dual_max_rel is 1.2290186285346394e-08, which exceeds 1e-12 + 1e-9 * k[0].dual_max_rel, where
+k[0].dual_max_rel evaluates to 0.18587197343255327,
+k[1].dual_max_rel evaluates to 0.18587198572273955, and
+1e-12 + 1e-9 * k[0].dual_max_rel evaluates to 1.8687197343255328e-10.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: afiro mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:81: Failure
+The difference between k[0].primal_residual and k[1].primal_residual is 0.00019752691096641684, which exceeds 1e-9 * (1 + k[0].primal_residual), where
+k[0].primal_residual evaluates to 123.40966754690368,
+k[1].primal_residual evaluates to 123.40947001999271, and
+1e-9 * (1 + k[0].primal_residual) evaluates to 1.2440966754690368e-07.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: share2b mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:82: Failure
+The difference between k[0].dual_residual and k[1].dual_residual is 2.0274086907079436e-06, which exceeds 1e-9 * (1 + k[0].dual_residual), where
+k[0].dual_residual evaluates to 39.327043604882668,
+k[1].dual_residual evaluates to 39.327041577473977, and
+1e-9 * (1 + k[0].dual_residual) evaluates to 4.032704360488267e-08.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: share2b mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:83: Failure
+The difference between k[0].primal_obj and k[1].primal_obj is 8.7261032660990168e-05, which exceeds 1e-9 * (1 + std::fabs(k[0].primal_obj)), where
+k[0].primal_obj evaluates to -290.8628634152978,
+k[1].primal_obj evaluates to -290.86277615426513, and
+1e-9 * (1 + std::fabs(k[0].primal_obj)) evaluates to 2.918628634152978e-07.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: share2b mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:84: Failure
+The difference between k[0].dual_obj and k[1].dual_obj is 3.406973702269056e-05, which exceeds 1e-9 * (1 + std::fabs(k[0].dual_obj)), where
+k[0].dual_obj evaluates to 25.160942046558763,
+k[1].dual_obj evaluates to 25.160976116295785, and
+1e-9 * (1 + std::fabs(k[0].dual_obj)) evaluates to 2.6160942046558764e-08.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: share2b mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:85: Failure
+The difference between k[0].primal_max_rel and k[1].primal_max_rel is 9.786189364291431e-05, which exceeds 1e-12 + 1e-9 * k[0].primal_max_rel, where
+k[0].primal_max_rel evaluates to 63.288374312033255,
+k[1].primal_max_rel evaluates to 63.288276450139612, and
+1e-12 + 1e-9 * k[0].primal_max_rel evaluates to 6.3289374312033265e-08.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: share2b mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:86: Failure
+The difference between k[0].dual_max_rel and k[1].dual_max_rel is 3.7033972333233578e-07, which exceeds 1e-12 + 1e-9 * k[0].dual_max_rel, where
+k[0].dual_max_rel evaluates to 4.3860427442766809,
+k[1].dual_max_rel evaluates to 4.3860431146164043, and
+1e-12 + 1e-9 * k[0].dual_max_rel evaluates to 4.3870427442766813e-09.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: share2b mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:81: Failure
+The difference between k[0].primal_residual and k[1].primal_residual is 5.1387283974690945e-05, which exceeds 1e-9 * (1 + k[0].primal_residual), where
+k[0].primal_residual evaluates to 741.13011422538227,
+k[1].primal_residual evaluates to 741.13016561266625, and
+1e-9 * (1 + k[0].primal_residual) evaluates to 7.4213011422538237e-07.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: stocfor1 mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:82: Failure
+The difference between k[0].dual_residual and k[1].dual_residual is 0.00020095577042411605, which exceeds 1e-9 * (1 + k[0].dual_residual), where
+k[0].dual_residual evaluates to 1369.7098299948063,
+k[1].dual_residual evaluates to 1369.7100309505768, and
+1e-9 * (1 + k[0].dual_residual) evaluates to 1.3707098299948064e-06.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: stocfor1 mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:83: Failure
+The difference between k[0].primal_obj and k[1].primal_obj is 0.0042356132325949147, which exceeds 1e-9 * (1 + std::fabs(k[0].primal_obj)), where
+k[0].primal_obj evaluates to -34116.724501194316,
+k[1].primal_obj evaluates to -34116.720265581083, and
+1e-9 * (1 + std::fabs(k[0].primal_obj)) evaluates to 3.4117724501194321e-05.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: stocfor1 mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:84: Failure
+The difference between k[0].dual_obj and k[1].dual_obj is 0.032717203401261941, which exceeds 1e-9 * (1 + std::fabs(k[0].dual_obj)), where
+k[0].dual_obj evaluates to 96160.372259288881,
+k[1].dual_obj evaluates to 96160.404976492282, and
+1e-9 * (1 + std::fabs(k[0].dual_obj)) evaluates to 9.6161372259288881e-05.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: stocfor1 mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:85: Failure
+The difference between k[0].primal_max_rel and k[1].primal_max_rel is 3.6937784045676381e-05, which exceeds 1e-12 + 1e-9 * k[0].primal_max_rel, where
+k[0].primal_max_rel evaluates to 397.97563213166245,
+k[1].primal_max_rel evaluates to 397.97559519387841, and
+1e-12 + 1e-9 * k[0].primal_max_rel evaluates to 3.9797663213166246e-07.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: stocfor1 mixed
+
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:86: Failure
+The difference between k[0].dual_max_rel and k[1].dual_max_rel is 3.4467188303466401e-07, which exceeds 1e-12 + 1e-9 * k[0].dual_max_rel, where
+k[0].dual_max_rel evaluates to 2.460193799465658,
+k[1].dual_max_rel evaluates to 2.4601934547937749, and
+1e-12 + 1e-9 * k[0].dual_max_rel evaluates to 2.4611937994656581e-09.
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:38: stocfor1 mixed
+
+[  FAILED  ] Gpu.BackendOpsMatchCpu (385 ms)
+[ RUN      ] Gpu.EnginesMatchCpuOnSmallNetlib
+[       OK ] Gpu.EnginesMatchCpuOnSmallNetlib (65241 ms)
+[ RUN      ] Gpu.LongRowKernelMatchesCpu
+[       OK ] Gpu.LongRowKernelMatchesCpu (156 ms)
+[----------] 3 tests from Gpu (65785 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 1 test suite ran. (65786 ms total)
+[  PASSED  ] 2 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] Gpu.BackendOpsMatchCpu
+
+ 1 FAILED TEST
+========= Error: process didn't terminate successfully
+========= Target application returned an error
+========= RACECHECK SUMMARY: 2 hazards displayed (2 errors, 0 warnings)
