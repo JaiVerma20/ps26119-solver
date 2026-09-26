@@ -202,7 +202,8 @@ Solution solve_impl(const Model& model, const Options& options) {
   post.message = post.message.empty() ? note : post.message + "; " + note;
   post.model_fingerprint = model.fingerprint_hex();
   auto passes = [&](const Solution& s) {
-    return !s.x.empty() && !s.y.empty() && original_kkt(model, s).converged(options.tolerance);
+    return static_cast<int>(s.x.size()) == model.num_cols && static_cast<int>(s.y.size()) == model.num_rows &&
+           original_kkt(model, s).converged(options.tolerance);
   };
   const bool is_mip = has_integers(model) && !options.relax_integrality;
   if (is_mip && (post.status == Status::Optimal || !post.x.empty())) {
@@ -260,8 +261,8 @@ Solution solve_impl(const Model& model, const Options& options) {
     cold.message += std::string(cold.message.empty() ? "" : "; ") + note +
                     "; postsolved point failed the check on the original, solved the original instead";
     post = cold;
-  } else if (!is_mip && post.status == Status::Optimal && post.x.empty()) {
-    post.status = Status::NumericalError;  // never claim Optimal without a point
+  } else if (!is_mip && post.status == Status::Optimal && static_cast<int>(post.x.size()) != model.num_cols) {
+    post.status = Status::NumericalError;  // never claim Optimal without a point (a model may have 0 columns)
   }
   if (static_cast<int>(post.y.size()) == model.num_rows && model.num_rows + model.num_cols > 0)
     post.certified_bound = certified_dual_bound(model, post.y).bound;

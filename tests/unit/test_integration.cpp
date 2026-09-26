@@ -194,3 +194,42 @@ TEST(Integration, AutoEngineChoice) {
   quick.iteration_limit = 64;  // only the engine choice matters here
   EXPECT_EQ(solve(rep, quick).engine, "r2hpdhg");
 }
+
+// Degenerate shapes through every engine, with and without presolve (Phase 14 review: a
+// model with no columns came back NumericalError from the exact engines after presolve).
+TEST(Integration, DegenerateShapes) {
+  auto shape = [](int m, int n) {
+    Model x;
+    x.num_rows = m;
+    x.num_cols = n;
+    x.obj.assign(n, 1.0);
+    x.col_lower.assign(n, 0.0);
+    x.col_upper.assign(n, 3.0);
+    x.row_lower.assign(m, -1.0);
+    x.row_upper.assign(m, 1.0);
+    x.col_start.assign(n + 1, 0);
+    return x;
+  };
+  for (auto [m, n] : {std::pair{0, 0}, std::pair{2, 0}, std::pair{0, 2}, std::pair{2, 2}}) {
+    const Model x = shape(m, n);
+    for (Algorithm a : {Algorithm::Simplex, Algorithm::Oracle, Algorithm::R2hpdhg, Algorithm::Auto}) {
+      for (bool presolve : {false, true}) {
+        Options o;
+        o.algorithm = a;
+        o.presolve = presolve;
+        const Solution s = solve(x, o);
+        EXPECT_EQ(s.status, Status::Optimal) << m << "x" << n << " " << to_string(a) << " presolve=" << presolve
+                                             << ": " << s.message;
+        EXPECT_NEAR(s.objective, 0.0, 1e-12);
+      }
+    }
+  }
+  Model bad = shape(1, 0);  // an empty row that cannot be satisfied
+  bad.row_lower[0] = 1;
+  bad.row_upper[0] = 2;
+  for (Algorithm a : {Algorithm::Simplex, Algorithm::Oracle, Algorithm::R2hpdhg}) {
+    Options o;
+    o.algorithm = a;
+    EXPECT_EQ(solve(bad, o).status, Status::Infeasible) << to_string(a);
+  }
+}
