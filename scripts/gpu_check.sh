@@ -62,7 +62,7 @@ else
 fi
 
 echo "=== bench: small Netlib (CPU and GPU, fp64 + mixed, verified)"
-$PY bench/netlib_small.py --bin "$BUILD/ps26119" --engines oracle,pdlp,r2hpdhg | tail -2
+$PY bench/netlib_small.py --bin "$BUILD/ps26119" --engines oracle,simplex,pdlp,r2hpdhg | tail -2
 $PY bench/netlib_small.py --bin "$BUILD/ps26119" --engines pdlp,r2hpdhg --gpu | tail -2
 
 if [ -z "${QUICK:-}" ] && [ -f bench/scale.py ]; then
