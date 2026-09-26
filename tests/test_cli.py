@@ -135,6 +135,49 @@ class Cli(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("LU-BENCH PASS", out)
 
+    def test_certificates_verified_independently_and_tampering_detected(self):
+        verify = os.path.join(ROOT, "tools", "verify.py")
+        def ver(model, sol):
+            return subprocess.run([sys.executable, verify, model, sol], capture_output=True, text=True)
+        for name in ("infeasible", "unbounded"):
+            mps = os.path.join(DATA, "examples", name + ".mps")
+            for alg in ("simplex", "r2hpdhg"):
+                sol = os.path.join(self.tmp, f"{name}-{alg}.sol")
+                code, out = run("solve", mps, "--algorithm", alg, "--out", sol)
+                self.assertEqual(code, 1, out)  # Infeasible / Unbounded exit code
+                self.assertIn("check      PASS", out)
+                v = ver(mps, sol)
+                self.assertEqual(v.returncode, 0, v.stdout + v.stderr)
+                self.assertIn("certificate", v.stdout)
+                # tamper: flip the sign of every certificate entry -> the verifier must reject it
+                lines = open(sol).read().splitlines()
+                out_lines, in_ray = [], False
+                for ln in lines:
+                    if ln.startswith(("DUAL_RAY", "PRIMAL_RAY")):
+                        in_ray = True
+                    elif in_ray and ln == "END":
+                        in_ray = False
+                    elif in_ray:
+                        k, val = ln.split()
+                        ln = f"{k} {-float(val)!r}"
+                    out_lines.append(ln)
+                bad = os.path.join(self.tmp, f"{name}-{alg}-bad.sol")
+                open(bad, "w").write("\n".join(out_lines) + "\n")
+                self.assertEqual(ver(mps, bad).returncode, 1, f"tampered {name}/{alg} certificate accepted")
+                # and a claim without any certificate is not accepted either
+                bare = os.path.join(self.tmp, f"{name}-{alg}-bare.sol")
+                keep, skip = [], False
+                for ln in lines:
+                    if ln.startswith(("DUAL_RAY", "PRIMAL_RAY")):
+                        skip = True
+                        continue
+                    if skip and ln == "END":
+                        skip = False
+                    if not skip:
+                        keep.append(ln)
+                open(bare, "w").write("\n".join(keep) + "\n")
+                self.assertEqual(ver(mps, bare).returncode, 1)
+
     def test_batch_two_scenarios(self):
         lp = os.path.join(DATA, "netlib_small", "afiro.lpm")
         code, out = run("batch", lp, lp, lp, "--out-dir", self.tmp)

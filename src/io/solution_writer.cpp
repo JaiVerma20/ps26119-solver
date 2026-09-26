@@ -52,6 +52,14 @@ bool write_solution(const std::string& path, const Model& m, const Solution& s, 
       std::fprintf(f, "%d %.17g %.17g %s\n", i, act[i], have_dual ? s.y[i] : 0.0, name);
     }
   }
+  // Certificates of Infeasible / Unbounded (core/certificates.h): "<index> <value>" lines.
+  auto ray = [&](const char* key, const std::vector<double>& v) {
+    if (v.empty()) return;
+    std::fprintf(f, "%s %zu\n", key, v.size());
+    for (std::size_t k = 0; k < v.size(); ++k) std::fprintf(f, "%zu %.17g\n", k, v[k]);
+  };
+  ray("DUAL_RAY", s.dual_ray);
+  ray("PRIMAL_RAY", s.primal_ray);
   std::fprintf(f, "END\n");
   const bool ok = std::fclose(f) == 0;
   if (!ok) error = "write failed for " + path;

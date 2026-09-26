@@ -54,6 +54,20 @@ bool read_solution(const std::string& path, Solution& sol, std::string& error) {
       sol.primal_weight = std::strtod(rest.c_str(), nullptr);
     } else if (key == "engine") {
       sol.engine = rest;
+    } else if (key == "DUAL_RAY" || key == "PRIMAL_RAY") {
+      std::vector<double>& v = key == "DUAL_RAY" ? sol.dual_ray : sol.primal_ray;
+      const int count = std::atoi(rest.c_str());
+      v.assign(count, 0.0);
+      for (int k = 0; k < count; ++k) {
+        std::istringstream rl;
+        int idx = -1;
+        std::string val;
+        if (!std::getline(in, line) || !(rl.str(line), rl >> idx >> val) || idx != k) {
+          error = "malformed " + key + " block";
+          return false;
+        }
+        v[k] = std::strtod(val.c_str(), nullptr);
+      }
     } else if (key == "COLUMNS" || key == "ROWS") {
       const int count = std::atoi(rest.c_str());
       const bool ok = key == "COLUMNS" ? read_block(count, sol.x, sol.z) : read_block(count, sol.row_activity, sol.y);

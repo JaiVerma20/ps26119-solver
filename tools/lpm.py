@@ -282,6 +282,8 @@ class PySolution:
     y: list = field(default_factory=list)
     col_names: list = field(default_factory=list)
     row_names: list = field(default_factory=list)
+    dual_ray: list = field(default_factory=list)    # Infeasible: Farkas row multipliers
+    primal_ray: list = field(default_factory=list)  # Unbounded: recession direction
 
 
 def read_solution(path: str) -> PySolution:
@@ -293,6 +295,7 @@ def read_solution(path: str) -> PySolution:
         <index> <x> <z> <name>
         ROWS <m>
         <index> <activity> <y> <name>
+        DUAL_RAY <m> / PRIMAL_RAY <n>   (optional certificates: <index> <value> lines)
         END
     """
     s = PySolution()
@@ -309,6 +312,20 @@ def read_solution(path: str) -> PySolution:
         key = parts[0]
         if key == "END":
             break
+        if key in ("DUAL_RAY", "PRIMAL_RAY"):
+            count = int(parts[1])
+            vals = []
+            for k in range(count):
+                idx, v = lines[i].split()[:2]
+                i += 1
+                if int(idx) != k:
+                    raise ValueError(f"malformed {key} block")
+                vals.append(float(v))
+            if key == "DUAL_RAY":
+                s.dual_ray = vals
+            else:
+                s.primal_ray = vals
+            continue
         if key in ("COLUMNS", "ROWS"):
             count = int(parts[1])
             for _ in range(count):
