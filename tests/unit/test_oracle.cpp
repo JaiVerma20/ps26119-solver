@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <random>
+#include <cmath>
 
 #include "io/lpm_reader.h"
 #include "kkt_check.h"

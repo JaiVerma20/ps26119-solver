@@ -4,6 +4,8 @@
 #include "model_builder.h"
 #include "ps26119/solve.h"
 #include "ps26119/version.h"
+#include <cmath>
+#include <limits>
 
 using namespace ps26119;
 using ps26119::test::make_model;

@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <limits>
+#include <algorithm>
 
 #include "la/csr.h"
 

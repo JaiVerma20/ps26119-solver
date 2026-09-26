@@ -14,6 +14,7 @@
 #include <cmath>
 #include <random>
 #include <string>
+#include <cstdio>
 
 #include "oracle/dense_tableau.h"
 #include "ps26119/solve.h"

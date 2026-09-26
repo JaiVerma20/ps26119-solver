@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <algorithm>
 
 #include "io/lpm_reader.h"
 #include "kkt_check.h"

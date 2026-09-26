@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <random>
 #include <string>
+#include <cmath>
 
 #include "la/sparse_lu.h"
 #include "io/mps_parser.h"

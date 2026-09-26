@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <random>
+#include <algorithm>
 
 #include "mip/branch_and_bound.h"
 #include "model_builder.h"

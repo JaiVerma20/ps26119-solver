@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <random>
 #include <string>
+#include <cmath>
 
 #include "oracle/dense_tableau.h"
 #include "io/mps_parser.h"

@@ -5,6 +5,8 @@
 #include <gtest/gtest.h>
 
 #include <string>
+#include <cmath>
+#include <cstdio>
 
 #include "oracle/dense_tableau.h"
 #include "io/mps_parser.h"

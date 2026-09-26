@@ -13,6 +13,7 @@
 
 #include <random>
 #include <string>
+#include <cstdio>
 
 #include "oracle/dense_tableau.h"
 #include "core/solution_checker.h"

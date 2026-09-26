@@ -16,6 +16,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <algorithm>
 
 #include "io/lpm_reader.h"
 #include "io/mps_reader.h"
