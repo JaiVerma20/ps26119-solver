@@ -50,7 +50,7 @@ DiffStats differential(int trials, unsigned seed, int max_rows, int max_cols, do
   std::mt19937 rng(seed);
   DiffStats s;
   for (int t = 0; t < trials; ++t) {
-    const auto r = ps26119::testing::random_lp(rng, max_rows, max_cols, density);
+    const auto r = ps26119::randlp::random_lp(rng, max_rows, max_cols, density);
     const Solution ref = solve_dense_tableau(r.lp);
     const Solution got = solve_primal_simplex(r.lp, opt);
     bool ok = got.status == ref.status;

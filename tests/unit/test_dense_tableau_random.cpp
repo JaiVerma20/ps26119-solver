@@ -21,8 +21,8 @@
 using namespace ps26119;
 using namespace ps26119::oracle;
 
-using ps26119::testing::random_lp;
-using ps26119::testing::RandomLp;
+using ps26119::randlp::random_lp;
+using ps26119::randlp::RandomLp;
 
 TEST(DenseTableauRandom, random_lps_are_certified) {
   constexpr int kTrials = 5000;

@@ -12,7 +12,7 @@
 
 #include "la/csc.h"
 
-namespace ps26119::testing {
+namespace ps26119::randlp {
 
 using la::build_csc;
 using la::Triplet;
@@ -92,4 +92,4 @@ inline RandomLp random_lp(std::mt19937& rng, int max_rows = 8, int max_cols = 10
   return out;
 }
 
-}  // namespace ps26119::testing
+}  // namespace ps26119::randlp

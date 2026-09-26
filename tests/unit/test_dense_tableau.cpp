@@ -48,7 +48,7 @@ Model make_lp(int m, int n, const std::vector<double>& dense_rowmajor) {
       if (v != 0.0) t.push_back({i, j, v});
     }
   }
-  ps26119::testing::set_matrix(lp, build_csc(m, n, t));
+  ps26119::randlp::set_matrix(lp, build_csc(m, n, t));
   lp.obj.assign(n, 0.0);
   lp.col_lower.assign(n, 0.0);
   lp.col_upper.assign(n, kInf);

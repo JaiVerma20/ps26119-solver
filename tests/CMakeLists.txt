@@ -19,6 +19,7 @@ set(PS26119_TEST_SOURCES
   unit/test_sparse_lu.cpp
   unit/test_simplex.cpp
   unit/test_integration.cpp
+  unit/test_differential.cpp
 )
 
 if(PS26119_ENABLE_CUDA)
