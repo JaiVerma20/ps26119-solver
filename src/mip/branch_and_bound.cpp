@@ -10,8 +10,10 @@
 #include <string>
 #include <vector>
 
+#include "core/safe_bound.h"
 #include "oracle/dense_simplex.h"
 #include "ps26119/tolerances.h"
+#include "simplex/primal_simplex.h"
 
 namespace ps26119::mip {
 namespace {
@@ -41,15 +43,17 @@ Solution solve_branch_and_bound(const Model& M, const BranchAndBoundOptions& opt
   const auto t0 = std::chrono::steady_clock::now();
   auto elapsed = [&] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(); };
   Solution best;
-  best.engine = "branch-and-bound(oracle)";
-  best.precision = "dd";
+  const bool use_oracle = opt.node_solver == NodeSolver::Oracle;
+  best.engine = use_oracle ? "branch-and-bound(oracle)" : "branch-and-bound(simplex)";
+  best.precision = use_oracle ? "dd" : "fp64";
   const double sense = M.sense;
   std::vector<int> ints;
   for (int j = 0; j < M.num_cols; ++j)
     if (j < static_cast<int>(M.is_integer.size()) && M.is_integer[j]) ints.push_back(j);
 
   const std::int64_t tableau = static_cast<std::int64_t>(M.num_rows) * (M.num_cols + 2 * M.num_rows);
-  if (tableau > opt.max_tableau_entries) {
+  const bool oracle_fits = tableau <= opt.max_tableau_entries;
+  if (use_oracle && !oracle_fits) {
     best.status = Status::NotSolved;
     best.message = "MILP too large for the prototype branch-and-bound (dense oracle node solver; " +
                    std::to_string(M.num_rows) + " rows)";
@@ -58,7 +62,7 @@ Solution solve_branch_and_bound(const Model& M, const BranchAndBoundOptions& opt
 
   double incumbent = std::numeric_limits<double>::infinity();  // min form, without offset
   std::vector<double> inc_x;
-  std::int64_t nodes = 0, lp_iterations = 0;
+  std::int64_t nodes = 0, lp_iterations = 0, uncertified_prunes = 0, oracle_fallbacks = 0;
   double best_bound = -std::numeric_limits<double>::infinity();
 
   auto node_model = [&](const Node& nd) {
@@ -126,9 +130,27 @@ Solution solve_branch_and_bound(const Model& M, const BranchAndBoundOptions& opt
     for (std::size_t t = 0; t < ints.size(); ++t) empty_box = empty_box || nd.lo[t] > nd.up[t];
     if (empty_box) continue;
     ++nodes;
-    lpo.time_limit = std::max(1.0, opt.time_limit - elapsed());
-    const Solution lp = oracle::solve_dense_simplex(node_model(nd), lpo);
+    const Model nm = node_model(nd);
+    Solution lp;
+    if (!use_oracle) {
+      simplex::SimplexOptions so;
+      so.time_limit_seconds = std::max(1.0, opt.time_limit - elapsed());
+      lp = simplex::solve_primal_simplex(nm, so);
+      if (lp.status == Status::NumericalError && oracle_fits) {  // rare: retry exactly
+        ++oracle_fallbacks;
+        lp_iterations += lp.iterations;
+        lpo.time_limit = std::max(1.0, opt.time_limit - elapsed());
+        lp = oracle::solve_dense_simplex(nm, lpo);
+      }
+    } else {
+      lpo.time_limit = std::max(1.0, opt.time_limit - elapsed());
+      lp = oracle::solve_dense_simplex(nm, lpo);
+    }
     lp_iterations += lp.iterations;
+    if (lp.status == Status::TimeLimit) {
+      limit = Status::TimeLimit;
+      break;
+    }
     if (lp.status == Status::Infeasible) continue;
     if (lp.status != Status::Optimal) {  // unbounded relaxation or numerical trouble
       if (lp.status == Status::Unbounded && !std::isfinite(incumbent)) {
@@ -142,8 +164,21 @@ Solution solve_branch_and_bound(const Model& M, const BranchAndBoundOptions& opt
       best.message = "node LP failed: " + lp.message;
       return best;
     }
-    const double bound = sense * (lp.objective - M.obj_offset);
-    if (std::isfinite(incumbent) && gap_closed(bound)) continue;
+    // Node bound for pruning (min form, no offset). The LP objective of an fp64 engine can
+    // exceed the true node optimum by rounding; the certified bound from its duals cannot.
+    double bound = sense * (lp.objective - M.obj_offset);
+    bool certified = use_oracle;  // the dd oracle's objective is exact to far below the gap tolerance
+    if (!use_oracle) {
+      const SafeBound sb = certified_dual_bound(nm, lp.y);
+      if (sb.finite) {
+        bound = std::min(bound, sense * (sb.bound - M.obj_offset));
+        certified = true;
+      }
+    }
+    if (std::isfinite(incumbent) && gap_closed(bound)) {
+      if (!certified) ++uncertified_prunes;
+      continue;
+    }
     // most fractional integer column
     int branch = -1;
     double best_frac = tol::kMipIntegrality;
@@ -176,6 +211,9 @@ Solution solve_branch_and_bound(const Model& M, const BranchAndBoundOptions& opt
   best.iterations = nodes;
   best.seconds = elapsed();
   best.message = std::to_string(nodes) + " nodes, " + std::to_string(lp_iterations) + " simplex iterations";
+  if (uncertified_prunes > 0)
+    best.message += ", " + std::to_string(uncertified_prunes) + " prunes by an uncertified LP bound";
+  if (oracle_fallbacks > 0) best.message += ", " + std::to_string(oracle_fallbacks) + " node LPs re-solved by the oracle";
   if (!std::isfinite(incumbent)) {
     best.status = limit == Status::Optimal ? Status::Infeasible : limit;
     return best;

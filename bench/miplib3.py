@@ -41,7 +41,7 @@ def main():
         for mdl in models:
             name = mdl["name"]
             sol = os.path.join(tmp, name + ".sol")
-            subprocess.run([a.bin, "solve", os.path.join(DATA, name + ".lpm"), "--time-limit", str(a.time_limit),
+            subprocess.run([a.bin, "solve", os.path.join(DATA, name + ".mps"), "--time-limit", str(a.time_limit),
                             "--out", sol], capture_output=True, text=True)
             r = {**info, "instance": name, "rows": mdl["rows"], "cols": mdl["cols"], "integers": mdl["integers"],
                  "highs_objective": mdl["highs_objective"]}

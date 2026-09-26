@@ -126,3 +126,17 @@ Newest last. Each entry: what, why, evidence, how to undo.
     `validate()` still rejects NaN, `lower = +inf`, `upper = −inf` and every structural
     error. Tests that used crossed bounds as their "invalid model" example now use a
     genuinely invalid one, and additionally assert Infeasible for crossed bounds.
+28. **MILP node LPs by the sparse simplex, pruned by certified bounds.** The branch-and-bound
+    node solver was the dense double-double oracle (exact, O(m(n+m)) per pivot, refused
+    beyond 2M tableau entries). It is now the teammate's sparse primal simplex (cold start
+    per node), with the oracle selectable (`--set mip_node_solver=1`) and used as the
+    fallback if a node LP fails. Because an fp64 LP objective can exceed the true node
+    optimum by rounding, nodes are pruned by the Neumaier–Shcherbina certified bound from
+    the node duals (`core/safe_bound`); the plain LP value is used only when that bound is
+    infinite, and such prunes are counted in the message. *Evidence (small MIPLIB 3, 60 s,
+    M4, evaluation run at the integration branch):* optimal within the limit 10/14 (simplex)
+    vs 8/14 (oracle); misc03 0.6 s vs > 60 s, p0201 3.5 s vs > 60 s, stein27 1.7 s vs 16.6 s;
+    the two tiniest models are slightly faster with the oracle. All answers agree;
+    `Mip.SimplexAndOracleNodeSolversAgree` compares both on 60 random MIPs. Still missing
+    for real MIP performance: warm-started nodes (basis I/O or dual simplex), cuts,
+    primal heuristics (bell3a/bell5 find no incumbent in 60 s).

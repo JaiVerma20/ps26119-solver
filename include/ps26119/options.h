@@ -66,7 +66,8 @@ struct Options {
   // ruiz_iterations, pock_chambolle).
   // Simplex engine knobs (src/simplex/primal_simplex.h): simplex_pricing (0 Dantzig,
   // 1 Devex), simplex_scale (0/1), simplex_perturb (0/1), simplex_primal_tolerance,
-  // simplex_dual_tolerance.
+  // simplex_dual_tolerance. MILP (branch-and-bound): mip_node_solver (0 sparse simplex,
+  // default; 1 dense double-double oracle).
   // An unknown name makes solve() return NotSolved.
   std::vector<std::pair<std::string, double>> engine_params;
 };

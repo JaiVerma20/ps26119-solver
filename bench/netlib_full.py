@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """netlib_full.py — the whole Netlib LP set (93 models, data/netlib/, fetched by
-tools/fetch_netlib.py) through a first-order engine, every solution checked by
+tools/fetch_netlib.py) through one engine (simplex, r2hpdhg, pdlp, ...), read by our own MPS
+reader (--input mps, the default since the integration; --input lpm reproduces older runs
+that used the highspy-converted files — the models are bit-identical), every solution checked by
 tools/verify.py (independent highspy reader) and compared with the published optimum
 (Netlib readme, MINOS 5.3) and with HiGHS.
 
-usage: bench/netlib_full.py [--bin build/ps26119] [--engine r2hpdhg] [--precision fp64]
+usage: bench/netlib_full.py [--bin build/ps26119] [--engine r2hpdhg|simplex] [--precision fp64] [--input mps]
                             [--time-limit 60] [--gpu] [--only afiro,kb2]
 Writes bench/results/netlib-full-<engine>-<precision>[-gpu]-<machine>-<githash>.csv.
 
 Reading the result honestly:
-  * "solved" = engine status Optimal (relative KKT 1e-8 AND verifier-grade per-row checks),
-    and tools/verify.py PASS;
+  * "solved" = engine status Optimal (first-order: relative KKT 1e-8 AND verifier-grade
+    per-row checks; every engine: the in-process gate, column `check`), and tools/verify.py
+    PASS (independent reader);
   * "matches reference" = |obj − ref| / (1 + |ref|) ≤ 1e-6, ref = HiGHS optimum (the Netlib
     table has known outliers, see data/netlib_small/README.netlib.txt);
   * TimeLimit / IterationLimit rows are reported, not dropped. First-order methods are known
@@ -34,7 +37,7 @@ from machine_info import machine_info  # noqa: E402
 DATA = os.path.join(ROOT, "data", "netlib")
 FIELDS = ["git_hash", "machine", "cpu", "gpu", "driver", "cuda", "date", "settings", "instance", "rows", "cols", "nnz", "engine",
           "backend", "precision", "tolerance", "time_limit", "status", "iterations", "seconds", "seconds_to_1e-4",
-          "objective", "published_optimum", "highs_objective", "rel_err_highs", "rel_err_published", "verify",
+          "objective", "published_optimum", "highs_objective", "rel_err_highs", "rel_err_published", "check", "verify",
           "verify_primal_rel", "verify_dual_rel", "verify_gap_rel", "certified_bound", "certified_gap", "message"]
 
 
@@ -57,6 +60,7 @@ def main():
     ap.add_argument("--presolve", action="store_true", help="(default since 01f2eec) pass --presolve")
     ap.add_argument("--no-presolve", action="store_true")
     ap.add_argument("--tag", default="", help="suffix for the CSV name, e.g. gm12")
+    ap.add_argument("--input", choices=["mps", "lpm"], default="mps", help="model file read by the solver")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
     optima = os.path.join(DATA, "optima.csv")
@@ -73,7 +77,7 @@ def main():
         for mdl in models:
             name = mdl["name"]
             sol = os.path.join(tmp, name + ".sol")
-            cmd = [a.bin, "solve", os.path.join(DATA, name + ".lpm"), "--algorithm", a.engine, "--precision",
+            cmd = [a.bin, "solve", os.path.join(DATA, name + "." + a.input), "--algorithm", a.engine, "--precision",
                    a.precision, "--tol", "1e-8", "--time-limit", str(a.time_limit), "--out", sol]
             if a.gpu:
                 cmd.append("--gpu")
@@ -85,7 +89,7 @@ def main():
                 cmd.append("--no-presolve")
             subprocess.run(cmd, capture_output=True, text=True)
             r = {"settings": " ".join(a.set + (["presolve"] if a.presolve else []) +
-                                      (["no-presolve"] if a.no_presolve else [])), "instance": name, "rows": mdl["rows"], "cols": mdl["cols"], "nnz": mdl["nnz"], "engine": a.engine,
+                                      (["no-presolve"] if a.no_presolve else []) + [f"input={a.input}"]), "instance": name, "rows": mdl["rows"], "cols": mdl["cols"], "nnz": mdl["nnz"], "engine": a.engine,
                  "backend": "gpu" if a.gpu else "cpu", "precision": a.precision, "tolerance": "1e-8",
                  "time_limit": a.time_limit, "published_optimum": mdl["published_optimum"],
                  "highs_objective": mdl["highs_objective"]}
@@ -94,7 +98,8 @@ def main():
             else:
                 h = read_solution(sol).header
                 r.update(status=h.get("status"), iterations=h.get("iterations"), seconds=h.get("seconds"),
-                         objective=h.get("objective"), message=h.get("message", ""))
+                         objective=h.get("objective"), message=h.get("message", ""),
+                         check=(h.get("check") or "").split(" ")[0])
                 r["seconds_to_1e-4"] = h.get("seconds_to_fast", "")
                 cb = h.get("certified_bound", "")
                 r["certified_bound"] = cb

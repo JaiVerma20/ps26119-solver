@@ -280,6 +280,15 @@ Solution solve_direct(const Model& model, const Options& options) {
       bo.time_limit = options.time_limit;
       bo.node_limit = options.iteration_limit;
       bo.verbosity = options.verbosity;
+      for (const auto& [name, v] : options.engine_params) {
+        if (name == "mip_node_solver") {
+          bo.node_solver = v != 0 ? mip::NodeSolver::Oracle : mip::NodeSolver::Simplex;
+        } else {
+          sol.status = Status::NotSolved;
+          sol.message = "unknown MILP engine parameter '" + name + "' (known: mip_node_solver)";
+          return sol;
+        }
+      }
       sol = mip::solve_branch_and_bound(model, bo);
       sol.model_fingerprint = model.fingerprint_hex();
       sol.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
