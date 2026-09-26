@@ -6,10 +6,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 CXX=${CXX:-clang++}
+# -include cstdlib: clang's cuda_wrappers/new (used for <new> in CUDA mode) needs ::malloc/::free
+# declared first; clang 18 on Ubuntu does not get them transitively.
 for f in src/gpu/*.cu; do
   for pass in --cuda-host-only --cuda-device-only; do
     "$CXX" -x cuda -std=c++17 -fsyntax-only -nocudainc -nocudalib $pass --cuda-gpu-arch=sm_80 \
-      -Itools/cuda_stub -Iinclude -Isrc -DPS26119_HAVE_CUDA=1 "$f"
+      -include cstdlib -Itools/cuda_stub -Iinclude -Isrc -DPS26119_HAVE_CUDA=1 "$f"
   done
   echo "ok: $f (host + device passes)"
 done
