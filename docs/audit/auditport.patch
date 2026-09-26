@@ -1,0 +1,38 @@
+diff --git a/src/io/mps_reader.cpp b/src/io/mps_reader.cpp
+index bcefa7f..ecb1974 100644
+--- a/src/io/mps_reader.cpp
++++ b/src/io/mps_reader.cpp
+@@ -26,6 +26,7 @@
+ #include <algorithm>
+ #include <cctype>
+ #include <charconv>
++#include <cstdlib>
+ #include <cmath>
+ #include <fstream>
+ #include <sstream>
+@@ -88,10 +89,21 @@ bool parse_number(std::string_view s, double& out) {
+     if (ch == 'd' || ch == 'D') ch = 'e';
+   }
+   if (buf.empty()) return false;
+-  const char* begin = buf.data();
+-  const char* end = begin + buf.size();
+-  auto [ptr, ec] = std::from_chars(begin, end, out);
+-  return ec == std::errc() && ptr == end;
++  // AUDIT PORT (Apple libc++ lacks floating from_chars): same accepted language as
++  // std::from_chars(general): [-]digits[.digits][e[+-]digits], inf, infinity, nan.
++  std::string low;
++  for (char ch : buf) low.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
++  std::string_view body(low);
++  const bool neg = !body.empty() && body[0] == '-';
++  if (neg) body.remove_prefix(1);
++  if (body == "inf" || body == "infinity") { out = neg ? -INFINITY : INFINITY; return true; }
++  if (body == "nan") { out = NAN; return true; }
++  if (body.empty()) return false;
++  for (char ch : body) if (!(std::isdigit(static_cast<unsigned char>(ch)) || ch == '.' || ch == 'e' || ch == '+' || ch == '-')) return false;
++  if (!(std::isdigit(static_cast<unsigned char>(body[0])) || body[0] == '.')) return false;
++  char* endp = nullptr;
++  out = std::strtod(buf.c_str(), &endp);
++  return endp == buf.c_str() + buf.size();
+ }
+ 
+ class Parser {
