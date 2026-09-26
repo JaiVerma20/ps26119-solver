@@ -33,16 +33,19 @@ Files used:
 - `bench/results/netlib-small-3318a86.csv` (committed 2026-09-24)
 - `bench/results/netlib-small-4f0fc82.csv` (committed 2026-09-25)
 - `bench/results/netlib-small-62a13f2.csv` (committed 2026-09-24)
+- `bench/results/netlib-small-82d376c.csv` (committed 2026-09-27)
 - `bench/results/netlib-small-8fd5170.csv` (committed 2026-09-25)
 - `bench/results/netlib-small-d824f82.csv` (committed 2026-09-26)
 - `bench/results/netlib-small-eb90bbf.csv` (committed 2026-09-26)
 - `bench/results/netlib-small-f10527c.csv` (committed 2026-09-25)
 - `bench/results/netlib-small-fc3f29c.csv` (committed 2026-09-26)
+- `bench/results/netlib-small-gpu-82d376c.csv` (committed 2026-09-27)
 - `bench/results/scale-macbook-air-m4-62a13f2.csv` (committed 2026-09-24)
 - `bench/results/scale-macbook-air-m4-8fd5170.csv` (committed 2026-09-25)
 - `bench/results/scale-macbook-air-m4-d824f82.csv` (committed 2026-09-26)
 - `bench/results/scale-macbook-air-m4-ea97521.csv` (committed 2026-09-25)
 - `bench/results/scale-macbook-air-m4-f10527c.csv` (committed 2026-09-25)
+- `bench/results/scale-rtx4050-laptop-82d376c.csv` (committed 2026-09-27)
 - `bench/results/scale-simplex-macbook-air-m4-d824f82.csv` (committed 2026-09-26)
 - `bench/results/warm-start-macbook-air-m4-8fd5170.csv` (committed 2026-09-25)
 - `bench/results/warm-start-macbook-air-m4-bd4e174.csv` (committed 2026-09-25)
@@ -51,22 +54,43 @@ Files used:
 
 ## 1. Correctness on small Netlib (oracle, PDLP-style PDHG, r²HPDHG; fp64 and mixed)
 
-Source: `bench/results/netlib-small-eb90bbf.csv` — machine `macbook-air-m4` (Apple M4), commit `eb90bbf`.
+Source: `bench/results/netlib-small-82d376c.csv` — machine `rtx4050-laptop` (Intel(R) Core(TM) 5 210H), commit `82d376c`.
 
 | instance | rows×cols | published optimum | oracle dd | simplex fp64 | pdlp fp64 | pdlp mixed | r2hpdhg fp64 | r2hpdhg mixed |
 |---|---|---|---|---|---|---|---|---|
-| afiro | 27×32 | -464.75314286 | -464.753142857 (PASS) | -464.753142857 (PASS, 23 it) | -464.753143836 (PASS, 512 it) | -464.75314366 (PASS, 512 it) | -464.753141878 (PASS, 448 it) | -464.753142804 (PASS, 512 it) |
-| sc50a | 50×48 | -64.575077059 | -64.5750770586 (PASS) | -64.5750770586 (PASS, 45 it) | -64.575077139 (PASS, 1664 it) | -64.5750772447 (PASS, 1856 it) | -64.5750775154 (PASS, 768 it) | -64.5750776003 (PASS, 832 it) |
-| sc50b | 50×48 | -70 | -70 (PASS) | -70 (PASS, 48 it) | -69.9999991375 (PASS, 1984 it) | -69.9999990393 (PASS, 1664 it) | -69.9999990368 (PASS, 1792 it) | -70.0000004428 (PASS, 1856 it) |
+| afiro | 27×32 | -464.75314286 | -464.753142857 (PASS) | -464.753142857 (PASS, 23 it) | -464.753143836 (PASS, 512 it) | -464.753143661 (PASS, 512 it) | -464.753141878 (PASS, 448 it) | -464.753142022 (PASS, 448 it) |
+| sc50a | 50×48 | -64.575077059 | -64.5750770586 (PASS) | -64.5750770586 (PASS, 45 it) | -64.575077139 (PASS, 1664 it) | -64.57507693 (PASS, 1536 it) | -64.5750775154 (PASS, 768 it) | -64.5750778726 (PASS, 832 it) |
+| sc50b | 50×48 | -70 | -70 (PASS) | -70 (PASS, 48 it) | -69.9999991375 (PASS, 1984 it) | -70.0000008465 (PASS, 1728 it) | -69.9999990368 (PASS, 1792 it) | -69.9999996684 (PASS, 1600 it) |
 | kb2 | 43×41 | -1749.9001299 | -1749.90012991 (PASS) | -1749.90012991 (PASS, 47 it) | -1749.90012991 (PASS, 39872 it) | -1749.90012991 (PASS, 46272 it) | -1749.90012991 (PASS, 21568 it) | -1749.90012991 (PASS, 21568 it) |
-| adlittle | 56×97 | 225494.96316 | 225494.963162 (PASS) | 225494.963162 (PASS, 105 it) | 225494.964192 (PASS, 3968 it) | 225494.964193 (PASS, 3968 it) | 225494.964997 (PASS, 2560 it) | 225494.964432 (PASS, 3584 it) |
-| blend | 74×83 | -30.812149846 | -30.8121498458 (PASS) | -30.8121498458 (PASS, 107 it) | -30.8121498833 (PASS, 4992 it) | -30.8121498294 (PASS, 4992 it) | -30.8121496993 (PASS, 1920 it) | -30.8121497656 (PASS, 2560 it) |
-| share2b | 96×79 | -415.73224074 | -415.732240741 (PASS) | -415.732240741 (PASS, 102 it) | -415.732245251 (PASS, 99904 it) | -415.732231603 (PASS, 102848 it) | -415.732233047 (PASS, 49344 it) | -415.732237459 (PASS, 65536 it) |
-| sc105 | 105×103 | -52.202061212 | -52.2020612117 (PASS) | -52.2020612117 (PASS, 102 it) | -52.2020604186 (PASS, 4608 it) | -52.2020606572 (PASS, 4992 it) | -52.2020611773 (PASS, 2304 it) | -52.2020607122 (PASS, 3456 it) |
-| stocfor1 | 117×111 | -41131.976219 | -41131.9762194 (PASS) | -41131.9762194 (PASS, 78 it) | -41131.9757971 (PASS, 12928 it) | -41131.9757367 (PASS, 10944 it) | -41131.976296 (PASS, 6016 it) | -41131.9767007 (PASS, 6912 it) |
-| recipe | 91×180 | -266.616 | -266.616 (PASS) | -266.616 (PASS, 49 it) | -266.616000003 (PASS, 1664 it) | -266.616000014 (PASS, 3776 it) | -266.616000004 (PASS, 1024 it) | -266.615999984 (PASS, 1536 it) |
+| adlittle | 56×97 | 225494.96316 | 225494.963162 (PASS) | 225494.963162 (PASS, 104 it) | 225494.964192 (PASS, 3968 it) | 225494.964193 (PASS, 3968 it) | 225494.964997 (PASS, 2560 it) | 225494.966558 (PASS, 3776 it) |
+| blend | 74×83 | -30.812149846 | -30.8121498458 (PASS) | -30.8121498458 (PASS, 107 it) | -30.8121498833 (PASS, 4992 it) | -30.8121496945 (PASS, 4928 it) | -30.8121496993 (PASS, 1920 it) | -30.8121500872 (PASS, 2496 it) |
+| share2b | 96×79 | -415.73224074 | -415.732240741 (PASS) | -415.732240741 (PASS, 109 it) | -415.732245251 (PASS, 99904 it) | -415.732231604 (PASS, 102848 it) | -415.732233047 (PASS, 49344 it) | -415.732237353 (PASS, 65536 it) |
+| sc105 | 105×103 | -52.202061212 | -52.2020612117 (PASS) | -52.2020612117 (PASS, 102 it) | -52.2020604186 (PASS, 4608 it) | -52.2020609019 (PASS, 4992 it) | -52.2020611773 (PASS, 2304 it) | -52.2020611087 (PASS, 2944 it) |
+| stocfor1 | 117×111 | -41131.976219 | -41131.9762194 (PASS) | -41131.9762194 (PASS, 78 it) | -41131.9757971 (PASS, 12928 it) | -41131.9757367 (PASS, 10944 it) | -41131.976296 (PASS, 6016 it) | -41131.9767001 (PASS, 6912 it) |
+| recipe | 91×180 | -266.616 | -266.616 (PASS) | -266.616 (PASS, 49 it) | -266.616000003 (PASS, 1664 it) | -266.616000065 (PASS, 2816 it) | -266.616000004 (PASS, 1024 it) | -266.616000001 (PASS, 1600 it) |
 
 **60 of 60 runs verified PASS** by `tools/verify.py` (independent reader, primal/dual/gap ≤ 1e-6 relative) and within 1e-6 of the published optimum. First-order runs target relative KKT 1e-8; the simplex returns a vertex.
+
+Iterations to 1e-8 (fp64): r²HPDHG needs fewer than PDLP-style PDHG on 10 of 10 instances; total 87744 vs 172096 iterations.
+
+### Same set on GPU
+
+Source: `bench/results/netlib-small-gpu-82d376c.csv` — machine `rtx4050-laptop` (Intel(R) Core(TM) 5 210H), commit `82d376c`.
+
+| instance | rows×cols | published optimum | pdlp fp64 | pdlp mixed | r2hpdhg fp64 | r2hpdhg mixed |
+|---|---|---|---|---|---|---|
+| afiro | 27×32 | -464.75314286 | -464.753143836 (PASS, 512 it) | -464.753143696 (PASS, 512 it) | -464.753141878 (PASS, 448 it) | -464.75314205 (PASS, 448 it) |
+| sc50a | 50×48 | -64.575077059 | -64.575077139 (PASS, 1664 it) | -64.575077254 (PASS, 1856 it) | -64.5750775154 (PASS, 768 it) | -64.5750778063 (PASS, 832 it) |
+| sc50b | 50×48 | -70 | -69.9999991375 (PASS, 1984 it) | -69.9999990091 (PASS, 1664 it) | -69.9999990368 (PASS, 1792 it) | -69.9999999766 (PASS, 2304 it) |
+| kb2 | 43×41 | -1749.9001299 | -1749.90012991 (PASS, 39872 it) | -1749.90012991 (PASS, 46272 it) | -1749.90012991 (PASS, 21568 it) | -1749.90012991 (PASS, 21568 it) |
+| adlittle | 56×97 | 225494.96316 | 225494.964192 (PASS, 3968 it) | 225494.964193 (PASS, 3968 it) | 225494.964997 (PASS, 2560 it) | 225494.961101 (PASS, 3264 it) |
+| blend | 74×83 | -30.812149846 | -30.8121498833 (PASS, 4992 it) | -30.8121502657 (PASS, 4992 it) | -30.8121496993 (PASS, 1920 it) | -30.8121501674 (PASS, 2368 it) |
+| share2b | 96×79 | -415.73224074 | -415.732245251 (PASS, 99904 it) | -415.732231603 (PASS, 102848 it) | -415.732233047 (PASS, 49344 it) | -415.7322374 (PASS, 65536 it) |
+| sc105 | 105×103 | -52.202061212 | -52.2020604186 (PASS, 4608 it) | -52.2020605643 (PASS, 4992 it) | -52.2020611773 (PASS, 2304 it) | -52.2020611008 (PASS, 3456 it) |
+| stocfor1 | 117×111 | -41131.976219 | -41131.9757971 (PASS, 12928 it) | -41131.9757367 (PASS, 10944 it) | -41131.976296 (PASS, 6016 it) | -41131.9767005 (PASS, 6912 it) |
+| recipe | 91×180 | -266.616 | -266.616000003 (PASS, 1664 it) | -266.615999957 (PASS, 2432 it) | -266.616000004 (PASS, 1024 it) | -266.616 (PASS, 1536 it) |
+
+**40 of 40 runs verified PASS** by `tools/verify.py` (independent reader, primal/dual/gap ≤ 1e-6 relative) and within 1e-6 of the published optimum. First-order runs target relative KKT 1e-8; the simplex returns a vertex.
 
 Iterations to 1e-8 (fp64): r²HPDHG needs fewer than PDLP-style PDHG on 10 of 10 instances; total 87744 vs 172096 iterations.
 
@@ -193,7 +217,60 @@ Source: `bench/results/scale-simplex-macbook-air-m4-d824f82.csv` — commit `d82
 
 ## 3. CPU vs GPU
 
-**Not measured yet.** The CUDA backend (`src/gpu/cuda_backend.cu`) compiles with nvcc and passes its correctness tests on an NVIDIA laptop GPU (docs/GPU_VERIFICATION.md, status log), but no committed CSV comes from a GPU machine, so this pack makes **no GPU speed claim**. To produce one: `PS26119_MACHINE=<name> scripts/gpu_check.sh` on the NVIDIA laptop / university server, then commit `bench/results/` and rerun this script.
+Source: `bench/results/scale-rtx4050-laptop-82d376c.csv` — GPU `NVIDIA GeForce RTX 4050 Laptop GPU` (driver 616.64, CUDA 13.3.73), CPU `Intel(R) Core(TM) 5 210H` (core count not recorded), machine `rtx4050-laptop`, commit `82d376c`. CPU and GPU rows come from the same run.
+
+| instance | engine | prec | GPU status | GPU s→1e-4 | GPU s→1e-8 | CPU 1 thr s→1e-8 | ratio vs 1 thr | best CPU s→1e-8 | ratio vs best 1e-4 | ratio vs best 1e-8 | not comparable because |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| rand-10000-s1 | r2hpdhg | fp64 | Optimal | 0.358 | 0.571 | 0.517 | 0.91× | 0.517 (1 thr) | 0.38× | 0.91× | – |
+| rand-10000-s1 | r2hpdhg | mixed | Optimal | 0.38 | 0.562 | 0.581 | 1.03× | 0.581 (1 thr) | 0.33× | 1.03× | – |
+| rand-100000-s1 | r2hpdhg | fp64 | Optimal | 0.738 | 2.83 | 12 | 4.25× | 12 (1 thr) | 2.54× | 4.25× | – |
+| rand-100000-s1 | r2hpdhg | mixed | Optimal | 0.909 | 3.77 | 11.7 | 3.12× | 11.7 (1 thr) | 1.76× | 3.12× | – |
+| rand-1000000-s1 | r2hpdhg | fp64 | Optimal | 11.2 | 113 | – | – | – | – | – | CPU 1 thr: TimeLimit; CPU best: no run |
+| rand-1000000-s1 | r2hpdhg | mixed | Optimal | 12.3 | 109 | – | – | – | – | – | CPU 1 thr: TimeLimit; CPU best: no run |
+| refinery-T12-s1 | r2hpdhg | fp64 | Optimal | 0.476 | 0.509 | 0.012 | 0.02× | 0.012 (1 thr) | 0.01× | 0.02× | – |
+| refinery-T12-s1 | r2hpdhg | mixed | Optimal | 0.337 | 0.432 | 0.0188 | 0.04× | 0.0188 (1 thr) | 0.01× | 0.04× | – |
+| refinery-T365-s1 | r2hpdhg | fp64 | Optimal | 0.493 | 0.802 | 0.801 | 1.00× | 0.801 (1 thr) | 0.48× | 1.00× | – |
+| refinery-T365-s1 | r2hpdhg | mixed | Optimal | 0.37 | 0.702 | 1.18 | 1.68× | 1.18 (1 thr) | 0.79× | 1.68× | – |
+| refinery-T8760-s1 | r2hpdhg | fp64 | Optimal | 3.31 | 9.58 | 29.4 | 3.07× | 29.4 (1 thr) | 2.65× | 3.07× | – |
+| refinery-T8760-s1 | r2hpdhg | mixed | Optimal | 3.32 | 9.26 | 24.4 | 2.64× | 24.4 (1 thr) | 1.98× | 2.64× | – |
+
+Ratio = CPU seconds / GPU seconds: < 1× means the GPU is slower (reported, not hidden). Only Optimal, verified runs are compared; the headline number is the ratio against the FASTEST CPU configuration, not against one core.
+
+**Caveat: this run has only 1-thread CPU rows** — the multi-core CPU baseline was NOT measured, so here "best CPU" is the single-thread run and every ratio above is against ONE core. These numbers must not be quoted as GPU-vs-CPU speed-ups without that qualifier.
+
+
+Small Netlib on the GPU (`bench/results/netlib-small-gpu-82d376c.csv`) is a correctness check only (§1, "Same set on GPU"): those models have ≤ 180 columns, so wall time is dominated by CUDA start-up and transfers and no speed comparison is made from it.
+
+Source: `bench/results/scale-rtx4050-laptop-82d376c.csv` — machine `rtx4050-laptop` (Intel(R) Core(TM) 5 210H; GPU: NVIDIA GeForce RTX 4050 Laptop GPU, driver 616.64, CUDA 13.3.73), commit `82d376c`.
+
+| instance | rows | nnz | engine | backend | threads | prec | status | iterations | s to 1e-4 | s to 1e-8 | ms/iter | rel. err vs known opt | verify |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| rand-10000-s1 | 10000 | 60024 | r2hpdhg | cpu | 1 | fp64 | Optimal | 1536 | 0.135 | 0.517 | 0.316 | 6.34e-10 | PASS |
+| rand-10000-s1 | 10000 | 60024 | r2hpdhg | cpu | 1 | mixed | Optimal | 1536 | 0.126 | 0.581 | 0.36 | 1.74e-10 | PASS |
+| rand-10000-s1 | 10000 | 60024 | r2hpdhg | gpu | 1 | fp64 | Optimal | 1536 | 0.358 | 0.571 | 0.162 | 6.34e-10 | PASS |
+| rand-10000-s1 | 10000 | 60024 | r2hpdhg | gpu | 1 | mixed | Optimal | 1536 | 0.38 | 0.562 | 0.135 | 1.78e-10 | PASS |
+| rand-100000-s1 | 100000 | 600228 | r2hpdhg | cpu | 1 | fp64 | Optimal | 2496 | 1.88 | 12 | 4.73 | 2.44e-10 | PASS |
+| rand-100000-s1 | 100000 | 600228 | r2hpdhg | cpu | 1 | mixed | Optimal | 2944 | 1.6 | 11.7 | 3.9 | 5.12e-11 | PASS |
+| rand-100000-s1 | 100000 | 600228 | r2hpdhg | gpu | 1 | fp64 | Optimal | 2496 | 0.738 | 2.83 | 0.899 | 2.44e-10 | PASS |
+| rand-100000-s1 | 100000 | 600228 | r2hpdhg | gpu | 1 | mixed | Optimal | 2944 | 0.909 | 3.77 | 1.01 | 5.09e-11 | PASS |
+| rand-1000000-s1 | 1000000 | 6002453 | r2hpdhg | cpu | 1 | fp64 | TimeLimit | 8576 | 42.7 | – | 72.1 | 1.27e-09 | skipped |
+| rand-1000000-s1 | 1000000 | 6002453 | r2hpdhg | cpu | 1 | mixed | TimeLimit | 9216 | 31.7 | – | 67.1 | 1.66e-09 | skipped |
+| rand-1000000-s1 | 1000000 | 6002453 | r2hpdhg | gpu | 1 | fp64 | Optimal | 17600 | 11.2 | 113 | 5.87 | 1.42e-11 | skipped |
+| rand-1000000-s1 | 1000000 | 6002453 | r2hpdhg | gpu | 1 | mixed | Optimal | 16576 | 12.3 | 109 | 5.89 | 1.22e-11 | skipped |
+| refinery-T12-s1 | 588 | 2065 | r2hpdhg | cpu | 1 | fp64 | Optimal | 1088 | 0.00424 | 0.012 | 0.0101 | 3.20e-11 | PASS |
+| refinery-T12-s1 | 588 | 2065 | r2hpdhg | cpu | 1 | mixed | Optimal | 2240 | 0.00432 | 0.0188 | 0.008 | 7.82e-10 | PASS |
+| refinery-T12-s1 | 588 | 2065 | r2hpdhg | gpu | 1 | fp64 | Optimal | 1088 | 0.476 | 0.509 | 0.0725 | 3.20e-11 | PASS |
+| refinery-T12-s1 | 588 | 2065 | r2hpdhg | gpu | 1 | mixed | Optimal | 2368 | 0.337 | 0.432 | 0.0548 | 3.03e-10 | PASS |
+| refinery-T365-s1 | 17885 | 63134 | r2hpdhg | cpu | 1 | fp64 | Optimal | 1984 | 0.238 | 0.801 | 0.366 | 8.21e-12 | PASS |
+| refinery-T365-s1 | 17885 | 63134 | r2hpdhg | cpu | 1 | mixed | Optimal | 2432 | 0.294 | 1.18 | 0.45 | 4.71e-11 | PASS |
+| refinery-T365-s1 | 17885 | 63134 | r2hpdhg | gpu | 1 | fp64 | Optimal | 1984 | 0.493 | 0.802 | 0.183 | 8.21e-12 | PASS |
+| refinery-T365-s1 | 17885 | 63134 | r2hpdhg | gpu | 1 | mixed | Optimal | 2240 | 0.37 | 0.702 | 0.17 | 8.53e-11 | PASS |
+| refinery-T8760-s1 | 429240 | 1515469 | r2hpdhg | cpu | 1 | fp64 | Optimal | 2880 | 8.78 | 29.4 | 9.41 | 1.49e-13 | PASS |
+| refinery-T8760-s1 | 429240 | 1515469 | r2hpdhg | cpu | 1 | mixed | Optimal | 2752 | 6.58 | 24.4 | 8.11 | 7.90e-13 | PASS |
+| refinery-T8760-s1 | 429240 | 1515469 | r2hpdhg | gpu | 1 | fp64 | Optimal | 2880 | 3.31 | 9.58 | 2.42 | 1.49e-13 | PASS |
+| refinery-T8760-s1 | 429240 | 1515469 | r2hpdhg | gpu | 1 | mixed | Optimal | 3136 | 3.32 | 9.26 | 2.04 | 6.20e-14 | PASS |
+
+![scaling chart](../bench/results/scale-rtx4050-laptop-82d376c.png)
 
 ## 4. Refinery planning year
 
@@ -206,6 +283,10 @@ Hourly year, T = 8760 periods: 429240 rows, 516840 columns, 1515469 nonzeros (ge
 | r2hpdhg | cpu | 1 | mixed | Optimal | 3136 | 4.6 | 19.6 | 1.20e-13 | PASS | `scale-macbook-air-m4-d824f82.csv` |
 | r2hpdhg | cpu | 10 | fp64 | Optimal | 2880 | 3.99 | 16.7 | 1.49e-13 | PASS | `scale-macbook-air-m4-d824f82.csv` |
 | r2hpdhg | cpu | 10 | mixed | Optimal | 3136 | 3.16 | 14.7 | 1.20e-13 | PASS | `scale-macbook-air-m4-d824f82.csv` |
+| r2hpdhg | cpu | 1 | fp64 | Optimal | 2880 | 8.78 | 29.4 | 1.49e-13 | PASS | `scale-rtx4050-laptop-82d376c.csv` |
+| r2hpdhg | cpu | 1 | mixed | Optimal | 2752 | 6.58 | 24.4 | 7.90e-13 | PASS | `scale-rtx4050-laptop-82d376c.csv` |
+| r2hpdhg | gpu | 1 | fp64 | Optimal | 2880 | 3.31 | 9.58 | 1.49e-13 | PASS | `scale-rtx4050-laptop-82d376c.csv` |
+| r2hpdhg | gpu | 1 | mixed | Optimal | 3136 | 3.32 | 9.26 | 6.20e-14 | PASS | `scale-rtx4050-laptop-82d376c.csv` |
 
 ## 4b. Warm-started re-solves (what-if scenarios on the refinery LP)
 
@@ -292,7 +373,7 @@ Source: `bench/results/miplib3-macbook-air-m4-eb90bbf.csv` — `macbook-air-m4`,
 
 ## 5. What we do NOT do yet (honest list)
 
-- **No GPU number is claimed** unless a GPU CSV appears in §3. The CUDA backend is compiled and correctness-tested on an NVIDIA laptop GPU (2026-09-27: GPU answers equal CPU answers on the small Netlib set), but no GPU benchmark CSV has been committed yet.
+- **GPU evidence is one consumer laptop GPU** (§3: NVIDIA GeForce RTX 4050 Laptop GPU). CPU baselines in that run are single-thread only (multi-core baseline not measured); on small models the GPU is slower than the CPU (ratios < 1× in §3); compute-sanitizer could not run under WSL2, so the kernels have NOT been memcheck/racecheck-clean verified; no data-centre GPU (A100/H100) result yet.
 - **No crossover** from a first-order solution to a vertex, and **no simplex warm start / dual simplex** yet (the integrated primal simplex starts from the slack basis every time). First-order solutions are accurate to the stated tolerance but are not vertices.
 - The primal simplex prices every column and uses product-form updates without hypersparsity: fast on Netlib-size models, slow beyond ~10⁴ rows (§2c); dfl001 is not solved by it within 60 s.
 - Presolve is basic (empty rows, fixed/empty columns, singleton rows) — no doubleton/dominated-column reductions.

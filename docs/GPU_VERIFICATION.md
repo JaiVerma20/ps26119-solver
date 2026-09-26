@@ -8,7 +8,8 @@ verified on NVIDIA hardware by the GPU machines.
 | Date | Machine | What ran | Result |
 |---|---|---|---|
 | 2026-09-27 | teammate's NVIDIA laptop, WSL2 Ubuntu (commit `82d376c`) | full `ctest` of a CUDA build | **A1–A3 pass** (nvcc build, link). 167/168 tests pass: **C1 pass** (`Gpu.EnginesMatchCpuOnSmallNetlib`: PDLP + r²HPDHG × fp64 + mixed × 10 Netlib LPs, all Optimal, equal to CPU within 1e-6, verifier-grade KKT), **B2 pass** (`Gpu.LongRowKernelMatchesCpu`), **B1/B3–B5 vectors pass** (fp64 1e-12, fp32 1e-4). `Gpu.BackendOpsMatchCpu` failed only on its mixed-precision KKT comparisons (≤ 1.6e-6 relative, compared at an fp64 tolerance of 1e-9) — a test bug, fixed by a precision-aware tolerance. |
-| pending | same | `scripts/gpu_check.sh` (compute-sanitizer, GPU CSVs: small Netlib, scaling, refinery) | needed before any GPU speed claim (D1–D6), plus C2–C4 |
+| 2026-09-27 | same (commit `82d376c`, PR #5) | full `scripts/gpu_check.sh` | GPU CSVs committed: small Netlib 40/40 verified (C3); scaling + refinery **D1–D4 measured against ONE CPU thread only** (`docs/EVIDENCE.md` §3); GPU loses below ~1e4 rows (D4). **compute-sanitizer did not run**: WSL2 cannot attach ("Failed to initialize WDDM debugger interface" / "Device not supported") — kernels NOT sanitizer-verified. D5, D6 open. |
+| pending | native Linux GPU (university server) | `scripts/gpu_check.sh` on the current `main` (1-thread + all-core CPU baseline) | compute-sanitizer memcheck/racecheck; multi-core baseline; data-centre fp64 (D5) |
 
 Command: `PS26119_MACHINE=<name> scripts/gpu_check.sh` (add `QUICK=1` for the first try).
 

@@ -20,7 +20,7 @@ The code merges two independently written codebases — Jai's ps26119 (first-ord
 GPU backend, MILP, evidence system) and Shivanshu Vats's gpuopt (MPS reader, sparse LU,
 simplex, checker) — with both histories preserved: `docs/FINAL_INTEGRATION_REPORT.md`.
 
-## Results (CPU, MacBook Air M4; every number from `docs/EVIDENCE.md`)
+## Results (CPU rows: MacBook Air M4; every number from `docs/EVIDENCE.md`)
 
 | Benchmark | Result | Source CSV |
 |---|---|---|
@@ -28,7 +28,7 @@ simplex, checker) — with both histories preserved: `docs/FINAL_INTEGRATION_REP
 | Netlib, simplex alone / r²HPDHG alone | 92/93 / 85/93 | `netlib-full-simplex-…-eb90bbf.csv`, `netlib-full-r2hpdhg-…-d824f82.csv` |
 | Small MIPLIB 3 (branch-and-bound, 300 s) | 10/14 proven optimal, verified, equal to HiGHS | `miplib3-macbook-air-m4-eb90bbf.csv` |
 | Refinery planning LP, hourly year (429k rows, 1.5M nnz), r²HPDHG to 1e-8 | 19.2 s (1 thread) / 14.7 s (10 threads, mixed); equal to the known optimum, verified | `scale-macbook-air-m4-d824f82.csv` |
-| GPU (CUDA backend) | compiled and correctness-tested on an NVIDIA laptop GPU: GPU answers equal CPU answers (10 Netlib LPs × 2 engines × fp64/mixed); **speed not measured yet** | test logs; GPU CSV pending |
+| GPU (CUDA backend), one RTX 4050 **Laptop** GPU, r²HPDHG to 1e-8 | 40/40 small-Netlib GPU solves verified; vs **one** CPU thread (Core 5 210H, WSL2): refinery hourly year 9.6 s vs 29.4 s (3.1×), 1e5-row random 2.8 s vs 12.0 s (4.3×); 1e6 rows: GPU Optimal in 113 s (known optimum matched to 1.4e-11; verify.py skipped at this size), 1-thread CPU hit the 600 s limit; **GPU slower on small models** (refinery T=12: 0.02×). Multi-core CPU baseline NOT measured; compute-sanitizer did not run (WSL2) | `scale-rtx4050-laptop-82d376c.csv`, `netlib-small-gpu-82d376c.csv` |
 
 Limitations: `docs/LIMITATIONS.md`.
 

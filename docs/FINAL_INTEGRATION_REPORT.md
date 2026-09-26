@@ -33,7 +33,8 @@ engines plus a MILP branch-and-bound. Both histories are preserved (the teammate
   compiled the CUDA backend with nvcc under WSL2 and ran the full suite on his NVIDIA laptop:
   167/168 pass, including `Gpu.EnginesMatchCpuOnSmallNetlib` (40 GPU solves equal to the CPU
   answers) and the long-row kernel test. The only failure was a test bug (fp64 tolerance applied
-  to fp32-derived statistics), fixed. No GPU benchmark CSV yet, so no GPU speed claim.
+  to fp32-derived statistics), fixed. GPU benchmark CSVs were committed later the same day
+  (PR #5, §22): speed is measured against ONE CPU thread only.
 
 ## 2. What my repository contained (before: tag `pre-teammate-integration` = `20033bf`)
 
@@ -191,7 +192,13 @@ benchmark and evidence columns).
 
 ## 22. GPU results
 
-None measured.
+Update 2026-09-27 (PR #5, RTX 4050 Laptop GPU, WSL2, commit `82d376c`; `docs/EVIDENCE.md` §3).
+All ratios are against ONE CPU thread of the same laptop (Core 5 210H); multi-core not measured.
+- Small Netlib: 40/40 GPU solves Optimal and verified; GPU slower (start-up dominated).
+- Scaling, r²HPDHG to 1e-8: 1e5-row random 4.25× (fp64) / 3.12× (mixed); hourly refinery year
+  3.07× / 2.64×; 1e6-row random: GPU Optimal in 113 s, CPU 1 thread hit the 600 s limit.
+- Small models: refinery T=12 0.02×, 1e4-row random 0.91–1.03× — the GPU does not help there.
+- compute-sanitizer could not run under WSL2; kernels not sanitizer-verified.
 
 ## 23. Known failures
 
