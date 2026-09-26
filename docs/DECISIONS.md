@@ -114,3 +114,44 @@ Newest last. Each entry: what, why, evidence, how to undo.
     bounds inward (conflict ⇒ Infeasible), and every MILP answer that went through presolve
     is re-verified on the ORIGINAL model (bounds, rows, integrality) before it may be called
     Optimal. Regression test: Mip.PresolveRoundsIntegerBoundsInward.
+
+## 2026-09-26 (integration of gpuopt)
+
+27. **Crossed bounds are valid, infeasible data** (Model contract §6, agreed by both code
+    bases). `Model::validate()` used to reject `lower > upper` as an invalid model
+    (NotSolved); the teammate's reader and engines treat it as a legal model that is
+    Infeasible — as HiGHS does, and as MPS files allow (`LO 3` / `UP 2`). The crossing is a
+    complete infeasibility certificate, so `solve()` now returns **Infeasible** (message
+    "bounds cross: …") before presolve or any engine runs; batch scenarios likewise.
+    `validate()` still rejects NaN, `lower = +inf`, `upper = −inf` and every structural
+    error. Tests that used crossed bounds as their "invalid model" example now use a
+    genuinely invalid one, and additionally assert Infeasible for crossed bounds.
+28. **MILP node LPs by the sparse simplex, pruned by certified bounds.** The branch-and-bound
+    node solver was the dense double-double oracle (exact, O(m(n+m)) per pivot, refused
+    beyond 2M tableau entries). It is now the teammate's sparse primal simplex (cold start
+    per node), with the oracle selectable (`--set mip_node_solver=1`) and used as the
+    fallback if a node LP fails. Because an fp64 LP objective can exceed the true node
+    optimum by rounding, nodes are pruned by the Neumaier–Shcherbina certified bound from
+    the node duals (`core/safe_bound`); the plain LP value is used only when that bound is
+    infinite, and such prunes are counted in the message. *Evidence (small MIPLIB 3, 60 s,
+    M4, evaluation run at the integration branch):* optimal within the limit 10/14 (simplex)
+    vs 8/14 (oracle); misc03 0.6 s vs > 60 s, p0201 3.5 s vs > 60 s, stein27 1.7 s vs 16.6 s;
+    the two tiniest models are slightly faster with the oracle. All answers agree;
+    `Mip.SimplexAndOracleNodeSolversAgree` compares both on 60 random MIPs. Still missing
+    for real MIP performance: warm-started nodes (basis I/O or dual simplex), cuts,
+    primal heuristics (bell3a/bell5 find no incumbent in 60 s).
+29. **`Auto` = simplex for small models, r²HPDHG for large ones.** Measured at the integration
+    branch (M4, 1 thread): full Netlib — simplex 92/93 solved and verified, r²HPDHG 85/93
+    (60 s); refinery T=365 (17.9k rows) — simplex 12.5 s vs r²HPDHG 0.34 s; rand-10000 —
+    simplex 278 s vs 0.20 s. Simplex work grows like rows·nnz (full pricing + Devex row every
+    iteration), so Auto picks the simplex when rows·nnz ≤ 2·10⁸ (`kAutoSimplexWork`) and
+    r²HPDHG otherwise; a warm start or a first-order knob always selects r²HPDHG (the simplex
+    has no warm start yet). The chosen engine is stated in the message ("auto: simplex
+    (rows*nnz = …)"). The threshold is a tuned constant (Netlib + generated models) — an
+    explicit `--algorithm` always overrides it. An explicitly chosen simplex reports "warm
+    start ignored" instead of silently dropping it.
+30. **Simplex defaults kept: geometric scaling + Devex pricing** (teammate's choices, now
+    measured on the full set). Full Netlib, 60 s, at `fc3f29c`: default 92/93 solved and
+    verified (68.6 s total for the solved ones); no scaling 91/93 (`cycle` lost; pilot87 passes
+    every check but is 1.1e-6 from HiGHS); Dantzig pricing 90/93. PDHG scaling decisions are
+    separate (#17). CSVs: `netlib-full-simplex-fp64[-noscale|-dantzig]-macbook-air-m4-fc3f29c.csv`.

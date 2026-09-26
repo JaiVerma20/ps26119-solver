@@ -65,7 +65,7 @@ class Cli(unittest.TestCase):
     def test_infeasible_exit_1(self):
         p = os.path.join(self.tmp, "inf.lpm")
         open(p, "w").write(INFEASIBLE)
-        for alg in ("oracle", "r2hpdhg"):
+        for alg in ("oracle", "r2hpdhg", "simplex"):
             code, out = run("solve", p, "--algorithm", alg)
             self.assertEqual(code, 1, out)
             self.assertIn("Infeasible", out)
@@ -91,10 +91,49 @@ class Cli(unittest.TestCase):
     def test_warm_start_from_own_solution(self):
         lp = os.path.join(DATA, "netlib_small", "stocfor1.lpm")
         sol = os.path.join(self.tmp, "s.sol")
-        self.assertEqual(run("solve", lp, "--out", sol)[0], 0)
-        code, out = run("solve", lp, "--warm", sol)
+        self.assertEqual(run("solve", lp, "--algorithm", "r2hpdhg", "--out", sol)[0], 0)
+        code, out = run("solve", lp, "--warm", sol)  # auto honours a warm start: r2hpdhg
         self.assertEqual(code, 0, out)
         self.assertIn("warm start", out)
+        self.assertIn("engine     r2hpdhg", out)
+        code, out = run("solve", lp, "--algorithm", "simplex", "--warm", sol)
+        self.assertEqual(code, 0, out)
+        self.assertIn("warm start ignored", out)
+
+    def test_mps_input_every_engine_and_check_line(self):
+        mps = os.path.join(DATA, "netlib_small", "afiro.mps")
+        for alg in ("simplex", "r2hpdhg", "oracle"):
+            sol = os.path.join(self.tmp, alg + ".sol")
+            code, out = run("solve", mps, "--algorithm", alg, "--out", sol)
+            self.assertEqual(code, 0, out)
+            self.assertIn("check      PASS", out)
+            self.assertIn("check PASS", open(sol).read())
+        # the verifier accepts the simplex solution with its independent (highspy) reader
+        v = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "verify.py"), mps,
+                            os.path.join(self.tmp, "simplex.sol"), "--expected", "-464.75314286"],
+                           capture_output=True, text=True)
+        self.assertEqual(v.returncode, 0, v.stdout + v.stderr)
+
+    def test_mps_read_error_has_line_number_exit_3(self):
+        bad = os.path.join(self.tmp, "bad.mps")
+        open(bad, "w").write("NAME B\nROWS\n N obj\n L c1\nCOLUMNS\n    x obj 1 c1 nan\nENDATA\n")
+        code, out = run("solve", bad)
+        self.assertEqual(code, 3, out)
+        self.assertIn("line 6", out)
+
+    def test_info_print_and_lu_bench(self):
+        mps = os.path.join(DATA, "examples", "features.mps")
+        code, out = run("info", mps)
+        self.assertEqual(code, 0, out)
+        self.assertIn("rows               5", out)
+        self.assertIn("fingerprint", out)
+        self.assertIn("negative upper bound", out)  # reader warning on stderr
+        code, out = run("print", mps)
+        self.assertEqual(code, 0, out)
+        self.assertIn("2 <= X3 + X4 <= 5", out)
+        code, out = run("lu-bench", os.path.join(DATA, "netlib_small", "afiro.mps"), "--trials", "1")
+        self.assertEqual(code, 0, out)
+        self.assertIn("LU-BENCH PASS", out)
 
     def test_batch_two_scenarios(self):
         lp = os.path.join(DATA, "netlib_small", "afiro.lpm")

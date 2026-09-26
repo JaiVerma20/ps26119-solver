@@ -8,6 +8,7 @@
 // thread count; Options::threads = 1 (default) runs everything inline.
 #include <cmath>
 #include <type_traits>
+#include <algorithm>
 
 #include "pdhg/backend.h"
 

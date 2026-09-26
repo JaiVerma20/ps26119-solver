@@ -4,6 +4,7 @@ project(ps26119 VERSION 0.1.0 LANGUAGES C CXX)
 option(PS26119_ENABLE_CUDA "Build the CUDA backend (GPU machines only)" OFF)
 option(PS26119_ENABLE_OPENMP "Use OpenMP in CPU kernels" OFF)
 option(PS26119_BUILD_TESTS "Build unit tests (GoogleTest via FetchContent)" ON)
+option(PS26119_REQUIRE_PYTHON_TESTS "Fail configuration if the Python/CLI tests cannot run" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -42,8 +43,15 @@ set(PS26119_SOURCES
   src/io/lpm_reader.cpp
   src/io/solution_writer.cpp
   src/io/solution_reader.cpp
+  src/io/mps_reader.cpp
   src/oracle/dense_simplex.cpp
+  src/oracle/dense_tableau.cpp
+  src/core/solution_checker.cpp
   src/la/csr.cpp
+  src/la/csc.cpp
+  src/la/sparse_lu.cpp
+  src/simplex/simplex_scaling.cpp
+  src/simplex/primal_simplex.cpp
   src/pdhg/scaling.cpp
   src/pdhg/cpu_backend.cpp
   src/pdhg/engine.cpp
@@ -53,11 +61,8 @@ set(PS26119_SOURCES
   src/mip/branch_and_bound.cpp
 )
 
-# The MPS reader belongs to a teammate (CLAUDE.md §2). Compile it only once it exists.
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/io/mps_reader.cpp)
-  list(APPEND PS26119_SOURCES src/io/mps_reader.cpp)
-  set(PS26119_HAVE_MPS_READER ON)
-endif()
+# The MPS reader (teammate, integrated from gpuopt@c192dd0) is always built now.
+set(PS26119_HAVE_MPS_READER ON)
 
 if(PS26119_ENABLE_CUDA)
   list(APPEND PS26119_SOURCES src/gpu/cuda_backend.cu)
@@ -104,7 +109,7 @@ if(PS26119_BUILD_SHARED)
   add_library(ps26119_shared SHARED src/core/c_api.cpp)
   set_target_properties(ps26119_shared PROPERTIES OUTPUT_NAME ps26119)
   target_link_libraries(ps26119_shared PRIVATE ps26119_core)
-  target_include_directories(ps26119_shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_include_directories(ps26119_shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 endif()
 
 # ---------------------------------------------------------------- build provenance
@@ -117,7 +122,7 @@ add_custom_target(ps26119_git_info ALL
   COMMENT "git hash for --version")
 
 # ---------------------------------------------------------------- CLI
-add_executable(ps26119_cli apps/cli/main.cpp)
+add_executable(ps26119_cli apps/cli/main.cpp apps/cli/lu_bench.cpp apps/cli/model_report.cpp)
 add_dependencies(ps26119_cli ps26119_git_info)
 # Explicit dependency so Ninja re-checks main.cpp AFTER the stamp step has (re)written the
 # header in the same build (otherwise the binary lags one build behind).

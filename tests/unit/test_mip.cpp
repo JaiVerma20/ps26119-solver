@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <random>
+#include <algorithm>
 
 #include "mip/branch_and_bound.h"
 #include "model_builder.h"
@@ -130,10 +131,53 @@ TEST(Mip, RelaxationIsLabelledAndLargeModelsAreRefused) {
   const Solution lp = solve(m, o);
   EXPECT_NEAR(lp.objective, -1.5, 1e-6);  // LP relaxation
   EXPECT_NE(lp.message.find("LP relaxation"), std::string::npos);
-  // size guard
+  // size guard of the dense oracle node solver
   mip::BranchAndBoundOptions bo;
+  bo.node_solver = mip::NodeSolver::Oracle;
   bo.max_tableau_entries = 1;  // this 1×2 model needs 1·(2+2) = 4 entries
   EXPECT_EQ(mip::solve_branch_and_bound(m, bo).status, Status::NotSolved);
+  // the sparse simplex node solver (default) has no dense size limit
+  bo.node_solver = mip::NodeSolver::Simplex;
+  const Solution sx = mip::solve_branch_and_bound(m, bo);
+  EXPECT_EQ(sx.status, Status::Optimal);
+  EXPECT_NEAR(sx.objective, -1.0, 1e-9);
+}
+
+// Both node solvers against each other on random mixed-integer programs (in addition to the
+// enumeration tests above, which run with the default simplex node solver).
+TEST(Mip, SimplexAndOracleNodeSolversAgree) {
+  std::mt19937_64 rng(77);
+  std::uniform_int_distribution<int> coef(-5, 6), rhs(2, 20), kind(0, 2);
+  int compared = 0;
+  for (int trial = 0; trial < 60; ++trial) {
+    const int m = 3 + trial % 4, n = 5 + trial % 5;
+    std::vector<std::vector<double>> A(m, std::vector<double>(n));
+    for (auto& r : A)
+      for (double& v : r) v = coef(rng);
+    std::vector<double> c(n), rl(m, -kInf), ru(m), cl(n, 0.0), cu(n, 6.0);
+    for (double& v : c) v = coef(rng);
+    for (double& v : ru) v = rhs(rng);
+    Model mdl = make_model(c, A, rl, ru, cl, cu, trial % 2 ? 1 : -1);
+    mdl.is_integer.assign(n, 0);
+    for (int j = 0; j < n; ++j) mdl.is_integer[j] = kind(rng) != 0;  // ~2/3 integer
+    Options a, b;
+    a.engine_params = {{"mip_node_solver", 0}};
+    b.engine_params = {{"mip_node_solver", 1}};
+    const Solution sa = solve(mdl, a), sb = solve(mdl, b);
+    ASSERT_EQ(sa.status, sb.status) << "trial " << trial << ": " << sa.message << " | " << sb.message;
+    if (sa.status == Status::Optimal) {
+      ++compared;
+      EXPECT_NEAR(sa.objective, sb.objective, 1e-7 * (1 + std::fabs(sb.objective))) << "trial " << trial;
+      EXPECT_EQ(sa.engine, "branch-and-bound(simplex)");
+      EXPECT_EQ(sb.engine, "branch-and-bound(oracle)");
+    }
+  }
+  EXPECT_GT(compared, 30);
+  Options bad;
+  bad.engine_params = {{"reflection", 1}};
+  Model k = make_model({-1, -1}, {{2, 2}}, {-kInf}, {3}, {0, 0}, {5, 5});
+  k.is_integer = {1, 1};
+  EXPECT_EQ(solve(k, bad).status, Status::NotSolved);
 }
 
 // Regression (MIPLIB egout): presolve must round integer bounds inward. Here a singleton

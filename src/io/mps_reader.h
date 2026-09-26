@@ -1,21 +1,23 @@
-// mps_reader.h — OWNED BY TEAMMATE. Interface declaration only.
+// mps_reader.h — the exception-free MPS reading contract used by the CLI and the C API.
 //
-// Do not implement, rewrite or "fix" this reader here (CLAUDE.md §2). The teammate
-// provides src/io/mps_reader.cpp; CMake compiles it automatically when the file exists
-// and defines PS26119_HAVE_MPS_READER. Until then, convert MPS with tools/mps_to_lpm.py
-// and load the .lpm file with lpm_reader.h.
+// Implementation: the teammate's parser (Shivanshu Vats; io/mps_parser.h, mps_reader.cpp),
+// integrated from gpuopt@c192dd0. Cross-checked against an independent reader (highspy,
+// tools/verify.py): bit-identical models (Model::fingerprint) on all 93 Netlib LPs and 14
+// small MIPLIB 3 models (docs/audit/INITIAL_AUDIT.md).
 //
-// Contract: fill `model` according to CLAUDE.md §6 (the Model contract in
-// include/ps26119/model.h). Return true on success; on failure return false and put a
-// human-readable reason in `error`.
+// Contract: fill `model` according to CLAUDE.md §6 (include/ps26119/model.h). Return true
+// on success; on failure return false and put a human-readable reason (with the line
+// number when there is one) in `error`. Non-fatal remarks go to `warnings` if given.
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "ps26119/model.h"
 
 namespace ps26119::io {
 
-bool read_mps(const std::string& path, Model& model, std::string& error);
+bool read_mps(const std::string& path, Model& model, std::string& error,
+              std::vector<std::string>* warnings = nullptr);
 
 }  // namespace ps26119::io

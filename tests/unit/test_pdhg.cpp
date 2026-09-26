@@ -333,6 +333,7 @@ TEST(PdhgScaling, GeometricMeanIsAdaptive) {
       EXPECT_NEAR(sp2.A.val[k], sp2.row_scale[i] * A.val[k] * sp2.col_scale[A.col[k]], 1e-12 * (1 + std::fabs(sp2.A.val[k])));
   // and solving with it forced still gives the optimum
   Options o;
+  o.algorithm = Algorithm::R2hpdhg;
   o.engine_params = {{"geometric_mean_min_log10_range", 0}};
   auto s = solve(m, o);
   ASSERT_EQ(s.status, Status::Optimal);
@@ -367,6 +368,7 @@ TEST(PdhgThreads, BitIdenticalForAnyThreadCount) {
   }
   ASSERT_EQ(big.validate(), "");
   Options o;
+  o.algorithm = Algorithm::R2hpdhg;  // explicit: this tests the first-order engine's thread pool
   o.tolerance = 1e-6;
   o.threads = 1;
   auto a = solve(big, o);

@@ -7,6 +7,15 @@ it counts as done, and `docs/EVIDENCE.md` makes no GPU claim.
 
 Command: `PS26119_MACHINE=<name> scripts/gpu_check.sh` (add `QUICK=1` for the first try).
 
+**Where to run it.** Linux, or **WSL2 (Ubuntu) on a Windows laptop** with the NVIDIA Windows
+driver and the CUDA toolkit for WSL installed inside Ubuntu. nvcc does not support MinGW;
+native Windows needs MSVC + the CUDA toolkit, which this script does not drive. On WSL2:
+`sudo apt install build-essential git python3-pip`, install the CUDA toolkit for WSL-Ubuntu
+from NVIDIA, `export PATH=/usr/local/cuda/bin:$PATH`, then run the command above from a clone
+of the canonical repository (a feature branch such as `feature/shivanshu/gpu-validation`).
+The script also runs `compute-sanitizer` (memcheck + racecheck) on the GPU tests when the
+toolkit provides it; its logs go to `bench/results/logs/`.
+
 ## A. Build (step "configure + build" in gpu_check.sh)
 | # | Check | Why it can fail | Pass criterion |
 |---|---|---|---|

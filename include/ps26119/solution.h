@@ -57,7 +57,17 @@ struct Solution {
   // First-order engines: primal weight ω at the end (pass it back as
   // Options::warm_primal_weight when warm-starting a re-solve). NaN for other engines.
   double primal_weight = std::numeric_limits<double>::quiet_NaN();
-  std::string engine;     // "oracle", "pdlp", "r2hpdhg", ...
+  // In-process verification of an Optimal LP answer on the ORIGINAL model
+  // (src/core/solution_checker.h, verifier tolerances from tolerances.h): "PASS", "FAIL",
+  // or empty when not applicable (not Optimal, MILP). An Optimal that fails is demoted to
+  // NumericalError, except for a first-order run whose requested tolerance is not tighter
+  // than the verifier's 1e-6 (it stays Optimal at ITS tolerance and `check` says FAIL).
+  // Measures: primal max viol/(1+|bound|), dual max wrong-sign/max(1,‖c‖∞), relative gap.
+  std::string check;
+  double check_primal = std::numeric_limits<double>::quiet_NaN();
+  double check_dual = std::numeric_limits<double>::quiet_NaN();
+  double check_gap = std::numeric_limits<double>::quiet_NaN();
+  std::string engine;     // "oracle", "pdlp", "r2hpdhg", "simplex", ...
   std::string precision;  // "dd", "fp64", "mixed"
   std::string model_fingerprint;
   std::string message;  // human readable detail (why NumericalError, etc.)

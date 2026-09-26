@@ -6,6 +6,7 @@
 #include <string>
 
 #include "io/lpm_reader.h"
+#include "ps26119/solve.h"
 #include "model_builder.h"
 
 using namespace ps26119;
@@ -69,13 +70,20 @@ TEST(Lpm, RejectsMalformedInput) {
   EXPECT_FALSE(io::read_lpm_string("LPM 1\nOBJ\n1\nEND\n", m).ok);  // sizes first
   EXPECT_FALSE(io::read_lpm_string("LPM 1\nROWS 0\nCOLS 1\nNNZ 0\nOBJ\nabc\nEND\n", m).ok);
   EXPECT_FALSE(io::read_lpm_string("LPM 1\nROWS 0\nCOLS 0\nNNZ 0\n", m).ok);  // no END
-  // col_lower > col_upper is caught by validate()
+  // a lower bound of +inf is caught by validate()
   auto r = io::read_lpm_string(
-      "LPM 1\nROWS 0\nCOLS 1\nNNZ 0\nOBJ\n1\nCOL_LOWER\n2\nCOL_UPPER\n1\nROW_LOWER\nROW_UPPER\n"
+      "LPM 1\nROWS 0\nCOLS 1\nNNZ 0\nOBJ\n1\nCOL_LOWER\ninf\nCOL_UPPER\ninf\nROW_LOWER\nROW_UPPER\n"
       "COL_START\n0 0\nROW_INDEX\nVALUE\nEND\n",
       m);
   EXPECT_FALSE(r.ok);
   EXPECT_NE(r.error.find("invalid model"), std::string::npos);
+  // crossed bounds are valid data (an infeasible model, DECISIONS #27): read, then Infeasible
+  r = io::read_lpm_string(
+      "LPM 1\nROWS 0\nCOLS 1\nNNZ 0\nOBJ\n1\nCOL_LOWER\n2\nCOL_UPPER\n1\nROW_LOWER\nROW_UPPER\n"
+      "COL_START\n0 0\nROW_INDEX\nVALUE\nEND\n",
+      m);
+  EXPECT_TRUE(r.ok) << r.error;
+  EXPECT_EQ(solve(m).status, Status::Infeasible);
   // the minimal valid file
   r = io::read_lpm_string(
       "LPM 1\nROWS 0\nCOLS 1\nNNZ 0\nOBJ\n1\nCOL_LOWER\n0\nCOL_UPPER\ninf\nROW_LOWER\nROW_UPPER\n"

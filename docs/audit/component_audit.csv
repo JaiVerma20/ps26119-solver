@@ -1,0 +1,28 @@
+repo,component,exists,compiles,linked,tested,tests_meaningful,correct,scales,external_solver,independently_verified,quality,state,decision,evidence
+gpuopt,mps_reader,yes,after_R0_fix,yes,yes,yes,yes,yes,no,yes_highspy_fingerprint_93_netlib_14_miplib,production,VERIFIED,adopt+fix R0-R3,audit_driver fingerprints
+gpuopt,lp_problem_model,yes,yes,yes,yes,yes,yes,yes,no,n/a,good,VERIFIED,replace by ps26119::Model,INITIAL_AUDIT.md
+gpuopt,sparse_lu,yes,yes,yes,yes,yes,yes,yes_6071_rows,no,yes_residuals_93_netlib,good_no_hypersparse,VERIFIED,adopt,teammate-lu-bench-netlib-*.txt
+gpuopt,primal_simplex,yes,yes,yes,yes,yes_small_lps,yes_after_S1_fix,partial_dfl001_unsolved,no,yes_verify_py_92_of_93,good_prototype_pricing,VERIFIED,adopt as Algorithm::Simplex,teammate-simplex-netlib-full-*.csv
+gpuopt,simplex_scaling,yes,yes,yes,indirect,indirect,yes,yes,no,n/a,good,PARTIALLY VERIFIED,A/B test,pending
+gpuopt,dense_oracle,yes,yes,yes,yes,yes,yes,no_dense,no,yes_checker_5000_lps,textbook,VERIFIED,keep as second test oracle,test_oracle_random
+gpuopt,solution_checker,yes,yes,yes,yes,yes,yes_except_nan,yes,no,shares_reader,good,PARTIALLY VERIFIED,in-process gate (+NaN fix),malformed probe
+gpuopt,cli,yes,yes,yes,no,n/a,yes,yes,no,n/a,good,CODE EXISTS BUT UNTESTED,port info/print-model/lu-bench,INITIAL_AUDIT.md
+gpuopt,benchmark_scripts,yes,n/a,n/a,n/a,n/a,yes,yes,scipy_reference_only,n/a,weak_provenance,PARTIALLY VERIFIED,fold into bench/,INITIAL_AUDIT.md
+gpuopt,gpu,no,,,,,,,,,,NOT IMPLEMENTED,n/a,README
+gpuopt,milp,no,,,,,,,,,,NOT IMPLEMENTED,n/a,README
+ps26119,model_solution_contracts,yes,yes,yes,yes,yes,yes,yes,no,yes,production,VERIFIED,keep canonical,tests
+ps26119,lpm_bridge,yes,yes,yes,yes,yes,yes,yes,highspy_tooling_only,yes,good,VERIFIED,keep for generated models,tests
+ps26119,verify_py,yes,n/a,n/a,yes,yes,yes,yes,highspy_reader_only,yes,production,VERIFIED,keep external verifier,EVIDENCE.md
+ps26119,dd_oracle,yes,yes,yes,yes,yes,yes,no_dense,no,yes,good,VERIFIED,keep canonical oracle,test_oracle
+ps26119,pdhg_r2hpdhg_cpu,yes,yes,yes,yes,yes,yes,yes_1M_rows,no,yes_verify_py,good,VERIFIED,keep,netlib-full/scale CSVs
+ps26119,scaling_pdhg,yes,yes,yes,yes,yes,yes,yes,no,ab_tested,good,VERIFIED,keep,DECISIONS 17
+ps26119,presolve,yes,yes,yes,yes,yes,yes,yes,no,yes,basic,PARTIAL,keep,DECISIONS 22-26
+ps26119,infeas_unbounded_pdhg,yes,yes,yes,yes,hand_models_only,yes,unknown,no,no,new,PARTIAL,keep,EVIDENCE.md
+ps26119,certified_bound,yes,yes,yes,yes,yes,yes,yes,no,yes,good,VERIFIED,keep,EVIDENCE.md
+ps26119,warm_start,yes,yes,yes,yes,yes,yes,yes,no,yes,good,VERIFIED,keep,warm-start CSVs
+ps26119,batch,yes,yes,yes,yes,yes,asan_bug,yes,no,yes,good,PARTIAL,fix over-read,ASan log
+ps26119,threading,yes,yes,yes,yes,yes,yes,yes,no,tsan_clean,good,VERIFIED,keep,TSan + sweep
+ps26119,cuda_backend,yes,never_nvcc,optional,cpu_mirror_only,n/a,unknown,unknown,no,no,written,NEEDS GPU,validate on NVIDIA,GPU_VERIFICATION.md
+ps26119,milp_bnb,yes,yes,yes,yes,yes,yes,small_only,no,yes_verify_py,prototype,PARTIAL,keep; evaluate simplex node LPs,miplib3 CSV
+ps26119,c_api_python_cli,yes,yes,yes,yes,yes,yes,yes,no,n/a,good,VERIFIED,keep,tests
+ps26119,ci,yes,n/a,n/a,n/a,n/a,n/a,n/a,no,n/a,cpu_only,PARTIAL,add sanitizers + required python tests,ci.yml

@@ -12,13 +12,18 @@ reflection (r²HPDHG, the cuPDLPx algorithm family), with an exact simplex besid
 for vertices, duals and warm starts, aimed at large multi-period refinery LPs.
 Library first; CLI and Python are thin layers.
 
-## 2. Team split — what is NOT yours
-- **The MPS reader belongs to a teammate** (`src/io/mps_reader.*`). Do NOT write,
-  rewrite or "fix" it. Code only against the Model contract in §6.
-- Until the reader lands, get real instances through the temporary bridge
-  `tools/mps_to_lpm.py` (Prompt 2), which converts MPS → our `.lpm` text format
-  using highspy. It is test tooling only and is also used later to cross-check
-  the teammate's reader (two independent readers must produce the same Model).
+## 2. Team split (after the 2026-09-26 integration — one repository)
+- Shivanshu Vats wrote the MPS reader, sparse LU, primal simplex, tableau oracle and the
+  solution checker (gpuopt, merged here WITH history; `Origin:` lines in the headers). He is
+  the primary reviewer for `src/io/mps_*`, `src/la/sparse_lu.*`, `src/simplex/`,
+  `src/oracle/dense_tableau.*`, `src/core/solution_checker.*`. Change the Model contract (§6)
+  only together.
+- Jai: first-order engines, GPU backend, dispatcher/gate, presolve, certified bound, MILP,
+  C API/Python, benchmarks and evidence.
+- Everyone works in THIS repository on `feature/<person>/<topic>` branches with pull
+  requests (docs/CONTRIBUTING.md). `tools/mps_to_lpm.py` remains only to produce `.lpm`
+  files for generated models and to cross-check the reader (two independent readers must
+  produce the same Model: `Integration.MpsReaderMatchesLpmBridgeOnCommittedData`).
 
 ## 3. Machines and build
 | machine | role |
@@ -84,11 +89,19 @@ and judges/competitors can compare public repos:
   L → [rhs−|R|, rhs]; G → [rhs, rhs+|R|]. BOUNDS UP LO FX FR MI PL BV LI UI.
   Missing RHS = 0. RHS on objective row → obj_offset = −value. MARKER → is_integer.
 - Row/column names kept. `Model::fingerprint()` = hash of all numbers.
+- Agreed at the integration (DECISIONS #27): crossed bounds (lower > upper) are valid data
+  describing an INFEASIBLE model; negative `UP` with no explicit lower bound sets the lower
+  bound to −inf with a warning (classic MPS rule; highspy keeps 0 — verify.py then reports a
+  fingerprint mismatch, never a silent pass); `nan` tokens and non-finite coefficients are
+  read errors; values ≥ 1e30 (and overflow) are infinite; duplicate RHS/RANGES entries warn
+  and the last one wins; duplicate matrix entries are summed with a warning.
 
 ## 7. Solution contract
 Status: Optimal, Infeasible, Unbounded, IterationLimit, TimeLimit, NumericalError,
 NotSolved. Fields: x, row_activity, y, z, objective, primal_residual,
-dual_residual, gap, iterations, seconds, engine, precision, model fingerprint.
+dual_residual, gap, iterations, seconds, engine, precision, model fingerprint, check (the
+in-process verification gate: every Optimal LP answer is re-checked on the original model
+by core/solution_checker; failure → NumericalError), certified bound.
 CLI exit codes: 0 optimal, 1 limit/infeasible/unbounded, 3 read error, 5 numerical.
 
 ## 8. Tolerances (defaults)
@@ -117,31 +130,35 @@ Our unique ideas, in priority order:
 
 ## 10. Layout
 ```
-include/ps26119/   model.h solution.h tolerances.h options.h version.h ps26119.h (C API)
-src/io/            mps_reader.* (TEAMMATE), lpm_reader.* (ours), solution_writer.*
-src/core/          solve() dispatcher, status, model checks, fingerprint
-src/la/            CSC/CSR, SpMV/SpMM (CPU), power iteration, dd.h (double-double)
-src/oracle/        dense bounded simplex in double-double (TEST ORACLE ONLY)
-src/pdhg/          CPU PDLP-style PDHG + CPU r2HPDHG, scaling, termination, precision policy
-src/gpu/           CUDA r2HPDHG behind a backend interface
-src/simplex/       (later) sparse bounded dual simplex, crossover
-src/mip/           (later) branch and bound
-apps/cli/          ps26119 solve file.{mps,lpm} [--algorithm ...] [--gpu] [--precision mixed|fp64]
-tools/             verify.py, mps_to_lpm.py
-bench/             runners, generators, results/*.csv
-scripts/           gpu_check.sh, reproduce.sh
-tests/unit/        GoogleTest
-data/              small committed instances + SOURCES.md
-docs/              RESEARCH.md ARCHITECTURE.md BENCHMARKS.md THIRD_PARTY.md
+include/ps26119/   model.h solution.h options.h tolerances.h version.h batch.h solve.h ps26119.h (C API)
+src/io/            mps_reader.* mps_parser.h (Shivanshu), lpm_reader.*, solution_reader/writer.*
+src/core/          solve() dispatcher + gate, presolve, safe_bound, implied_bounds, c_api,
+                   solution_checker (Shivanshu), model checks, status
+src/la/            CSR (+SpMV/SpMM), CSC + sparse LU (Shivanshu), dd.h, parallel.h
+src/simplex/       bounded revised primal simplex + scaling (Shivanshu)
+src/oracle/        dense_simplex (double-double, canonical oracle), dense_tableau (Shivanshu, test oracle)
+src/pdhg/          PDLP, r2HPDHG, scaling, termination, batch, backend interface
+src/gpu/           CUDA backend
+src/mip/           branch-and-bound (sparse simplex node LPs, certified-bound pruning)
+apps/cli/          ps26119 solve|info|print|lu-bench|batch
+tools/             verify.py, mps_to_lpm.py, lpm.py, fetch_*.py, highs_ref.py, crosscheck_random_mps.py
+bench/             netlib_small/full, scale, warm_start, batch, miplib3, lu_netlib, make_evidence, results/*.csv
+scripts/           gpu_check.sh, reproduce.sh, check_no_solver_linked.sh, setup_github.sh
+tests/unit/        GoogleTest;  tests/test_cli.py;  python/test_python.py
+data/              small committed instances + SOURCES.md (examples/ from gpuopt)
+docs/              ARCHITECTURE BENCHMARKS CONTRIBUTING DECISIONS DEVELOPMENT EVIDENCE
+                   FINAL_INTEGRATION_REPORT GPU_VERIFICATION LIMITATIONS PROVENANCE RESEARCH
+                   THIRD_PARTY  audit/  history/
 ```
 
-## 11. Milestones (the PPT is due in ~4 days; evidence first)
-M0 skeleton, contracts, verifier, MPS→lpm bridge, double-double oracle (10 hand LPs + afiro)
-M1 CPU PDLP-style PDHG + CPU r²HPDHG, validated on 10 small Netlib LPs, CSV
-M2 CUDA r²HPDHG (fp64 + mixed), same answers as CPU; scaling + refinery CSVs from
-   the teammate laptop and a university GPU; chart
-M3+ after the PPT: warm-started PDHG, batched scenarios, crossover, sparse dual
-   simplex, presolve, MILP, QP — see docs/RESEARCH.md §9.2
+## 11. Milestones
+M0–M1 done (contracts, verifier, oracles, CPU PDLP + r²HPDHG, Netlib evidence).
+Integration with gpuopt done 2026-09-26 (reader, sparse LU, simplex, checker gate, MILP node
+LPs by simplex) — see docs/FINAL_INTEGRATION_REPORT.md.
+M2 (open): CUDA r²HPDHG compiled and validated on NVIDIA hardware (`scripts/gpu_check.sh`).
+M3+: simplex warm start / dual simplex (basis I/O), crossover from PDHG to a vertex,
+Forrest–Tomlin + hypersparse LU, stronger presolve, MILP cuts/heuristics, QP
+(docs/RESEARCH.md §9.2, docs/LIMITATIONS.md).
 
 ## 12. Style
 No exceptions across the C API. RAII, no raw new/delete. Every algorithm file starts

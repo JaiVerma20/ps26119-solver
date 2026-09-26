@@ -49,8 +49,20 @@ echo "=== tests (CPU + GPU)"
 ctest --test-dir "$BUILD" --output-on-failure | tee "$LOGDIR/ctest.log"
 scripts/check_no_solver_linked.sh "$BUILD"
 
+# Invalid device memory access, races and uninitialised reads in the kernels (Phase 16 of the
+# integration plan). compute-sanitizer ships with the CUDA toolkit (>= 11.6).
+if command -v compute-sanitizer >/dev/null; then
+  echo "=== compute-sanitizer (memcheck, racecheck) on the GPU tests"
+  for tool in memcheck racecheck; do
+    compute-sanitizer --tool "$tool" --error-exitcode 99 "$BUILD/tests/ps26119_tests" --gtest_filter='Gpu.*' \
+      > "$LOGDIR/sanitizer-$tool.log" 2>&1 && echo "  $tool: clean" || echo "  $tool: ERRORS (see $LOGDIR/sanitizer-$tool.log)"
+  done
+else
+  echo "=== compute-sanitizer not found: skipped (report this)"
+fi
+
 echo "=== bench: small Netlib (CPU and GPU, fp64 + mixed, verified)"
-$PY bench/netlib_small.py --bin "$BUILD/ps26119" --engines oracle,pdlp,r2hpdhg | tail -2
+$PY bench/netlib_small.py --bin "$BUILD/ps26119" --engines oracle,simplex,pdlp,r2hpdhg | tail -2
 $PY bench/netlib_small.py --bin "$BUILD/ps26119" --engines pdlp,r2hpdhg --gpu | tail -2
 
 if [ -z "${QUICK:-}" ] && [ -f bench/scale.py ]; then

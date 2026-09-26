@@ -143,11 +143,17 @@ std::vector<Solution> solve_batch(const Model& base, const std::vector<Scenario>
     D[k].cu = pick(s.col_upper, base.col_upper, n, ok);
     D[k].rl = pick(s.row_lower, base.row_lower, m, ok);
     D[k].ru = pick(s.row_upper, base.row_upper, m, ok);
-    for (int j = 0; ok && j < n; ++j) ok = D[k].cl[j] <= D[k].cu[j] && std::isfinite(D[k].c[j]);
-    for (int i = 0; ok && i < m; ++i) ok = D[k].rl[i] <= D[k].ru[i];
+    for (int j = 0; ok && j < n; ++j) ok = std::isfinite(D[k].c[j]) && !std::isnan(D[k].cl[j]) && !std::isnan(D[k].cu[j]);
+    for (int i = 0; ok && i < m; ++i) ok = !std::isnan(D[k].rl[i]) && !std::isnan(D[k].ru[i]);
+    bool crossed = false;
+    for (int j = 0; ok && !crossed && j < n; ++j) crossed = D[k].cl[j] > D[k].cu[j];
+    for (int i = 0; ok && !crossed && i < m; ++i) crossed = D[k].rl[i] > D[k].ru[i];
     if (!ok) {
       out[k].status = Status::NotSolved;
-      out[k].message = "scenario has wrong vector sizes or lower > upper";
+      out[k].message = "scenario has wrong vector sizes or non-finite data";
+    } else if (crossed) {  // valid data, infeasible model (docs/DECISIONS.md #27)
+      out[k].status = Status::Infeasible;
+      out[k].message = "bounds cross: scenario has a lower bound above its upper bound";
     }
   }
 
@@ -163,6 +169,8 @@ std::vector<Solution> solve_batch(const Model& base, const std::vector<Scenario>
   const std::size_t NK = static_cast<std::size_t>(n) * K, MK = static_cast<std::size_t>(m) * K;
   std::vector<double> C(NK), L(NK), U(NK), RL(MK), RU(MK), bs(K, 1.0), os(K, 1.0);
   for (int k = 0; k < K; ++k) {
+    // A rejected scenario may have wrong-sized vectors: never read them (found by ASan).
+    if (!out[k].message.empty()) continue;
     if (eo.scaling.bound_objective_rescaling) {
       double b2 = 0, c2 = 0;
       for (int i = 0; i < m; ++i) {

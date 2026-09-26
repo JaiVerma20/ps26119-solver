@@ -52,8 +52,14 @@ struct Model {
 
   // Returns an empty string when all invariants hold, otherwise a description of the
   // first violated invariant (sizes, CSC monotonicity, index range, duplicate entries in a
-  // column, NaNs, lower > upper, lower = +inf, upper = -inf, sense ∈ {+1,-1}).
+  // column, NaN / non-finite numbers, lower = +inf, upper = -inf, sense ∈ {+1,-1}).
+  // Crossed bounds (lower > upper) are NOT an invariant violation: such a model is valid
+  // and infeasible (MPS files can say LO 3 / UP 2). See crossed_bounds().
   std::string validate() const;
+
+  // Empty string, or a description of the first row/column whose lower bound exceeds its
+  // upper bound — a trivial proof of infeasibility (solve() returns Infeasible).
+  std::string crossed_bounds() const;
 
   // Objective as the user sees it: cᵀx + obj_offset (sense only sets the direction).
   double objective_value(const std::vector<double>& x) const;

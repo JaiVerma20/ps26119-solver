@@ -142,7 +142,6 @@ std::string Model::validate() const {
       if (std::isnan(lo[k]) || std::isnan(up[k])) e << what << " bound " << k << " is NaN";
       else if (lo[k] == kInf) e << what << " lower bound " << k << " is +inf";
       else if (up[k] == -kInf) e << what << " upper bound " << k << " is -inf";
-      else if (lo[k] > up[k]) e << what << " " << k << " has lower > upper";
       if (!e.str().empty()) return e.str();
     }
     return {};
@@ -150,6 +149,21 @@ std::string Model::validate() const {
   if (auto s = check_bounds(col_lower, col_upper, "column"); !s.empty()) return s;
   if (auto s = check_bounds(row_lower, row_upper, "row"); !s.empty()) return s;
   return {};
+}
+
+std::string Model::crossed_bounds() const {
+  auto first = [](const std::vector<double>& lo, const std::vector<double>& up, const char* what) -> std::string {
+    for (std::size_t k = 0; k < lo.size() && k < up.size(); ++k) {
+      if (lo[k] > up[k]) {
+        std::ostringstream e;
+        e << what << " " << k << " has lower bound " << lo[k] << " > upper bound " << up[k];
+        return e.str();
+      }
+    }
+    return {};
+  };
+  if (auto s = first(col_lower, col_upper, "column"); !s.empty()) return s;
+  return first(row_lower, row_upper, "row");
 }
 
 double Model::objective_value(const std::vector<double>& x) const {

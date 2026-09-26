@@ -1,7 +1,10 @@
 // main.cpp — the ps26119 command-line interface (a thin layer over the library).
 //
 //   ps26119 --version
-//   ps26119 solve <file.lpm|file.mps> [--algorithm auto|oracle|pdlp|r2hpdhg]
+//   ps26119 info  <file.mps|file.lpm>     model statistics            (from gpuopt)
+//   ps26119 print <file.mps|file.lpm>     the model in algebraic form (from gpuopt)
+//   ps26119 lu-bench <file> [--trials n] [--updates n]  sparse LU on bases of A (from gpuopt)
+//   ps26119 solve <file.lpm|file.mps> [--algorithm auto|oracle|pdlp|r2hpdhg|simplex]
 //           [--precision fp64|mixed] [--gpu] [--tol 1e-8] [--time-limit s]
 //           [--iteration-limit n] [--out solution.sol] [-v|-vv]
 //
@@ -13,17 +16,18 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <algorithm>
 
 #include "io/lpm_reader.h"
+#include "io/mps_reader.h"
 #include "io/solution_reader.h"
 #include "io/solution_writer.h"
 #include "ps26119/batch.h"
 #include "ps26119/solve.h"
 #include "ps26119/version.h"
 #include "ps26119_build_info.h"
-#ifdef PS26119_HAVE_MPS_READER
-#include "io/mps_reader.h"
-#endif
+#include "lu_bench.h"
+#include "model_report.h"
 
 using namespace ps26119;
 
@@ -34,16 +38,21 @@ void usage(std::FILE* f) {
                "%s %s — LP solver\n"
                "usage:\n"
                "  %s --version\n"
-               "  %s solve <file.lpm|file.mps> [options]\n"
-               "  %s batch <base.lpm> <scenario.lpm>... [--out-dir d] [--tol e] [--time-limit s] [--set k=v]\n"
+               "  %s solve <file.mps|file.lpm> [options]\n"
+               "  %s info  <file.mps|file.lpm>            model statistics\n"
+               "  %s print <file.mps|file.lpm>            the model as the reader understood it\n"
+               "  %s lu-bench <file> [--trials n] [--updates n]   sparse LU on bases built from A\n"
+               "  %s batch <base> <scenario>... [--out-dir d] [--tol e] [--time-limit s] [--set k=v]\n"
                "        scenarios share the base matrix; their objective and bounds may differ\n"
-               "options:\n"
-               "  --algorithm auto|oracle|pdlp|r2hpdhg   (default auto)\n"
+               "solve options:\n"
+               "  --algorithm auto|simplex|r2hpdhg|pdlp|oracle   (default auto = r2hpdhg)\n"
+               "                                         simplex: revised primal simplex (vertex, exact duals)\n"
+               "                                         oracle: dense double-double simplex, small models only\n"
                "  --precision fp64|mixed                 (first-order engines, default fp64)\n"
                "  --gpu                                  use the CUDA backend (CUDA builds only)\n"
                "  --threads <n>                          CPU threads (default 1, 0 = all cores; same results)\n"
                "  --no-presolve                          skip the (default) safe presolve + postsolve\n"
-               "  --tol <eps>                            relative KKT tolerance (default 1e-8)\n"
+               "  --tol <eps>                            relative KKT tolerance, first-order engines (default 1e-8)\n"
                "  --time-limit <seconds>   --iteration-limit <n>\n"
                "  --out <file>                           write the solution file (tools/verify.py reads it)\n"
                "  --warm <file>                          warm start from a previous solution file (same model shape)\n"
@@ -51,12 +60,67 @@ void usage(std::FILE* f) {
                "                                         re-solves, slower on others; see bench/warm_start.py)\n"
                "  --set name=value                       expert engine knob (see Options::engine_params), repeatable\n"
                "  -v | -vv                               verbosity\n",
-               kProductName, kVersion, kProductName, kProductName, kProductName);
+               kProductName, kVersion, kProductName, kProductName, kProductName, kProductName, kProductName,
+               kProductName);
 }
 
 bool ends_with(const std::string& s, const char* suf) {
   const std::size_t n = std::strlen(suf);
   return s.size() >= n && s.compare(s.size() - n, n, suf) == 0;
+}
+
+// Reads .lpm (our generated-model format) or .mps (the integrated reader). Reader warnings go
+// to stderr. Returns false (message printed) on failure.
+bool load_model(const std::string& path, Model& model) {
+  if (ends_with(path, ".lpm")) {
+    auto r = io::read_lpm(path, model);
+    if (!r.ok) std::fprintf(stderr, "read error: %s\n", r.error.c_str());
+    return r.ok;
+  }
+  if (ends_with(path, ".mps") || ends_with(path, ".MPS")) {
+    std::string err;
+    std::vector<std::string> warnings;
+    if (!io::read_mps(path, model, err, &warnings)) {
+      std::fprintf(stderr, "read error: %s\n", err.c_str());
+      return false;
+    }
+    for (const auto& w : warnings) std::fprintf(stderr, "reader warning: %s\n", w.c_str());
+    return true;
+  }
+  std::fprintf(stderr, "read error: unknown file type (expected .mps or .lpm)\n");
+  return false;
+}
+
+int cmd_inspect(const std::string& what, int argc, char** argv) {
+  if (argc < 1) {
+    usage(stderr);
+    return 2;
+  }
+  Model model;
+  if (!load_model(argv[0], model)) return kExitReadError;
+  if (what == "info") {
+    cli::print_statistics(model);
+    std::printf("  fingerprint        %s\n", model.fingerprint_hex().c_str());
+    if (auto c = model.crossed_bounds(); !c.empty()) std::printf("  note               %s (infeasible)\n", c.c_str());
+    return 0;
+  }
+  if (what == "print") {
+    cli::print_model(model);
+    return 0;
+  }
+  std::printf("model      %s  %d rows, %d columns, %zu nonzeros\n", model.name.c_str(), model.num_rows,
+              model.num_cols, model.nnz());
+  cli::LuBenchOptions lo;
+  for (int i = 1; i < argc; ++i) {
+    const std::string a = argv[i];
+    if ((a == "--trials" || a == "--updates") && i + 1 < argc) {
+      (a == "--trials" ? lo.trials : lo.updates) = std::atoi(argv[++i]);
+    } else {
+      std::fprintf(stderr, "unknown option %s\n", a.c_str());
+      return 2;
+    }
+  }
+  return cli::run_lu_bench(model, lo);
 }
 
 int cmd_solve(int argc, char** argv) {
@@ -143,30 +207,7 @@ int cmd_solve(int argc, char** argv) {
   }
 
   Model model;
-  if (ends_with(path, ".lpm")) {
-    auto r = io::read_lpm(path, model);
-    if (!r.ok) {
-      std::fprintf(stderr, "read error: %s\n", r.error.c_str());
-      return kExitReadError;
-    }
-  } else if (ends_with(path, ".mps") || ends_with(path, ".MPS")) {
-#ifdef PS26119_HAVE_MPS_READER
-    std::string err;
-    if (!io::read_mps(path, model, err)) {
-      std::fprintf(stderr, "read error: %s\n", err.c_str());
-      return kExitReadError;
-    }
-#else
-    std::fprintf(stderr,
-                 "read error: the MPS reader is not in this build yet (owned by a teammate).\n"
-                 "convert first:  python3 tools/mps_to_lpm.py %s\n",
-                 path.c_str());
-    return kExitReadError;
-#endif
-  } else {
-    std::fprintf(stderr, "read error: unknown file type (expected .lpm or .mps)\n");
-    return kExitReadError;
-  }
+  if (!load_model(path, model)) return kExitReadError;
 
   if (!warm.empty()) {
     Solution prev;
@@ -190,6 +231,9 @@ int cmd_solve(int argc, char** argv) {
   std::printf("engine     %s (%s)\n", sol.engine.c_str(), sol.precision.c_str());
   std::printf("objective  %.12g\n", sol.objective);
   std::printf("residuals  primal %.2e  dual %.2e  gap %.2e\n", sol.primal_residual, sol.dual_residual, sol.gap);
+  if (!sol.check.empty())
+    std::printf("check      %s  (in-process, original model: primal %.1e  dual %.1e  gap %.1e)\n", sol.check.c_str(),
+                sol.check_primal, sol.check_dual, sol.check_gap);
   if (sol.certified_bound == sol.certified_bound)
     std::printf("certified  %s %.12g  (rounding-proof %s bound from y)\n", model.sense > 0 ? "optimum >=" : "optimum <=",
                 sol.certified_bound, model.sense > 0 ? "lower" : "upper");
@@ -245,18 +289,12 @@ int cmd_batch(int argc, char** argv) {
     return 2;
   }
   Model base;
-  if (auto r = io::read_lpm(files[0], base); !r.ok) {
-    std::fprintf(stderr, "read error: %s\n", r.error.c_str());
-    return kExitReadError;
-  }
+  if (!load_model(files[0], base)) return kExitReadError;
   std::vector<Scenario> sc;
   std::vector<std::string> names;
   for (std::size_t f = 1; f < files.size(); ++f) {
     Model s;
-    if (auto r = io::read_lpm(files[f], s); !r.ok) {
-      std::fprintf(stderr, "read error (%s): %s\n", files[f].c_str(), r.error.c_str());
-      return kExitReadError;
-    }
+    if (!load_model(files[f], s)) return kExitReadError;
     if (s.num_rows != base.num_rows || s.num_cols != base.num_cols || s.sense != base.sense ||
         s.col_start != base.col_start || s.row_index != base.row_index || s.value != base.value) {
       std::fprintf(stderr, "%s: matrix or sense differs from the base model (batch needs a shared A)\n",
@@ -301,6 +339,7 @@ int main(int argc, char** argv) {
   }
   if (cmd == "solve") return cmd_solve(argc - 2, argv + 2);
   if (cmd == "batch") return cmd_batch(argc - 2, argv + 2);
+  if (cmd == "info" || cmd == "print" || cmd == "lu-bench") return cmd_inspect(cmd, argc - 2, argv + 2);
   usage(stderr);
   return 2;
 }

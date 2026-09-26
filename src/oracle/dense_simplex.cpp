@@ -59,6 +59,7 @@
 #include <cstdio>
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include "la/dd.h"
 #include "ps26119/tolerances.h"

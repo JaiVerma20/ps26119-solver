@@ -11,10 +11,12 @@
 namespace ps26119 {
 
 enum class Algorithm {
-  Auto,     // currently: r2hpdhg
+  Auto,     // size rule (docs/DECISIONS.md #29): Simplex when rows·nnz ≤ kAutoSimplexWork,
+            // else R2hpdhg; the choice is stated in Solution::message
   Oracle,   // dense double-double simplex — TEST ORACLE ONLY, small models
   Pdlp,     // restarted PDHG, PDLP-style (Applegate et al.)
   R2hpdhg,  // restarted Halpern PDHG with reflection (Lu & Yang; cuPDLPx)
+  Simplex,  // bounded revised primal simplex, sparse LU (src/simplex; from gpuopt)
 };
 
 enum class Precision {
@@ -26,6 +28,11 @@ const char* to_string(Algorithm a);
 const char* to_string(Precision p);
 bool algorithm_from_string(const std::string& s, Algorithm& out);
 bool precision_from_string(const std::string& s, Precision& out);
+
+// Auto: the simplex (full pricing) costs roughly rows·nnz per few iterations; above this
+// product the first-order engine is used. Tuned on Netlib + generated refinery/random LPs
+// (DECISIONS #29); override with an explicit algorithm.
+inline constexpr double kAutoSimplexWork = 2e8;
 
 struct Options {
   Algorithm algorithm = Algorithm::Auto;
@@ -63,6 +70,10 @@ struct Options {
   // restart_artificial, pid_kp, pid_ki, pid_kd, pid_integral_decay, pid_max_log_step,
   // bound_objective_rescaling, geometric_mean_iterations, geometric_mean_min_log10_range,
   // ruiz_iterations, pock_chambolle).
+  // Simplex engine knobs (src/simplex/primal_simplex.h): simplex_pricing (0 Dantzig,
+  // 1 Devex), simplex_scale (0/1), simplex_perturb (0/1), simplex_primal_tolerance,
+  // simplex_dual_tolerance. MILP (branch-and-bound): mip_node_solver (0 sparse simplex,
+  // default; 1 dense double-double oracle).
   // An unknown name makes solve() return NotSolved.
   std::vector<std::pair<std::string, double>> engine_params;
 };

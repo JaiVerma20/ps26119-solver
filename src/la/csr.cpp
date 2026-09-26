@@ -2,6 +2,7 @@
 #include "la/csr.h"
 
 #include <cmath>
+#include <algorithm>
 
 namespace ps26119::la {
 

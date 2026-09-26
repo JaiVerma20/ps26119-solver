@@ -2,7 +2,9 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
+#include <string>
 
 #include "ps26119/ps26119.h"
 #include "ps26119/solution.h"
@@ -29,7 +31,7 @@ TEST(CApi, StatusCodesMatchCppEnum) {
 }
 
 TEST(CApi, SolvesWyndorWithEveryAlgorithm) {
-  for (int alg : {PS26119_ALG_ORACLE, PS26119_ALG_PDLP, PS26119_ALG_R2HPDHG, PS26119_ALG_AUTO}) {
+  for (int alg : {PS26119_ALG_ORACLE, PS26119_ALG_PDLP, PS26119_ALG_R2HPDHG, PS26119_ALG_AUTO, PS26119_ALG_SIMPLEX}) {
     ps26119_options o;
     ps26119_default_options(&o);
     o.algorithm = alg;
@@ -45,7 +47,29 @@ TEST(CApi, SolvesWyndorWithEveryAlgorithm) {
     EXPECT_GE(r.certified_bound, 36 - 1e-9);  // MAX model: certified upper bound on the optimum
     EXPECT_LT(r.certified_bound, 36 + 1e-4);
     EXPECT_GT(std::strlen(r.engine), 0u);
+    EXPECT_EQ(r.check, 1) << "alg " << alg;  // in-process verification PASS
   }
+}
+
+TEST(CApi, SolveMpsFile) {
+  const std::string afiro = std::string(PS26119_SOURCE_DIR) + "/data/netlib_small/afiro.mps";
+  const std::string out = testing::TempDir() + "capi_afiro.sol";
+  ps26119_options o;
+  ps26119_default_options(&o);
+  o.algorithm = PS26119_ALG_SIMPLEX;
+  ps26119_result r;
+  ASSERT_EQ(ps26119_solve_mps(afiro.c_str(), &o, &r, out.c_str()), PS26119_OPTIMAL) << r.message;
+  EXPECT_NEAR(r.objective, -464.75314286, 1e-6);
+  EXPECT_EQ(r.check, 1);
+  EXPECT_STREQ(r.engine, "simplex");
+  FILE* f = std::fopen(out.c_str(), "r");
+  ASSERT_NE(f, nullptr);
+  std::fclose(f);
+  std::remove(out.c_str());
+  EXPECT_EQ(ps26119_solve_mps("/no/such/file.mps", nullptr, &r, nullptr), PS26119_INVALID_ARGUMENT);
+  EXPECT_NE(std::strstr(r.message, "read error"), nullptr);
+  EXPECT_EQ(ps26119_solve_mps(nullptr, nullptr, &r, nullptr), PS26119_INVALID_ARGUMENT);
+  EXPECT_EQ(ps26119_solve_mps(afiro.c_str(), nullptr, nullptr, nullptr), PS26119_INVALID_ARGUMENT);
 }
 
 TEST(CApi, NullOptionsAndOutputsAreAllowed) {

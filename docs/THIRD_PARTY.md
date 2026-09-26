@@ -10,6 +10,11 @@ This table lists third-party code or tools used in `tools/`, `bench/`, `tests/` 
 | highspy (HiGHS Python bindings) | MIT | https://github.com/ERGO-Code/HiGHS | `tools/` and `bench/` only (MPS bridge, verifier's independent reader, reference solves) | Python package, run as a separate reference; never linked into the solver |
 | NumPy | BSD-3-Clause | https://numpy.org | `tools/`, `bench/` | array maths in the verifier and generators |
 | matplotlib | PSF-based (BSD-compatible) | https://matplotlib.org | `bench/scale.py` charts | plotting only |
+| SciPy (`scipy.optimize.linprog`, HiGHS inside) | BSD-3-Clause | https://scipy.org | `tools/crosscheck_random_mps.py` (external reference in the `tools.crosscheck.*` tests) | reference status/objective for random MPS models; never linked |
+
+Team code is not third-party: the MPS reader, sparse LU, primal simplex, tableau oracle and
+solution checker were written by team member Shivanshu Vats (gpuopt, merged with history;
+see docs/PROVENANCE.md).
 
 ## Read, not copied (solver core)
 
