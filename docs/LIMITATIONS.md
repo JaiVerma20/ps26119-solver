@@ -25,11 +25,13 @@ Status words: **VERIFIED** (tested + benchmarked with a committed CSV), **IMPLEM
   iteration, product-form updates, no hypersparse FTRAN/BTRAN, no Forrest–Tomlin: fine up to
   a few thousand rows, slow beyond ~10⁴ rows (refinery T=365 and rand-10000 in EVIDENCE §2c);
   dfl001 (6,071 rows) is not solved within 60 s. No basis input/output → **no warm start**, no
-  ranging. No infeasibility (Farkas) or unboundedness (ray) certificate is returned; those
-  statuses rest on a fresh-factorization re-check.
+  ranging. Infeasible / Unbounded verdicts carry a Farkas vector / ray that the gate checks on
+  the original model (DECISIONS #31); a verdict whose certificate fails becomes NumericalError.
+  Certificates on free columns are often only tolerance-checked (not rounding-proof).
 - **r²HPDHG / PDLP** (VERIFIED on CPU): first-order accuracy (relative KKT 1e-8, per-row
   checks), not a vertex; **no crossover** yet. Degenerate / badly scaled Netlib models
-  (pilot*, greenbea/b, d2q06c, fit2d) hit the 60 s limit.
+  (pilot*, greenbea/b, d2q06c, fit2d) hit the 60 s limit. Infeasibility detection on "barely"
+  infeasible LPs is much slower than the simplex (EVIDENCE §4e).
 - **Auto** picks by a tuned size rule (rows·nnz ≤ 2·10⁸ → simplex); the full-Netlib `auto`
   result is in-sample for that threshold.
 - A verified answer at the default 1e-6 verifier tolerances bounds the objective error only
