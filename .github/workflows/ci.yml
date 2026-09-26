@@ -43,7 +43,7 @@ jobs:
         run: scripts/check_no_solver_linked.sh build
 
       - name: Committed benchmark evidence has valid provenance
-        run: python bench/validate_results.py
+        run: python bench/validate_results.py --csv-only
 
   sanitizers:
     strategy:

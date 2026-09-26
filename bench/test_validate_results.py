@@ -60,6 +60,18 @@ class Validate(unittest.TestCase):
         errors, _ = vr.check_logs(bad)
         self.assertTrue(any("Gpu.X" in e for e in errors))
         self.assertTrue(any("3 errors" in e for e in errors))
+        # WSL2: the sanitizer cannot attach — must be reported as NOT RUN, not as clean or as kernel errors
+        wsl = os.path.join(self.d, "logs", "wsl")
+        os.makedirs(wsl)
+        self.write(os.path.join("logs", "wsl", "ctest.log"), "100% tests passed\n")
+        self.write(os.path.join("logs", "wsl", "sanitizer-memcheck.log"),
+                   "========= Error: Failed to initialize WDDM debugger interface.\n"
+                   "========= Error: Device not supported.\n========= ERROR SUMMARY: 2 errors\n")
+        self.write(os.path.join("logs", "wsl", "sanitizer-racecheck.log"),
+                   "========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)\n")
+        errors, _ = vr.check_logs(wsl)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("could not run", errors[0])
 
 
 if __name__ == "__main__":

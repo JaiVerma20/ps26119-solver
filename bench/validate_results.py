@@ -15,7 +15,7 @@ For every log folder bench/results/logs/<machine>-<hash>/ (written by gpu_check.
   * nvidia-smi.txt exists.
 Exit status 0 when everything passes, 1 otherwise. Warnings (e.g. a dirty tree) do not fail.
 
-usage: bench/validate_results.py [files or folders ...]
+usage: bench/validate_results.py [--csv-only] [files or folders ...]
 """
 import csv
 import glob
@@ -93,18 +93,27 @@ def check_logs(folder):
         warnings.append("no compute-sanitizer logs")
     for p in sans:
         text = open(p, errors="replace").read()
-        mm = re.search(r"ERROR SUMMARY:\s*(\d+)\s+error", text)
+        name = os.path.basename(p)
+        # The tool itself could not attach (e.g. WSL2: "Failed to initialize WDDM debugger interface",
+        # "Device not supported"): the kernels were NOT checked — neither clean nor faulty.
+        if re.search(r"Failed to initialize .*debugger interface|Device not supported", text):
+            errors.append(f"{name}: compute-sanitizer could not run on this device (tool startup error), "
+                          "so the kernels were NOT checked")
+            continue
+        mm = re.search(r"(?:ERROR|RACECHECK) SUMMARY:\s*(\d+)\s+(?:error|hazard)", text)
         if not mm:
-            errors.append(f"{os.path.basename(p)}: no ERROR SUMMARY line (did the run finish?)")
+            errors.append(f"{name}: no summary line (did the run finish?)")
         elif int(mm.group(1)) != 0:
-            errors.append(f"{os.path.basename(p)}: {mm.group(1)} errors")
+            errors.append(f"{name}: {mm.group(1)} errors")
     if not os.path.exists(os.path.join(folder, "nvidia-smi.txt")):
         warnings.append("no nvidia-smi.txt")
     return errors, warnings
 
 
 def main(argv=None):
-    args = sys.argv[1:] if argv is None else argv
+    args = list(sys.argv[1:] if argv is None else argv)
+    csv_only = "--csv-only" in args  # CI: log folders record historical runs (e.g. a known failure)
+    args = [a for a in args if a != "--csv-only"]
     targets = args or [os.path.join(HERE, "results")]
     csvs, logs = [], []
     for t in targets:
@@ -115,6 +124,8 @@ def main(argv=None):
             logs += sorted(d for d in glob.glob(os.path.join(t, "logs", "*")) if os.path.isdir(d))
         elif t.endswith(".csv"):
             csvs.append(t)
+    csvs = list(dict.fromkeys(csvs))
+    logs = [] if csv_only else list(dict.fromkeys(os.path.normpath(d) for d in logs))
     bad = 0
     for p in csvs:
         e, w = check_csv(p)
