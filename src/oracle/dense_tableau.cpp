@@ -29,6 +29,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <cmath>
 
 namespace ps26119::oracle {
@@ -225,7 +226,7 @@ class Tableau {
   }
 
   // Runs simplex iterations. Only columns j < n may enter (artificials never re-enter).
-  Outcome run(long long& iterations) {
+  Outcome run(std::int64_t& iterations) {
     while (true) {
       if (iterations >= opt_.max_iterations) return Outcome::kIterationLimit;
 
