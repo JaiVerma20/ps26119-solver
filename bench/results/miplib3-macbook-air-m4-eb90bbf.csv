@@ -1,0 +1,15 @@
+git_hash,machine,cpu,date,instance,rows,cols,integers,status,objective,highs_objective,rel_err_highs,best_bound,gap,nodes_message,seconds,verify
+eb90bbf,macbook-air-m4,Apple M4,2026-09-26T19:25:03,p0033,16,33,33,Optimal,3089,3088.9999999999995,1.47e-16,3089,0,"14488 nodes, 199960 simplex iterations; presolve removed 1 rows, 0 cols",0.889119,PASS
+eb90bbf,macbook-air-m4,Apple M4,2026-09-26T19:25:03,flugpl,18,18,11,Optimal,1201500,1201500.0,0.00e+00,1201500,0,"22810 nodes, 253888 simplex iterations; presolve removed 2 rows, 1 cols",1.152248,PASS
+eb90bbf,macbook-air-m4,Apple M4,2026-09-26T19:25:03,egout,98,141,55,Optimal,568.10070000000007,568.1007000000001,0.00e+00,568.10069999999996,0,"19644 nodes, 853715 simplex iterations; presolve removed 24 rows, 55 cols",6.127928,PASS
+eb90bbf,macbook-air-m4,Apple M4,2026-09-26T19:25:03,enigma,21,100,100,Optimal,0,0.0,0.00e+00,0,0,"3097 nodes, 117980 simplex iterations",0.667905,PASS
+eb90bbf,macbook-air-m4,Apple M4,2026-09-26T19:25:03,lseu,28,89,89,Optimal,1120,1120.0,0.00e+00,1120,0,"66815 nodes, 2412429 simplex iterations",15.720230,PASS
+eb90bbf,macbook-air-m4,Apple M4,2026-09-26T19:25:03,mod008,6,319,319,Optimal,307,306.99999999996334,1.19e-13,307,0,"22917 nodes, 367662 simplex iterations",5.038994,PASS
+eb90bbf,macbook-air-m4,Apple M4,2026-09-26T19:25:03,stein27,118,27,27,Optimal,18,17.99999999999989,5.80e-15,18,0,"10255 nodes, 290668 simplex iterations",3.270612,PASS
+eb90bbf,macbook-air-m4,Apple M4,2026-09-26T19:25:03,pk1,45,86,55,TimeLimit,30,11.000000000000178,1.58e+00,9.0420279649989102,0.676064,"336746 nodes, 28273988 simplex iterations",300.444091,—
+eb90bbf,macbook-air-m4,Apple M4,2026-09-26T19:25:03,gt2,29,188,188,TimeLimit,139479,21166.0,5.59e+00,13985.510058937492,0.899724,"1028788 nodes, 63380541 simplex iterations",302.403886,—
+eb90bbf,macbook-air-m4,Apple M4,2026-09-26T19:25:03,rgn,24,180,100,Optimal,82.199999239999983,82.19999923999372,7.53e-14,82.199999239999983,0,"5308 nodes, 322349 simplex iterations",1.997601,PASS
+eb90bbf,macbook-air-m4,Apple M4,2026-09-26T19:25:03,bell5,91,104,58,TimeLimit,nan,8966413.70538,nan,nan,nan,"732905 nodes, 39407468 simplex iterations; presolve removed 2 rows, 0 cols",300.000657,—
+eb90bbf,macbook-air-m4,Apple M4,2026-09-26T19:25:03,bell3a,123,133,71,TimeLimit,878430.31599999999,878430.3159999951,5.57e-15,877923.12645799306,0.000577381,"424915 nodes, 31827834 simplex iterations; presolve removed 8 rows, 0 cols",300.044829,—
+eb90bbf,macbook-air-m4,Apple M4,2026-09-26T19:25:03,misc03,96,160,159,Optimal,3360,3359.9999999999295,2.10e-14,3360,0,"581 nodes, 48754 simplex iterations",1.194672,PASS
+eb90bbf,macbook-air-m4,Apple M4,2026-09-26T19:25:03,p0201,133,201,201,Optimal,7615,7615.000000000004,4.78e-16,7615,0,"2312 nodes, 438439 simplex iterations",6.952586,PASS
