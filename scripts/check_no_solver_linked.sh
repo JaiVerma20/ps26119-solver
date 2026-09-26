@@ -13,8 +13,19 @@ if grep -rEin "#include *[<\"]($PATTERN)|import +highspy" src include apps 2>/de
   echo "FAIL: solver-core source references another solver"; fail=1
 fi
 
-# 2. Binaries: linked libraries and symbols.
-for bin in "$BUILD/ps26119" "$BUILD/libps26119_core.a"; do
+# 1b. The Python package is a ctypes binding over OUR library: no solver or modelling
+#     package may be imported there (highspy/scipy are allowed only in tools/, bench/, tests).
+if grep -rEn "^\s*(import|from) +(highspy|scipy|pulp|cvxpy|pyomo|gurobipy|cplex|ortools|mosek|xpress)" python/ps26119 2>/dev/null; then
+  echo "FAIL: python/ps26119 imports a solver/modelling package"; fail=1
+fi
+
+# 1c. The build never looks for a solver library.
+if grep -rEin "find_(package|library)\s*\(\s*($PATTERN)" CMakeLists.txt cmake tests/CMakeLists.txt 2>/dev/null; then
+  echo "FAIL: CMake looks for a solver library"; fail=1
+fi
+
+# 2. Binaries: linked libraries and symbols (CLI, static core, shared library for Python/C).
+for bin in "$BUILD/ps26119" "$BUILD/libps26119_core.a" "$BUILD/libps26119.dylib" "$BUILD/libps26119.so"; do
   [ -e "$bin" ] || continue
   if [[ "$bin" == *.a ]]; then deps=""; else
     if command -v otool >/dev/null; then deps=$(otool -L "$bin"); else deps=$(ldd "$bin" || true); fi
