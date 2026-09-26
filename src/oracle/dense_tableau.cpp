@@ -1,3 +1,4 @@
+// Origin: gpuopt src/oracle/dense_oracle.cpp (Shivanshu Vats, c192dd0); see dense_tableau.h.
 // dense_oracle.cpp - two-phase dense tableau simplex with Bland's rule.
 //
 // Pipeline
@@ -24,13 +25,13 @@
 // among ties) guarantees termination without cycling in exact arithmetic.
 // That, not speed, is why it is used here.
 
-#include "gpuopt/dense_oracle.hpp"
+#include "oracle/dense_tableau.h"
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 
-namespace gpuopt {
+namespace ps26119::oracle {
 namespace {
 
 // How one variable of the extended problem (x_j or r_i) maps onto
@@ -65,19 +66,22 @@ struct StandardForm {
 
 // Builds the standard form. Returns false (with a reason) if some bound pair
 // is already contradictory, which proves infeasibility without any pivoting.
-bool build_standard_form(const LpProblem& lp, const DenseOracleOptions& opt, StandardForm& sf,
+bool build_standard_form(const Model& lp, const DenseTableauOptions& opt, StandardForm& sf,
                          std::string& reason) {
-  const int n_orig = lp.num_cols();
-  const int m_orig = lp.num_rows();
+  const int n_orig = lp.num_cols;
+  const int m_orig = lp.num_rows;
   const int n_ext = n_orig + m_orig;
-  const double sense = lp.sense == ObjSense::kMinimize ? 1.0 : -1.0;
+  const double sense = static_cast<double>(lp.sense);
 
   auto bounds = [&](int v) {
     return v < n_orig ? std::pair{lp.col_lower[v], lp.col_upper[v]}
                       : std::pair{lp.row_lower[v - n_orig], lp.row_upper[v - n_orig]};
   };
   auto name = [&](int v) {
-    return v < n_orig ? "column '" + lp.col_names[v] + "'" : "row '" + lp.row_names[v - n_orig] + "'";
+    // Model names are optional; fall back to the index.
+    if (v < n_orig) return "column '" + (lp.col_names.empty() ? std::to_string(v) : lp.col_names[v]) + "'";
+    const int i = v - n_orig;
+    return "row '" + (lp.row_names.empty() ? std::to_string(i) : lp.row_names[i]) + "'";
   };
 
   // Pass 1: classify every variable and count standard-form columns / rows.
@@ -130,8 +134,8 @@ bool build_standard_form(const LpProblem& lp, const DenseOracleOptions& opt, Sta
     std::vector<std::pair<int, double>> entries_v;
     double c = 0.0;
     if (v < n_orig) {
-      for (int k = lp.A.col_start[v]; k < lp.A.col_start[v + 1]; ++k) {
-        entries_v.push_back({lp.A.row_index[k], lp.A.value[k]});
+      for (int k = lp.col_start[v]; k < lp.col_start[v + 1]; ++k) {
+        entries_v.push_back({lp.row_index[k], lp.value[k]});
       }
       c = sense * lp.obj[v];
     } else {
@@ -186,7 +190,7 @@ class Tableau {
  public:
   enum class Outcome { kOptimal, kUnbounded, kIterationLimit };
 
-  Tableau(const StandardForm& sf, const DenseOracleOptions& opt)
+  Tableau(const StandardForm& sf, const DenseTableauOptions& opt)
       : m_(sf.m), n_(sf.n), width_(sf.n + sf.m + 1), rhs_(sf.n + sf.m), opt_(opt) {
     T_.assign(static_cast<size_t>(m_ + 1) * width_, 0.0);
     basis_.resize(m_);
@@ -325,7 +329,7 @@ class Tableau {
   }
 
   int m_, n_, width_, rhs_;
-  const DenseOracleOptions& opt_;
+  const DenseTableauOptions& opt_;
   std::vector<double> T_;
   std::vector<int> basis_;
   std::vector<double> sign_;
@@ -333,10 +337,12 @@ class Tableau {
 
 }  // namespace
 
-SolveResult solve_dense_oracle(const LpProblem& lp, const DenseOracleOptions& options) {
+Solution solve_dense_tableau(const Model& lp, const DenseTableauOptions& options) {
   const auto start = std::chrono::steady_clock::now();
-  SolveResult result;
-  auto finish = [&](SolveStatus status, std::string message) {
+  Solution result;
+  result.engine = "tableau";
+  result.precision = "fp64";
+  auto finish = [&](Status status, std::string message) {
     result.status = status;
     if (!message.empty()) {
       result.message = result.message.empty() ? message : result.message + "; " + message;
@@ -347,15 +353,15 @@ SolveResult solve_dense_oracle(const LpProblem& lp, const DenseOracleOptions& op
   };
 
   if (const std::string err = lp.validate(); !err.empty()) {
-    return finish(SolveStatus::kNumericalError, "invalid problem: " + err);
+    return finish(Status::NumericalError, "invalid problem: " + err);
   }
-  if (lp.num_integers() > 0) result.message = "integrality ignored: LP relaxation solved";
+  if (std::any_of(lp.is_integer.begin(), lp.is_integer.end(), [](auto v) { return v != 0; })) result.message = "integrality ignored: LP relaxation solved";
 
   StandardForm sf;
   std::string reason;
   if (!build_standard_form(lp, options, sf, reason)) {
     const bool too_large = reason.find("too large") != std::string::npos;
-    return finish(too_large ? SolveStatus::kNotSolved : SolveStatus::kInfeasible, reason);
+    return finish(too_large ? Status::NotSolved : Status::Infeasible, reason);
   }
 
   Tableau tableau(sf, options);
@@ -364,10 +370,10 @@ SolveResult solve_dense_oracle(const LpProblem& lp, const DenseOracleOptions& op
   // Phase 1: find a feasible basis.
   tableau.set_phase1_objective();
   if (tableau.run(result.iterations) == Tableau::Outcome::kIterationLimit) {
-    return finish(SolveStatus::kIterationLimit, "iteration limit reached in phase 1");
+    return finish(Status::IterationLimit, "iteration limit reached in phase 1");
   }
   if (tableau.objective() > options.feasibility_tolerance * b_scale) {
-    return finish(SolveStatus::kInfeasible, "phase 1 optimum is positive");
+    return finish(Status::Infeasible, "phase 1 optimum is positive");
   }
   tableau.drive_out_artificials();
 
@@ -375,35 +381,39 @@ SolveResult solve_dense_oracle(const LpProblem& lp, const DenseOracleOptions& op
   tableau.set_phase2_objective(sf.cost);
   switch (tableau.run(result.iterations)) {
     case Tableau::Outcome::kIterationLimit:
-      return finish(SolveStatus::kIterationLimit, "iteration limit reached in phase 2");
+      return finish(Status::IterationLimit, "iteration limit reached in phase 2");
     case Tableau::Outcome::kUnbounded:
-      return finish(SolveStatus::kUnbounded, "");
+      return finish(Status::Unbounded, "");
     case Tableau::Outcome::kOptimal:
       break;
   }
 
   // Map the standard-form solution back to the original space.
-  const int n = lp.num_cols();
-  const int m = lp.num_rows();
+  const int n = lp.num_cols;
+  const int m = lp.num_rows;
   const std::vector<double> z = tableau.primal();
   const std::vector<double> w = tableau.duals();
-  const double sense = lp.sense == ObjSense::kMinimize ? 1.0 : -1.0;
+  const double sense = static_cast<double>(lp.sense);
 
   result.x.resize(n);
   for (int j = 0; j < n; ++j) result.x[j] = sf.maps[j].value(z);
   // Row i of the standard form is a_i x - r_i = 0, so its dual is y_i
   // (for the minimisation form; flip back for a maximisation problem).
-  result.row_dual.resize(m);
-  for (int i = 0; i < m; ++i) result.row_dual[i] = sense * w[i];
-  lp.A.multiply(result.x, result.row_activity);
-  lp.A.multiply_transpose(result.row_dual, result.col_dual);
-  for (int j = 0; j < n; ++j) result.col_dual[j] = lp.obj[j] - result.col_dual[j];
+  result.y.resize(m);
+  for (int i = 0; i < m; ++i) result.y[i] = sense * w[i];
+  result.row_activity = lp.row_activity(result.x);
+  result.z.assign(n, 0.0);
+  for (int j = 0; j < n; ++j) {
+    double aty = 0.0;
+    for (int k = lp.col_start[j]; k < lp.col_start[j + 1]; ++k) aty += lp.value[k] * result.y[lp.row_index[k]];
+    result.z[j] = lp.obj[j] - aty;
+  }
   result.objective = lp.objective_value(result.x);
 
   for (double v : result.x) {
-    if (!std::isfinite(v)) return finish(SolveStatus::kNumericalError, "non-finite primal value");
+    if (!std::isfinite(v)) return finish(Status::NumericalError, "non-finite primal value");
   }
-  return finish(SolveStatus::kOptimal, "");
+  return finish(Status::Optimal, "");
 }
 
-}  // namespace gpuopt
+}  // namespace ps26119::oracle

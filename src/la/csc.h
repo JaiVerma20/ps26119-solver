@@ -1,25 +1,18 @@
-// problem.hpp - the canonical in-memory LP / MILP model.
+// csc.h - compressed sparse column matrix for the simplex / sparse LU layer.
 //
-// This struct is the frozen contract between the front end (MPS reader,
-// presolve) and every solver engine (dense oracle, sparse simplex, IPM, PDLP).
+// Origin: gpuopt (Shivanshu Vats, shivanshu24-code/gpu_optimization@c192dd0),
+// include/gpuopt/problem.hpp. The LpProblem part of that file was replaced by the
+// canonical ps26119::Model (include/ps26119/model.h); the matrix type stayed.
 //
-//   minimize / maximize   obj^T x + obj_offset
-//   subject to            row_lower <= A x <= row_upper
-//                         col_lower <=   x <= col_upper
-//                         x_j integer          for every j with is_integer[j]
-//
-// Infinite bounds are stored as +/- kInf. Equality rows have row_lower == row_upper.
+// This is a linear-algebra object (a basis matrix, a scaled copy of A), not a
+// second model representation. csc_from_model() copies A out of a Model.
 #pragma once
 
-#include <limits>
-#include <string>
 #include <vector>
 
-namespace gpuopt {
+#include "ps26119/model.h"
 
-inline constexpr double kInf = std::numeric_limits<double>::infinity();
-
-enum class ObjSense { kMinimize, kMaximize };
+namespace ps26119::la {
 
 // Compressed sparse column (CSC) matrix.
 // The entries of column j live at positions [col_start[j], col_start[j+1])
@@ -54,31 +47,9 @@ struct Triplet {
 SparseMatrixCSC build_csc(int num_rows, int num_cols, std::vector<Triplet> triplets,
                           int* merged_duplicates = nullptr);
 
-struct LpProblem {
-  std::string name;
-  std::string objective_name;
-  ObjSense sense = ObjSense::kMinimize;
-  double obj_offset = 0.0;
+// Copy of the model's constraint matrix. Model::validate() guarantees unique row
+// indices per column; they need not be sorted (no user of this type relies on it
+// except build_csc's output, which is sorted).
+SparseMatrixCSC csc_from_model(const Model& model);
 
-  std::vector<double> obj;  // size num_cols
-  SparseMatrixCSC A;        // num_rows x num_cols
-  std::vector<double> row_lower, row_upper;
-  std::vector<double> col_lower, col_upper;
-  std::vector<char> is_integer;  // size num_cols, 0 or 1
-
-  std::vector<std::string> row_names;
-  std::vector<std::string> col_names;
-
-  int num_rows() const { return A.num_rows; }
-  int num_cols() const { return A.num_cols; }
-  int num_integers() const;
-
-  // obj^T x + obj_offset, in the problem's own sense.
-  double objective_value(const std::vector<double>& x) const;
-
-  // Empty string if every array has a consistent size and no bound is NaN;
-  // otherwise a description of the first inconsistency found.
-  std::string validate() const;
-};
-
-}  // namespace gpuopt
+}  // namespace ps26119::la

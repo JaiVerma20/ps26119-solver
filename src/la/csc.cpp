@@ -1,9 +1,10 @@
-#include "gpuopt/problem.hpp"
+// csc.cpp - see csc.h. Origin: gpuopt src/core/problem.cpp (Shivanshu Vats, c192dd0).
+#include "la/csc.h"
 
 #include <algorithm>
 #include <cmath>
 
-namespace gpuopt {
+namespace ps26119::la {
 
 std::vector<double> SparseMatrixCSC::to_dense() const {
   std::vector<double> dense(static_cast<size_t>(num_rows) * num_cols, 0.0);
@@ -71,39 +72,14 @@ SparseMatrixCSC build_csc(int num_rows, int num_cols, std::vector<Triplet> tripl
   return m;
 }
 
-int LpProblem::num_integers() const {
-  return static_cast<int>(std::count(is_integer.begin(), is_integer.end(), 1));
+SparseMatrixCSC csc_from_model(const Model& model) {
+  SparseMatrixCSC m;
+  m.num_rows = model.num_rows;
+  m.num_cols = model.num_cols;
+  m.col_start = model.col_start;
+  m.row_index = model.row_index;
+  m.value = model.value;
+  return m;
 }
 
-double LpProblem::objective_value(const std::vector<double>& x) const {
-  double value = obj_offset;
-  for (int j = 0; j < num_cols(); ++j) value += obj[j] * x[j];
-  return value;
-}
-
-std::string LpProblem::validate() const {
-  const size_t m = static_cast<size_t>(num_rows());
-  const size_t n = static_cast<size_t>(num_cols());
-  if (A.col_start.size() != n + 1) return "A.col_start has wrong size";
-  if (A.row_index.size() != A.value.size()) return "A.row_index / A.value size mismatch";
-  if (obj.size() != n) return "obj has wrong size";
-  if (col_lower.size() != n || col_upper.size() != n) return "column bounds have wrong size";
-  if (row_lower.size() != m || row_upper.size() != m) return "row bounds have wrong size";
-  if (is_integer.size() != n) return "is_integer has wrong size";
-  for (int r : A.row_index) {
-    if (r < 0 || static_cast<size_t>(r) >= m) return "A has a row index out of range";
-  }
-  for (size_t j = 0; j < n; ++j) {
-    if (std::isnan(col_lower[j]) || std::isnan(col_upper[j]) || std::isnan(obj[j])) {
-      return "NaN in column data at column " + std::to_string(j);
-    }
-  }
-  for (size_t i = 0; i < m; ++i) {
-    if (std::isnan(row_lower[i]) || std::isnan(row_upper[i])) {
-      return "NaN in row bounds at row " + std::to_string(i);
-    }
-  }
-  return {};
-}
-
-}  // namespace gpuopt
+}  // namespace ps26119::la

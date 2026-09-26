@@ -12,6 +12,12 @@ set(PS26119_TEST_SOURCES
   unit/test_safe_bound.cpp
   unit/test_presolve.cpp
   unit/test_mip.cpp
+  # integrated from gpuopt (Shivanshu Vats, c192dd0)
+  unit/test_mps_reader.cpp
+  unit/test_dense_tableau.cpp
+  unit/test_dense_tableau_random.cpp
+  unit/test_sparse_lu.cpp
+  unit/test_simplex.cpp
 )
 
 if(PS26119_ENABLE_CUDA)

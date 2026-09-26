@@ -1,4 +1,5 @@
 // sparse_lu.cpp - Markowitz / threshold sparse LU with FTRAN, BTRAN and PFI updates.
+// Origin: gpuopt src/linalg/sparse_lu.cpp (Shivanshu Vats, c192dd0); see sparse_lu.h.
 //
 // Factorization works on the "active submatrix": the rows and columns not yet
 // pivoted. It is stored twice so both directions are cheap:
@@ -12,14 +13,14 @@
 //   3. remove row r and column c from the active submatrix;
 //   4. Schur-complement update a_ij -= l_i * u_rj, creating fill-in as needed.
 
-#include "gpuopt/linalg/sparse_lu.hpp"
+#include "la/sparse_lu.h"
 
 #include <algorithm>
 #include <chrono>
 #include <climits>
 #include <cmath>
 
-namespace gpuopt {
+namespace ps26119::la {
 
 SparseMatrixCSC build_basis_matrix(const SparseMatrixCSC& A, const std::vector<int>& basic) {
   SparseMatrixCSC B;
@@ -417,4 +418,4 @@ bool SparseLU::needs_refactor() const {
          stats_.nnz_eta > 2 * (stats_.nnz_l + stats_.nnz_u) + m_;
 }
 
-}  // namespace gpuopt
+}  // namespace ps26119::la

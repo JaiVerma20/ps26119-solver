@@ -1,4 +1,5 @@
 // primal_simplex.cpp - bounded revised primal simplex on top of SparseLU.
+// Origin: gpuopt src/simplex/primal_simplex.cpp (Shivanshu Vats, c192dd0); see primal_simplex.h.
 //
 // Internal (scaled) form:   min c^T z   s.t.  [A I] z = 0,   l <= z <= u
 //   z_j, j <  n : structural variables (scaled by the column factors)
@@ -17,7 +18,7 @@
 // Any "done" verdict (optimal / infeasible / unbounded) is re-checked with a
 // fresh factorization before it is believed.
 
-#include "gpuopt/simplex/primal_simplex.hpp"
+#include "simplex/primal_simplex.h"
 
 #include <algorithm>
 #include <chrono>
@@ -26,19 +27,23 @@
 #include <random>
 #include <string>
 
-#include "gpuopt/linalg/sparse_lu.hpp"
-#include "gpuopt/simplex/scaling.hpp"
+#include "la/sparse_lu.h"
+#include "simplex/simplex_scaling.h"
 
-namespace gpuopt {
+namespace ps26119::simplex {
+using la::build_basis_matrix;
+using la::SparseLU;
+using la::SparseMatrixCSC;
+
 namespace {
 
 enum class VarStatus : char { kBasic, kAtLower, kAtUpper, kFree };
 
 class PrimalSimplex {
  public:
-  PrimalSimplex(const LpProblem& lp, const SimplexOptions& opt) : lp_(lp), opt_(opt) {}
+  PrimalSimplex(const Model& lp, const SimplexOptions& opt) : lp_(lp), A_orig_(la::csc_from_model(lp)), opt_(opt) {}
 
-  SolveResult run();
+  Solution run();
 
  private:
   // ------------------------------------------------------------- setup
@@ -83,12 +88,13 @@ class PrimalSimplex {
 
   // ----------------------------------------------------------- results
   double internal_objective() const;
-  SolveResult finish(SolveStatus status, const std::string& note);
+  Solution finish(Status status, const std::string& note);
   double elapsed() const {
     return std::chrono::duration<double>(std::chrono::steady_clock::now() - start_).count();
   }
 
-  const LpProblem& lp_;
+  const Model& lp_;
+  const SparseMatrixCSC A_orig_;  // unscaled copy of the model's A
   const SimplexOptions& opt_;
   std::chrono::steady_clock::time_point start_ = std::chrono::steady_clock::now();
 
@@ -120,18 +126,18 @@ class PrimalSimplex {
 // =================================================================== setup
 
 void PrimalSimplex::build_internal_problem() {
-  m_ = lp_.num_rows();
-  n_ = lp_.num_cols();
+  m_ = lp_.num_rows;
+  n_ = lp_.num_cols;
   nt_ = n_ + m_;
-  sense_ = lp_.sense == ObjSense::kMinimize ? 1.0 : -1.0;
+  sense_ = lp_.sense;
 
   if (opt_.scale) {
-    scale_ = compute_scaling(lp_.A);
+    scale_ = compute_scaling(A_orig_);
   } else {
     scale_.row.assign(m_, 1.0);
     scale_.col.assign(n_, 1.0);
   }
-  A_ = lp_.A;
+  A_ = A_orig_;
   for (int j = 0; j < n_; ++j) {
     for (int k = A_.col_start[j]; k < A_.col_start[j + 1]; ++k) {
       A_.value[k] *= scale_.row[A_.row_index[k]] * scale_.col[j];
@@ -458,15 +464,15 @@ double PrimalSimplex::internal_objective() const {
 
 // ================================================================== driver
 
-SolveResult PrimalSimplex::run() {
+Solution PrimalSimplex::run() {
   if (const std::string err = lp_.validate(); !err.empty()) {
-    return finish(SolveStatus::kNumericalError, "invalid problem: " + err);
+    return finish(Status::NumericalError, "invalid problem: " + err);
   }
-  for (int j = 0; j < lp_.num_cols(); ++j) {
-    if (lp_.col_lower[j] > lp_.col_upper[j]) return finish(SolveStatus::kInfeasible, "column bounds cross");
+  for (int j = 0; j < lp_.num_cols; ++j) {
+    if (lp_.col_lower[j] > lp_.col_upper[j]) return finish(Status::Infeasible, "column bounds cross");
   }
-  for (int i = 0; i < lp_.num_rows(); ++i) {
-    if (lp_.row_lower[i] > lp_.row_upper[i]) return finish(SolveStatus::kInfeasible, "row bounds cross");
+  for (int i = 0; i < lp_.num_rows; ++i) {
+    if (lp_.row_lower[i] > lp_.row_upper[i]) return finish(Status::Infeasible, "row bounds cross");
   }
 
   build_internal_problem();
@@ -476,9 +482,9 @@ SolveResult PrimalSimplex::run() {
 
   const long long stall_limit = 100 + 2LL * m_;
   while (true) {
-    if (iterations_ >= opt_.max_iterations) return finish(SolveStatus::kIterationLimit, "iteration limit");
+    if (iterations_ >= opt_.max_iterations) return finish(Status::IterationLimit, "iteration limit");
     if ((iterations_ & 63) == 0 && elapsed() > opt_.time_limit_seconds) {
-      return finish(SolveStatus::kIterationLimit, "time limit");
+      return finish(Status::IterationLimit, "time limit");
     }
     if (lu_.needs_refactor()) refactor();
 
@@ -499,7 +505,7 @@ SolveResult PrimalSimplex::run() {
         refactor();
         continue;
       }
-      if (phase1) return finish(SolveStatus::kInfeasible, "phase 1 cannot reduce the infeasibility");
+      if (phase1) return finish(Status::Infeasible, "phase 1 cannot reduce the infeasibility");
       if (perturbed_) {  // optimal for the perturbed costs: clean up with the true ones
         cost_ = cost_orig_;
         perturbed_ = false;
@@ -516,7 +522,7 @@ SolveResult PrimalSimplex::run() {
         ++tightenings_;
         continue;
       }
-      return finish(SolveStatus::kOptimal, "");
+      return finish(Status::Optimal, "");
     }
 
     alpha_.assign(m_, 0.0);
@@ -534,8 +540,8 @@ SolveResult PrimalSimplex::run() {
         perturbed_ = false;
         continue;
       }
-      if (phase1) return finish(SolveStatus::kNumericalError, "unbounded direction in phase 1");
-      return finish(SolveStatus::kUnbounded, "");
+      if (phase1) return finish(Status::NumericalError, "unbounded direction in phase 1");
+      return finish(Status::Unbounded, "");
     }
 
     pivot(q, dir, ratio);
@@ -556,8 +562,10 @@ SolveResult PrimalSimplex::run() {
   }
 }
 
-SolveResult PrimalSimplex::finish(SolveStatus status, const std::string& note) {
-  SolveResult res;
+Solution PrimalSimplex::finish(Status status, const std::string& note) {
+  Solution res;
+  res.engine = "simplex";
+  res.precision = "fp64";
   res.status = status;
   res.iterations = iterations_;
   char buf[256];
@@ -566,9 +574,9 @@ SolveResult PrimalSimplex::finish(SolveStatus status, const std::string& note) {
                 "Devex resets %lld, tolerance tightenings %d",
                 phase1_iterations_, flips_, refactors_, bland_episodes_, devex_resets_, tightenings_);
   res.message = note.empty() ? buf : note + "; " + buf;
-  if (lp_.num_integers() > 0) res.message = "integrality ignored: LP relaxation solved; " + res.message;
+  if (std::any_of(lp_.is_integer.begin(), lp_.is_integer.end(), [](auto v) { return v != 0; })) res.message = "integrality ignored: LP relaxation solved; " + res.message;
 
-  if (status == SolveStatus::kOptimal) {
+  if (status == Status::Optimal) {
     compute_duals(false);  // true (unperturbed) costs
     res.x.resize(n_);
     for (int j = 0; j < n_; ++j) {
@@ -577,11 +585,11 @@ SolveResult PrimalSimplex::finish(SolveStatus status, const std::string& note) {
       else if (status_[j] == VarStatus::kAtUpper) res.x[j] = lp_.col_upper[j];
       else res.x[j] = x_[j] * scale_.col[j];
     }
-    res.row_dual.resize(m_);
-    for (int i = 0; i < m_; ++i) res.row_dual[i] = sense_ * scale_.row[i] * y_[i] / cost_scale_;
-    lp_.A.multiply(res.x, res.row_activity);
-    lp_.A.multiply_transpose(res.row_dual, res.col_dual);
-    for (int j = 0; j < n_; ++j) res.col_dual[j] = lp_.obj[j] - res.col_dual[j];
+    res.y.resize(m_);
+    for (int i = 0; i < m_; ++i) res.y[i] = sense_ * scale_.row[i] * y_[i] / cost_scale_;
+    A_orig_.multiply(res.x, res.row_activity);
+    A_orig_.multiply_transpose(res.y, res.z);
+    for (int j = 0; j < n_; ++j) res.z[j] = lp_.obj[j] - res.z[j];
     res.objective = lp_.objective_value(res.x);
   }
   res.seconds = elapsed();
@@ -590,9 +598,9 @@ SolveResult PrimalSimplex::finish(SolveStatus status, const std::string& note) {
 
 }  // namespace
 
-SolveResult solve_primal_simplex(const LpProblem& lp, const SimplexOptions& options) {
+Solution solve_primal_simplex(const Model& lp, const SimplexOptions& options) {
   PrimalSimplex solver(lp, options);
   return solver.run();
 }
 
-}  // namespace gpuopt
+}  // namespace ps26119::simplex

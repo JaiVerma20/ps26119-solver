@@ -8,31 +8,34 @@
 //     (primal feasible, dual feasible, zero duality gap).
 // Later, the same generator drives differential tests of the sparse simplex
 // against this oracle.
+// Origin: gpuopt tests/test_oracle_random.cpp (Shivanshu Vats, c192dd0); ported to GoogleTest.
+#include <gtest/gtest.h>
+
 #include <random>
 #include <string>
 
-#include "gpuopt/dense_oracle.hpp"
-#include "gpuopt/solution_checker.hpp"
-#include "random_lp.hpp"
-#include "test_framework.hpp"
+#include "oracle/dense_tableau.h"
+#include "core/solution_checker.h"
+#include "unit/random_lp.h"
 
-using namespace gpuopt;
+using namespace ps26119;
+using namespace ps26119::oracle;
 
-using gpuopt::testing::random_lp;
-using gpuopt::testing::RandomLp;
+using ps26119::testing::random_lp;
+using ps26119::testing::RandomLp;
 
-TEST(random_lps_are_certified) {
+TEST(DenseTableauRandom, random_lps_are_certified) {
   constexpr int kTrials = 5000;
   std::mt19937 rng(20260924);
   int optimal = 0, infeasible = 0, unbounded = 0, other = 0, certified = 0;
 
   for (int trial = 0; trial < kTrials; ++trial) {
     const RandomLp r = random_lp(rng);
-    const SolveResult res = solve_dense_oracle(r.lp);
+    const Solution res = solve_dense_tableau(r.lp);
     switch (res.status) {
-      case SolveStatus::kOptimal: {
+      case Status::Optimal: {
         ++optimal;
-        const CheckReport rep = check_solution(r.lp, res.x, res.row_dual);
+        const CheckReport rep = check_solution(r.lp, res.x, res.y);
         if (rep.passed()) {
           ++certified;
         } else {
@@ -40,12 +43,12 @@ TEST(random_lps_are_certified) {
         }
         break;
       }
-      case SolveStatus::kInfeasible:
+      case Status::Infeasible:
         ++infeasible;
         if (r.known_feasible) std::printf("  trial %d: feasible LP reported INFEASIBLE\n", trial);
         EXPECT_TRUE(!r.known_feasible);
         break;
-      case SolveStatus::kUnbounded:
+      case Status::Unbounded:
         ++unbounded;
         if (r.all_boxed) std::printf("  trial %d: boxed LP reported UNBOUNDED\n", trial);
         EXPECT_TRUE(!r.all_boxed);
@@ -66,4 +69,3 @@ TEST(random_lps_are_certified) {
   EXPECT_TRUE(unbounded > 0);
 }
 
-TEST_MAIN()

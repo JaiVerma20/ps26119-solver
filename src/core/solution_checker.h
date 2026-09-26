@@ -1,4 +1,10 @@
-// solution_checker.hpp - independent optimality certificate.
+// solution_checker.h - independent optimality certificate (in-process).
+//
+// Origin: gpuopt include/gpuopt/solution_checker.hpp (Shivanshu Vats, c192dd0).
+// Role in ps26119: the gate every Optimal LP answer of solve() must pass before it is
+// reported (src/core/solve.cpp). tools/verify.py implements the same conditions with a
+// different reader (highspy) and is the EXTERNAL verifier; the two are kept independent.
+// Default tolerances are the verifier tolerances in include/ps26119/tolerances.h.
 //
 // Never trust a solver that says "optimal". This checker takes only the
 // problem, a primal vector x and a row dual vector y, and verifies from
@@ -13,14 +19,15 @@
 #include <string>
 #include <vector>
 
-#include "gpuopt/problem.hpp"
+#include "ps26119/model.h"
+#include "ps26119/tolerances.h"
 
-namespace gpuopt {
+namespace ps26119 {
 
 struct CheckTolerances {
-  double primal = 1e-6;  // scaled bound / row violation
-  double dual = 1e-6;    // scaled wrong-sign dual value
-  double gap = 1e-6;     // relative duality gap
+  double primal = tol::kVerifyPrimal;  // scaled bound / row violation
+  double dual = tol::kVerifyDual;      // scaled wrong-sign dual value
+  double gap = tol::kVerifyGap;        // relative duality gap
 };
 
 struct CheckReport {
@@ -39,8 +46,8 @@ struct CheckReport {
   std::string summary() const;
 };
 
-CheckReport check_solution(const LpProblem& lp, const std::vector<double>& x,
+CheckReport check_solution(const Model& lp, const std::vector<double>& x,
                            const std::vector<double>& row_dual,
                            const CheckTolerances& tolerances = {});
 
-}  // namespace gpuopt
+}  // namespace ps26119

@@ -1,3 +1,4 @@
+// Origin: gpuopt apps/lu_bench.cpp (Shivanshu Vats, c192dd0).
 // lu_bench.cpp - measures the sparse LU on bases taken from a real LP.
 //
 // A simplex basis consists of m columns: some structural columns of A, the
@@ -8,7 +9,7 @@
 //   timings    factorization, FTRAN of a column of A, BTRAN of a unit vector
 // plus an update test: a chain of PFI updates checked against a fresh factorization.
 
-#include "lu_bench.hpp"
+#include "lu_bench.h"
 
 #include <algorithm>
 #include <chrono>
@@ -17,9 +18,16 @@
 #include <random>
 #include <string>
 
-#include "gpuopt/linalg/sparse_lu.hpp"
+#include "la/sparse_lu.h"
 
-namespace gpuopt {
+namespace ps26119::cli {
+
+using la::build_basis_matrix;
+using la::SparseLU;
+using la::SparseLUOptions;
+using la::SparseLUStats;
+using la::SparseMatrixCSC;
+
 namespace {
 
 using Clock = std::chrono::steady_clock;
@@ -175,8 +183,8 @@ BasisReport measure_basis(const char* label, const SparseMatrixCSC& A, std::vect
 
 }  // namespace
 
-int run_lu_bench(const LpProblem& lp, const LuBenchOptions& opt) {
-  const SparseMatrixCSC& A = lp.A;
+int run_lu_bench(const Model& lp, const LuBenchOptions& opt) {
+  const SparseMatrixCSC A = la::csc_from_model(lp);
   const int m = A.num_rows, n = A.num_cols;
   std::mt19937 rng(opt.seed);
   bool all_ok = true;
@@ -311,4 +319,4 @@ int run_lu_bench(const LpProblem& lp, const LuBenchOptions& opt) {
   return all_ok ? 0 : 3;
 }
 
-}  // namespace gpuopt
+}  // namespace ps26119::cli

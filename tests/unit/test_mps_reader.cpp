@@ -1,49 +1,53 @@
 // Tests for the Layer 1 MPS reader.
+// Origin: gpuopt tests/test_mps_reader.cpp (Shivanshu Vats, c192dd0); ported to GoogleTest.
+#include <gtest/gtest.h>
+
+#include <algorithm>
 #include <string>
 
-#include "gpuopt/mps_reader.hpp"
-#include "test_framework.hpp"
+#include "io/mps_parser.h"
 
-using namespace gpuopt;
+using namespace ps26119;
+using namespace ps26119::io;
 
 namespace {
 
-const std::string kData = GPUOPT_DATA_DIR;
+const std::string kData = std::string(PS26119_SOURCE_DIR) + "/data";
 
-int row_of(const LpProblem& lp, const std::string& name) {
-  for (int i = 0; i < lp.num_rows(); ++i) {
+int row_of(const Model& lp, const std::string& name) {
+  for (int i = 0; i < lp.num_rows; ++i) {
     if (lp.row_names[i] == name) return i;
   }
   return -1;
 }
 
-int col_of(const LpProblem& lp, const std::string& name) {
-  for (int j = 0; j < lp.num_cols(); ++j) {
+int col_of(const Model& lp, const std::string& name) {
+  for (int j = 0; j < lp.num_cols; ++j) {
     if (lp.col_names[j] == name) return j;
   }
   return -1;
 }
 
 // Coefficient A(row, col), 0 if absent.
-double coef(const LpProblem& lp, int row, int col) {
-  for (int k = lp.A.col_start[col]; k < lp.A.col_start[col + 1]; ++k) {
-    if (lp.A.row_index[k] == row) return lp.A.value[k];
+double coef(const Model& lp, int row, int col) {
+  for (int k = lp.col_start[col]; k < lp.col_start[col + 1]; ++k) {
+    if (lp.row_index[k] == row) return lp.value[k];
   }
   return 0.0;
 }
 
 }  // namespace
 
-TEST(reads_tiny_max_model) {
+TEST(MpsReader, reads_tiny_max_model) {
   const auto r = read_mps_file(kData + "/examples/tiny_max.mps");
-  const LpProblem& lp = r.problem;
+  const Model& lp = r.problem;
   EXPECT_TRUE(lp.validate().empty());
   EXPECT_EQ(lp.name, std::string("TINY_MAX"));
-  EXPECT_TRUE(lp.sense == ObjSense::kMaximize);
-  EXPECT_EQ(lp.objective_name, std::string("PROFIT"));
-  EXPECT_EQ(lp.num_rows(), 2);
-  EXPECT_EQ(lp.num_cols(), 2);
-  EXPECT_EQ(lp.A.nnz(), 4);
+  EXPECT_TRUE(lp.sense == -1);
+  EXPECT_EQ(r.objective_name, std::string("PROFIT"));
+  EXPECT_EQ(lp.num_rows, 2);
+  EXPECT_EQ(lp.num_cols, 2);
+  EXPECT_EQ(lp.nnz(), size_t{4});
   EXPECT_NEAR(lp.obj[col_of(lp, "X")], 3.0, 0);
   EXPECT_NEAR(coef(lp, row_of(lp, "C2"), col_of(lp, "Y")), 3.0, 0);
   EXPECT_NEAR(lp.row_upper[row_of(lp, "C2")], 6.0, 0);
@@ -53,9 +57,9 @@ TEST(reads_tiny_max_model) {
   EXPECT_TRUE(r.warnings.empty());
 }
 
-TEST(reads_ranges_bounds_and_offset) {
+TEST(MpsReader, reads_ranges_bounds_and_offset) {
   const auto r = read_mps_file(kData + "/examples/features.mps");
-  const LpProblem& lp = r.problem;
+  const Model& lp = r.problem;
   EXPECT_TRUE(lp.validate().empty());
   EXPECT_NEAR(lp.obj_offset, 10.0, 0);  // RHS on objective row is the negated constant
 
@@ -83,9 +87,9 @@ TEST(reads_ranges_bounds_and_offset) {
   EXPECT_EQ(r.warnings.size(), size_t{1});
 }
 
-TEST(falls_back_to_fixed_format_for_names_with_spaces) {
+TEST(MpsReader, falls_back_to_fixed_format_for_names_with_spaces) {
   const auto r = read_mps_file(kData + "/examples/fixed_format.mps");
-  const LpProblem& lp = r.problem;
+  const Model& lp = r.problem;
   EXPECT_TRUE(r.format_used == MpsFormat::kFixed);
   EXPECT_EQ(lp.name, std::string("FIXED FORMAT DEMO"));
   EXPECT_TRUE(row_of(lp, "MACH A") >= 0);
@@ -95,21 +99,21 @@ TEST(falls_back_to_fixed_format_for_names_with_spaces) {
 
   MpsReadOptions strict_free;
   strict_free.format = MpsFormat::kFree;
-  EXPECT_THROWS(read_mps_file(kData + "/examples/fixed_format.mps", strict_free));
+  EXPECT_ANY_THROW(read_mps_file(kData + "/examples/fixed_format.mps", strict_free));
 }
 
-TEST(reads_integer_markers_and_binary_bounds) {
+TEST(MpsReader, reads_integer_markers_and_binary_bounds) {
   const auto r = read_mps_file(kData + "/examples/knapsack_mip.mps");
-  const LpProblem& lp = r.problem;
-  EXPECT_TRUE(lp.sense == ObjSense::kMaximize);  // "OBJSENSE MAX" on one line
-  EXPECT_EQ(lp.num_integers(), 3);
+  const Model& lp = r.problem;
+  EXPECT_TRUE(lp.sense == -1);  // "OBJSENSE MAX" on one line
+  EXPECT_EQ(std::count(lp.is_integer.begin(), lp.is_integer.end(), 1), 3);
   EXPECT_TRUE(lp.is_integer[col_of(lp, "A")]);
   EXPECT_TRUE(lp.is_integer[col_of(lp, "B")]);
   EXPECT_TRUE(lp.is_integer[col_of(lp, "C")]);  // integer via BV, outside the marker block
   EXPECT_NEAR(lp.col_upper[col_of(lp, "C")], 1.0, 0);
 }
 
-TEST(sums_duplicate_entries_and_accepts_missing_set_names) {
+TEST(MpsReader, sums_duplicate_entries_and_accepts_missing_set_names) {
   const char* text =
       "NAME DUP\n"
       "ROWS\n"
@@ -124,7 +128,7 @@ TEST(sums_duplicate_entries_and_accepts_missing_set_names) {
       " UP x 7\n"       // no bound set name
       " FR y_missing_is_error_if_used\n"
       "ENDATA\n";
-  EXPECT_THROWS(read_mps_string(text));  // bound on an unknown column
+  EXPECT_ANY_THROW(read_mps_string(text));  // bound on an unknown column
 
   const char* ok_text =
       "NAME DUP\nROWS\n N obj\n L r1\nCOLUMNS\n x obj 1 r1 2\n x r1 3\n"
@@ -136,7 +140,7 @@ TEST(sums_duplicate_entries_and_accepts_missing_set_names) {
   EXPECT_EQ(r.warnings.size(), size_t{1});  // "summed 1 duplicate matrix entries"
 }
 
-TEST(parses_number_formats) {
+TEST(MpsReader, parses_number_formats) {
   const char* text =
       "NAME NUM\nROWS\n N obj\n E r1\n G r2\nCOLUMNS\n"
       " x obj 1.5D+02 r1 .5\n"
@@ -145,7 +149,7 @@ TEST(parses_number_formats) {
       "RANGES\n rng r1 -4\n"
       "ENDATA\n";
   const auto r = read_mps_string(text);
-  const LpProblem& lp = r.problem;
+  const Model& lp = r.problem;
   EXPECT_NEAR(lp.obj[0], 150.0, 0);
   EXPECT_NEAR(coef(lp, 0, 0), 0.5, 0);
   EXPECT_NEAR(coef(lp, 1, 0), 3.0, 0);
@@ -154,17 +158,17 @@ TEST(parses_number_formats) {
   EXPECT_TRUE(lp.row_lower[1] == kInf);        // 1e30 is infinity
 }
 
-TEST(extra_free_rows_are_dropped) {
+TEST(MpsReader, extra_free_rows_are_dropped) {
   const char* text =
       "NAME FREE\nROWS\n N obj\n N other\n L r1\nCOLUMNS\n"
       " x obj 1 other 99\n x r1 1\nRHS\n rhs r1 4 other 5\nENDATA\n";
   const auto r = read_mps_string(text);
-  EXPECT_EQ(r.problem.num_rows(), 1);
-  EXPECT_EQ(r.problem.A.nnz(), 1);
+  EXPECT_EQ(r.problem.num_rows, 1);
+  EXPECT_EQ(r.problem.nnz(), size_t{1});
   EXPECT_NEAR(r.problem.obj[0], 1.0, 0);
 }
 
-TEST(reports_errors_with_line_numbers) {
+TEST(MpsReader, reports_errors_with_line_numbers) {
   const char* unknown_row = "NAME E\nROWS\n N obj\nCOLUMNS\n x nosuchrow 1\nENDATA\n";
   try {
     read_mps_string(unknown_row, {MpsFormat::kFree});
@@ -172,10 +176,9 @@ TEST(reports_errors_with_line_numbers) {
   } catch (const MpsParseError& e) {
     EXPECT_EQ(e.line(), 5);
   }
-  EXPECT_THROWS(read_mps_string("NAME Q\nROWS\n N obj\nQUADOBJ\nENDATA\n"));
-  EXPECT_THROWS(read_mps_string("NAME B\nROWS\n N obj\n X r1\nENDATA\n"));
-  EXPECT_THROWS(read_mps_file(kData + "/examples/does_not_exist.mps"));
-  EXPECT_THROWS(read_mps_file("model.mps.gz"));
+  EXPECT_ANY_THROW(read_mps_string("NAME Q\nROWS\n N obj\nQUADOBJ\nENDATA\n"));
+  EXPECT_ANY_THROW(read_mps_string("NAME B\nROWS\n N obj\n X r1\nENDATA\n"));
+  EXPECT_ANY_THROW(read_mps_file(kData + "/examples/does_not_exist.mps"));
+  EXPECT_ANY_THROW(read_mps_file("model.mps.gz"));
 }
 
-TEST_MAIN()

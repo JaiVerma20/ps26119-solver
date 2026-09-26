@@ -1,3 +1,4 @@
+// Origin: gpuopt src/validation/solution_checker.cpp (Shivanshu Vats, c192dd0); see solution_checker.h.
 // solution_checker.cpp - verifies an LP optimum from first principles.
 //
 // Everything is evaluated in minimisation form (a maximisation problem is
@@ -12,13 +13,13 @@
 //                                 + sum_j (d_j > 0 ? d_j l_j : d_j u_j)
 // Primal + dual feasibility + zero gap is a complete optimality proof.
 
-#include "gpuopt/solution_checker.hpp"
+#include "core/solution_checker.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 
-namespace gpuopt {
+namespace ps26119 {
 namespace {
 
 struct DualTerm {
@@ -57,16 +58,15 @@ double bound_violation(double val, double lo, double up) {
 
 }  // namespace
 
-CheckReport check_solution(const LpProblem& lp, const std::vector<double>& x,
+CheckReport check_solution(const Model& lp, const std::vector<double>& x,
                            const std::vector<double>& row_dual, const CheckTolerances& tol) {
   CheckReport rep;
-  const int m = lp.num_rows();
-  const int n = lp.num_cols();
-  const double sense = lp.sense == ObjSense::kMinimize ? 1.0 : -1.0;
+  const int m = lp.num_rows;
+  const int n = lp.num_cols;
+  const double sense = lp.sense;
 
   // Primal feasibility.
-  std::vector<double> ax;
-  lp.A.multiply(x, ax);
+  const std::vector<double> ax = lp.row_activity(x);
   for (int i = 0; i < m; ++i) {
     rep.max_primal_violation =
         std::max(rep.max_primal_violation, bound_violation(ax[i], lp.row_lower[i], lp.row_upper[i]));
@@ -79,8 +79,10 @@ CheckReport check_solution(const LpProblem& lp, const std::vector<double>& x,
   // Dual feasibility and dual objective, in minimisation form.
   std::vector<double> y(m);
   for (int i = 0; i < m; ++i) y[i] = sense * row_dual[i];
-  std::vector<double> aty;
-  lp.A.multiply_transpose(y, aty);
+  std::vector<double> aty(n, 0.0);
+  for (int j = 0; j < n; ++j) {
+    for (int k = lp.col_start[j]; k < lp.col_start[j + 1]; ++k) aty[j] += lp.value[k] * y[lp.row_index[k]];
+  }
 
   double dual_obj_min = 0.0;
   double primal_obj_min = 0.0;
@@ -124,4 +126,4 @@ std::string CheckReport::summary() const {
   return buf;
 }
 
-}  // namespace gpuopt
+}  // namespace ps26119

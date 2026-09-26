@@ -43,8 +43,15 @@ set(PS26119_SOURCES
   src/io/lpm_reader.cpp
   src/io/solution_writer.cpp
   src/io/solution_reader.cpp
+  src/io/mps_reader.cpp
   src/oracle/dense_simplex.cpp
+  src/oracle/dense_tableau.cpp
+  src/core/solution_checker.cpp
   src/la/csr.cpp
+  src/la/csc.cpp
+  src/la/sparse_lu.cpp
+  src/simplex/simplex_scaling.cpp
+  src/simplex/primal_simplex.cpp
   src/pdhg/scaling.cpp
   src/pdhg/cpu_backend.cpp
   src/pdhg/engine.cpp
@@ -54,11 +61,8 @@ set(PS26119_SOURCES
   src/mip/branch_and_bound.cpp
 )
 
-# The MPS reader belongs to a teammate (CLAUDE.md §2). Compile it only once it exists.
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/io/mps_reader.cpp)
-  list(APPEND PS26119_SOURCES src/io/mps_reader.cpp)
-  set(PS26119_HAVE_MPS_READER ON)
-endif()
+# The MPS reader (teammate, integrated from gpuopt@c192dd0) is always built now.
+set(PS26119_HAVE_MPS_READER ON)
 
 if(PS26119_ENABLE_CUDA)
   list(APPEND PS26119_SOURCES src/gpu/cuda_backend.cu)
@@ -118,7 +122,7 @@ add_custom_target(ps26119_git_info ALL
   COMMENT "git hash for --version")
 
 # ---------------------------------------------------------------- CLI
-add_executable(ps26119_cli apps/cli/main.cpp)
+add_executable(ps26119_cli apps/cli/main.cpp apps/cli/lu_bench.cpp)
 add_dependencies(ps26119_cli ps26119_git_info)
 # Explicit dependency so Ninja re-checks main.cpp AFTER the stamp step has (re)written the
 # header in the same build (otherwise the binary lags one build behind).

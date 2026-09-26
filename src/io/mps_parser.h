@@ -1,4 +1,9 @@
-// mps_reader.hpp - Layer 1 front end: reads MPS files into an LpProblem.
+// mps_parser.h - Layer 1 front end: reads MPS files into the canonical Model.
+//
+// Origin: gpuopt include/gpuopt/mps_reader.hpp (Shivanshu Vats, c192dd0) — the MPS reader
+// the Model contract (CLAUDE.md §6) reserved for the teammate. This is the full parser
+// API (options, warnings, detected format; throws MpsParseError). The exception-free
+// contract used by the CLI and the C API is io::read_mps() in io/mps_reader.h.
 //
 // Supported sections: NAME, OBJSENSE, OBJNAME, ROWS, COLUMNS (with integer
 // MARKER blocks), RHS, RANGES, BOUNDS (UP LO FX FR MI PL BV LI UI), ENDATA.
@@ -15,9 +20,9 @@
 #include <string_view>
 #include <vector>
 
-#include "gpuopt/problem.hpp"
+#include "ps26119/model.h"
 
-namespace gpuopt {
+namespace ps26119::io {
 
 enum class MpsFormat { kAuto, kFree, kFixed };
 
@@ -41,7 +46,8 @@ class MpsParseError : public std::runtime_error {
 };
 
 struct MpsReadResult {
-  LpProblem problem;
+  Model problem;
+  std::string objective_name;  // name of the N row used as the objective
   std::vector<std::string> warnings;
   MpsFormat format_used = MpsFormat::kFree;
 };
@@ -49,4 +55,4 @@ struct MpsReadResult {
 MpsReadResult read_mps_file(const std::string& path, const MpsReadOptions& options = {});
 MpsReadResult read_mps_string(std::string_view text, const MpsReadOptions& options = {});
 
-}  // namespace gpuopt
+}  // namespace ps26119::io

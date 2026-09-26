@@ -1,4 +1,11 @@
-// primal_simplex.hpp - Layer 3: bounded revised primal simplex.
+// primal_simplex.h - Layer 3: bounded revised primal simplex.
+//
+// Origin: gpuopt include/gpuopt/simplex/primal_simplex.hpp (Shivanshu Vats,
+// shivanshu24-code/gpu_optimization@c192dd0). Algorithm unchanged; it now reads the
+// canonical Model and returns the canonical Solution (engine "simplex").
+// References: Maros, Computational Techniques of the Simplex Method (2003);
+// Forrest & Goldfarb, Math. Prog. 57 (1992) (Devex); Harris, Math. Prog. 5 (1973);
+// Bland, Math. Oper. Res. 2 (1977).
 //
 // Solves  min/max c^T x  s.t.  L <= A x <= U,  l <= x <= u  using the sparse
 // LU of Layer 2. Every row gets a logical (slack) variable, so the problem
@@ -21,10 +28,10 @@
 // Integrality flags are ignored (the LP relaxation is solved).
 #pragma once
 
-#include "gpuopt/problem.hpp"
-#include "gpuopt/result.hpp"
+#include "ps26119/model.h"
+#include "ps26119/solution.h"
 
-namespace gpuopt {
+namespace ps26119::simplex {
 
 enum class Pricing { kDantzig, kDevex };
 
@@ -40,6 +47,6 @@ struct SimplexOptions {
   int log_every = 0;  // print a progress line every N iterations (0 = silent)
 };
 
-SolveResult solve_primal_simplex(const LpProblem& lp, const SimplexOptions& options = {});
+Solution solve_primal_simplex(const Model& lp, const SimplexOptions& options = {});
 
-}  // namespace gpuopt
+}  // namespace ps26119::simplex

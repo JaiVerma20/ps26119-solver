@@ -20,22 +20,31 @@
 // position in fixed format) and then handed to one handler per section.
 // Coefficients are collected as (row, col, value) triplets and converted to
 // compressed sparse column form at the end.
+//
+// Origin: gpuopt src/io/mps_reader.cpp (Shivanshu Vats, shivanshu24-code/gpu_optimization@c192dd0).
+// Adapted to fill the canonical ps26119::Model; parsing logic unchanged.
 
-#include "gpuopt/mps_reader.hpp"
+#include "io/mps_parser.h"
+#include "io/mps_reader.h"
 
 #include <algorithm>
 #include <cctype>
-#include <charconv>
+#include <cerrno>
 #include <cmath>
+#include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <unordered_map>
 
-namespace gpuopt {
+#include "la/csc.h"
+
+namespace ps26119::io {
 
 MpsParseError::MpsParseError(const std::string& message, int line)
     : std::runtime_error(line > 0 ? "line " + std::to_string(line) + ": " + message : message),
       line_(line) {}
+
+using la::Triplet;
 
 namespace {
 
@@ -88,10 +97,29 @@ bool parse_number(std::string_view s, double& out) {
     if (ch == 'd' || ch == 'D') ch = 'e';
   }
   if (buf.empty()) return false;
-  const char* begin = buf.data();
-  const char* end = begin + buf.size();
-  auto [ptr, ec] = std::from_chars(begin, end, out);
-  return ec == std::errc() && ptr == end;
+  // Portable replacement for std::from_chars(double), which Apple's libc++ does not
+  // provide. Accepts the same language: [-]digits[.digits][(e|E)[+-]digits], or
+  // inf / infinity / nan (any case); an out-of-range value is an error.
+  std::string body = buf;
+  for (char& ch : body) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+  const bool neg = body[0] == '-';
+  const std::string word = neg ? body.substr(1) : body;
+  if (word == "inf" || word == "infinity") {
+    out = neg ? -kInf : kInf;
+    return true;
+  }
+  if (word == "nan") {
+    out = std::nan("");
+    return true;
+  }
+  if (word.empty() || !(std::isdigit(static_cast<unsigned char>(word[0])) || word[0] == '.')) return false;
+  for (char ch : word) {
+    if (!std::isdigit(static_cast<unsigned char>(ch)) && ch != '.' && ch != 'e' && ch != '+' && ch != '-') return false;
+  }
+  char* end = nullptr;
+  errno = 0;
+  out = std::strtod(buf.c_str(), &end);
+  return errno != ERANGE && end == buf.c_str() + buf.size();
 }
 
 class Parser {
@@ -224,9 +252,9 @@ class Parser {
   void set_sense(std::string_view token) {
     const std::string s = upper(token);
     if (s == "MAX" || s == "MAXIMIZE") {
-      sense_ = ObjSense::kMaximize;
+      sense_ = -1;
     } else if (s == "MIN" || s == "MINIMIZE") {
-      sense_ = ObjSense::kMinimize;
+      sense_ = 1;
     } else {
       fail("unknown OBJSENSE '" + std::string(token) + "'");
     }
@@ -511,24 +539,29 @@ class Parser {
 
     MpsReadResult result;
     result.format_used = format_;
-    LpProblem& lp = result.problem;
+    Model& lp = result.problem;
     const int m = static_cast<int>(row_names_.size());
     const int n = static_cast<int>(col_names_.size());
 
     int merged = 0;
-    lp.A = build_csc(m, n, std::move(triplets_), &merged);
+    la::SparseMatrixCSC A = la::build_csc(m, n, std::move(triplets_), &merged);
+    lp.num_rows = m;
+    lp.num_cols = n;
+    lp.col_start = std::move(A.col_start);
+    lp.row_index = std::move(A.row_index);
+    lp.value = std::move(A.value);
     if (merged > 0) {
       warnings_.push_back("summed " + std::to_string(merged) + " duplicate matrix entries");
     }
 
     lp.name = name_;
-    lp.objective_name = objective_name_;
+    result.objective_name = objective_name_;
     lp.sense = sense_;
     lp.obj_offset = obj_offset_;
     lp.obj = std::move(obj_);
     lp.row_names = std::move(row_names_);
     lp.col_names = std::move(col_names_);
-    lp.is_integer = std::move(is_integer_);
+    lp.is_integer.assign(is_integer_.begin(), is_integer_.end());
 
     // Row bounds  L <= a_i x <= U  from the row type, RHS and RANGES:
     //   type  no range      range R
@@ -584,7 +617,7 @@ class Parser {
   std::vector<std::string> warnings_;
 
   std::string name_;
-  ObjSense sense_ = ObjSense::kMinimize;
+  int sense_ = 1;  // +1 minimise, -1 maximise (Model::sense)
   std::string objname_;
   std::string objective_name_;
   bool have_objective_ = false;
@@ -645,4 +678,16 @@ MpsReadResult read_mps_file(const std::string& path, const MpsReadOptions& optio
   return read_mps_string(buffer.str(), options);
 }
 
-}  // namespace gpuopt
+bool read_mps(const std::string& path, Model& model, std::string& error, std::vector<std::string>* warnings) {
+  try {
+    MpsReadResult r = read_mps_file(path);
+    model = std::move(r.problem);
+    if (warnings) *warnings = std::move(r.warnings);
+    return true;
+  } catch (const std::exception& e) {  // MpsParseError, cannot open, bad_alloc
+    error = e.what();
+    return false;
+  }
+}
+
+}  // namespace ps26119::io

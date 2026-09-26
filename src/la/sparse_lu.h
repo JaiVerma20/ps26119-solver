@@ -1,4 +1,8 @@
-// sparse_lu.hpp - Layer 2: sparse LU factorization of a simplex basis.
+// sparse_lu.h - Layer 2: sparse LU factorization of a simplex basis.
+//
+// Origin: gpuopt (Shivanshu Vats, shivanshu24-code/gpu_optimization@c192dd0),
+// include/gpuopt/linalg/sparse_lu.hpp. Algorithm unchanged; namespace/includes adapted.
+// References: Markowitz (1957); Suhl & Suhl, ORSA J. Computing 2 (1990).
 //
 // The revised simplex never inverts the basis matrix B. Instead it keeps a
 // factorization  B = L U  (up to row/column permutations) and answers two
@@ -27,9 +31,9 @@
 #include <utility>
 #include <vector>
 
-#include "gpuopt/problem.hpp"
+#include "la/csc.h"
 
-namespace gpuopt {
+namespace ps26119::la {
 
 // Builds the m x basic.size() matrix whose column k is
 //   column basic[k] of A          if basic[k] <  A.num_cols   (structural)
@@ -109,4 +113,4 @@ class SparseLU {
   mutable std::vector<double> work_;  // scratch for ftran / btran (not thread safe)
 };
 
-}  // namespace gpuopt
+}  // namespace ps26119::la

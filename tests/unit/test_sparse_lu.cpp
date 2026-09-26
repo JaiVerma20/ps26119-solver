@@ -3,20 +3,24 @@
 // Correctness is judged by residuals: x solves B x = b if ||B x - b|| is at
 // round-off level relative to ||B|| ||x|| + ||b||. Small cases are also
 // compared against a dense Gaussian elimination reference.
+// Origin: gpuopt tests/test_sparse_lu.cpp (Shivanshu Vats, c192dd0); ported to GoogleTest.
+#include <gtest/gtest.h>
+
 #include <algorithm>
 #include <cstdio>
 #include <random>
 #include <string>
 
-#include "gpuopt/linalg/sparse_lu.hpp"
-#include "gpuopt/mps_reader.hpp"
-#include "test_framework.hpp"
+#include "la/sparse_lu.h"
+#include "io/mps_parser.h"
 
-using namespace gpuopt;
+using namespace ps26119;
+using namespace ps26119::io;
+using namespace ps26119::la;
 
 namespace {
 
-const std::string kData = GPUOPT_DATA_DIR;
+const std::string kData = std::string(PS26119_SOURCE_DIR) + "/data";
 
 // Relative residual  ||B x - b||_inf / (||B||_inf ||x||_inf + ||b||_inf).
 double ftran_residual(const SparseMatrixCSC& B, const std::vector<double>& x, const std::vector<double>& b) {
@@ -122,7 +126,7 @@ void expect_accurate(const SparseMatrixCSC& B, std::mt19937& rng, double tol = 1
 
 }  // namespace
 
-TEST(solves_small_known_system) {
+TEST(SparseLU, solves_small_known_system) {
   // B = [[2, 1, 0], [0, 3, 1], [1, 0, 4]],  x = (1, 2, 3)  =>  b = (4, 9, 13)
   const SparseMatrixCSC B = build_csc(3, 3, {{0, 0, 2}, {2, 0, 1}, {0, 1, 1}, {1, 1, 3}, {1, 2, 1}, {2, 2, 4}});
   SparseLU lu;
@@ -138,7 +142,7 @@ TEST(solves_small_known_system) {
   for (double v : y) EXPECT_NEAR(v, 1.0, 1e-14);
 }
 
-TEST(identity_and_permutation_have_no_fill) {
+TEST(SparseLU, identity_and_permutation_have_no_fill) {
   std::mt19937 rng(1);
   const int m = 50;
   std::vector<Triplet> t;
@@ -154,14 +158,14 @@ TEST(identity_and_permutation_have_no_fill) {
   expect_accurate(P, rng);
 }
 
-TEST(threshold_pivoting_avoids_tiny_pivot) {
+TEST(SparseLU, threshold_pivoting_avoids_tiny_pivot) {
   // Without the threshold test, Markowitz would happily pivot on 1e-14.
   const SparseMatrixCSC B = build_csc(2, 2, {{0, 0, 1e-14}, {1, 0, 1.0}, {0, 1, 1.0}, {1, 1, 1.0}});
   std::mt19937 rng(2);
   expect_accurate(B, rng, 1e-15);
 }
 
-TEST(matches_dense_reference_on_random_matrices) {
+TEST(SparseLU, matches_dense_reference_on_random_matrices) {
   std::mt19937 rng(3);
   double worst = 0.0;
   for (int trial = 0; trial < 300; ++trial) {
@@ -182,7 +186,7 @@ TEST(matches_dense_reference_on_random_matrices) {
   EXPECT_TRUE(worst < 1e-9);
 }
 
-TEST(singular_basis_is_completed_with_unit_columns) {
+TEST(SparseLU, singular_basis_is_completed_with_unit_columns) {
   // Column 2 = column 0 + column 1, and column 3 is empty: rank 2 of 4.
   const SparseMatrixCSC B = build_csc(4, 4, {{0, 0, 1}, {1, 0, 2}, {1, 1, 1}, {2, 1, 3},
                                              {0, 2, 1}, {1, 2, 3}, {2, 2, 3}});
@@ -205,7 +209,7 @@ TEST(singular_basis_is_completed_with_unit_columns) {
   EXPECT_TRUE(btran_residual(completed, y, b) < 1e-14);
 }
 
-TEST(pfi_updates_match_fresh_factorization) {
+TEST(SparseLU, pfi_updates_match_fresh_factorization) {
   std::mt19937 rng(5);
   const int m = 120, n = 300;
   // A structural matrix with a random basis of structurals and slacks.
@@ -263,7 +267,7 @@ TEST(pfi_updates_match_fresh_factorization) {
 
 // Uniformly random sparsity is a worst case for fill-in (real LP bases are far
 // more structured), so this mainly checks accuracy at scale.
-TEST(large_random_sparse_matrix) {
+TEST(SparseLU, large_random_sparse_matrix) {
   std::mt19937 rng(6);
   const SparseMatrixCSC B = random_sparse(5000, 2, rng);
   SparseLU lu;
@@ -273,7 +277,7 @@ TEST(large_random_sparse_matrix) {
   expect_accurate(B, rng, 1e-11);
 }
 
-TEST(two_dimensional_grid_laplacian) {
+TEST(SparseLU, two_dimensional_grid_laplacian) {
   // 5-point Laplacian on a 60 x 60 grid (m = 3600): the textbook fill-in test.
   const int g = 60, m = g * g;
   std::vector<Triplet> t;
@@ -298,9 +302,9 @@ TEST(two_dimensional_grid_laplacian) {
   expect_accurate(B, rng, 1e-12);
 }
 
-TEST(bases_from_afiro) {
-  const auto r = read_mps_file(kData + "/netlib/afiro.mps");
-  const SparseMatrixCSC& A = r.problem.A;
+TEST(SparseLU, bases_from_afiro) {
+  const auto r = read_mps_file(kData + "/netlib_small/afiro.mps");
+  const SparseMatrixCSC A = csc_from_model(r.problem);
   const int m = A.num_rows, n = A.num_cols;
   std::mt19937 rng(8);
   for (int trial = 0; trial < 50; ++trial) {
@@ -322,4 +326,3 @@ TEST(bases_from_afiro) {
   }
 }
 
-TEST_MAIN()

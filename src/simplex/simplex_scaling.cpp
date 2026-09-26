@@ -1,16 +1,17 @@
-#include "gpuopt/simplex/scaling.hpp"
+// simplex_scaling.cpp - see simplex_scaling.h. Origin: gpuopt src/simplex/scaling.cpp (c192dd0).
+#include "simplex/simplex_scaling.h"
 
 #include <algorithm>
 #include <cmath>
 
-namespace gpuopt {
+namespace ps26119::simplex {
 namespace {
 
 double power_of_two(double v) { return std::exp2(std::round(std::log2(v))); }
 
 }  // namespace
 
-Scaling compute_scaling(const SparseMatrixCSC& A, int passes) {
+Scaling compute_scaling(const la::SparseMatrixCSC& A, int passes) {
   const int m = A.num_rows, n = A.num_cols;
   Scaling s;
   s.row.assign(m, 1.0);
@@ -56,7 +57,7 @@ Scaling compute_scaling(const SparseMatrixCSC& A, int passes) {
   return s;
 }
 
-double scaled_dynamism(const SparseMatrixCSC& A, const Scaling& s) {
+double scaled_dynamism(const la::SparseMatrixCSC& A, const Scaling& s) {
   double lo = INFINITY, hi = 0.0;
   for (int j = 0; j < A.num_cols; ++j) {
     for (int k = A.col_start[j]; k < A.col_start[j + 1]; ++k) {
@@ -69,4 +70,4 @@ double scaled_dynamism(const SparseMatrixCSC& A, const Scaling& s) {
   return hi > 0.0 ? hi / lo : 1.0;
 }
 
-}  // namespace gpuopt
+}  // namespace ps26119::simplex
