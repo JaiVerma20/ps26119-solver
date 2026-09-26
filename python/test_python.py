@@ -27,8 +27,9 @@ class Binding(unittest.TestCase):
 
     def test_csc_input_and_warm_start(self):
         cs, ri, v = [0, 2, 4], [0, 2, 1, 2], [1.0, 3.0, 2.0, 2.0]
-        r = ps26119.solve_lp([3, 5], (cs, ri, v), [-INF] * 3, [4, 12, 18], sense=-1)
-        w = ps26119.solve_lp([3, 5], (cs, ri, v), [-INF] * 3, [4, 12, 18], sense=-1, warm_x=r.x, warm_y=r.y)
+        r = ps26119.solve_lp([3, 5], (cs, ri, v), [-INF] * 3, [4, 12, 18], sense=-1, algorithm="r2hpdhg")
+        w = ps26119.solve_lp([3, 5], (cs, ri, v), [-INF] * 3, [4, 12, 18], sense=-1, warm_x=r.x, warm_y=r.y,
+                             algorithm="r2hpdhg")
         self.assertEqual(w.status, ps26119.OPTIMAL)
         self.assertLessEqual(w.iterations, r.iterations)
 

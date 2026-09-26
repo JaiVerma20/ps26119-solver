@@ -11,7 +11,8 @@
 namespace ps26119 {
 
 enum class Algorithm {
-  Auto,     // currently: r2hpdhg
+  Auto,     // size rule (docs/DECISIONS.md #29): Simplex when rows·nnz ≤ kAutoSimplexWork,
+            // else R2hpdhg; the choice is stated in Solution::message
   Oracle,   // dense double-double simplex — TEST ORACLE ONLY, small models
   Pdlp,     // restarted PDHG, PDLP-style (Applegate et al.)
   R2hpdhg,  // restarted Halpern PDHG with reflection (Lu & Yang; cuPDLPx)
@@ -27,6 +28,11 @@ const char* to_string(Algorithm a);
 const char* to_string(Precision p);
 bool algorithm_from_string(const std::string& s, Algorithm& out);
 bool precision_from_string(const std::string& s, Precision& out);
+
+// Auto: the simplex (full pricing) costs roughly rows·nnz per few iterations; above this
+// product the first-order engine is used. Tuned on Netlib + generated refinery/random LPs
+// (DECISIONS #29); override with an explicit algorithm.
+inline constexpr double kAutoSimplexWork = 2e8;
 
 struct Options {
   Algorithm algorithm = Algorithm::Auto;

@@ -140,3 +140,13 @@ Newest last. Each entry: what, why, evidence, how to undo.
     `Mip.SimplexAndOracleNodeSolversAgree` compares both on 60 random MIPs. Still missing
     for real MIP performance: warm-started nodes (basis I/O or dual simplex), cuts,
     primal heuristics (bell3a/bell5 find no incumbent in 60 s).
+29. **`Auto` = simplex for small models, r²HPDHG for large ones.** Measured at the integration
+    branch (M4, 1 thread): full Netlib — simplex 92/93 solved and verified, r²HPDHG 85/93
+    (60 s); refinery T=365 (17.9k rows) — simplex 12.5 s vs r²HPDHG 0.34 s; rand-10000 —
+    simplex 278 s vs 0.20 s. Simplex work grows like rows·nnz (full pricing + Devex row every
+    iteration), so Auto picks the simplex when rows·nnz ≤ 2·10⁸ (`kAutoSimplexWork`) and
+    r²HPDHG otherwise; a warm start or a first-order knob always selects r²HPDHG (the simplex
+    has no warm start yet). The chosen engine is stated in the message ("auto: simplex
+    (rows*nnz = …)"). The threshold is a tuned constant (Netlib + generated models) — an
+    explicit `--algorithm` always overrides it. An explicitly chosen simplex reports "warm
+    start ignored" instead of silently dropping it.

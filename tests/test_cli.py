@@ -91,10 +91,14 @@ class Cli(unittest.TestCase):
     def test_warm_start_from_own_solution(self):
         lp = os.path.join(DATA, "netlib_small", "stocfor1.lpm")
         sol = os.path.join(self.tmp, "s.sol")
-        self.assertEqual(run("solve", lp, "--out", sol)[0], 0)
-        code, out = run("solve", lp, "--warm", sol)
+        self.assertEqual(run("solve", lp, "--algorithm", "r2hpdhg", "--out", sol)[0], 0)
+        code, out = run("solve", lp, "--warm", sol)  # auto honours a warm start: r2hpdhg
         self.assertEqual(code, 0, out)
         self.assertIn("warm start", out)
+        self.assertIn("engine     r2hpdhg", out)
+        code, out = run("solve", lp, "--algorithm", "simplex", "--warm", sol)
+        self.assertEqual(code, 0, out)
+        self.assertIn("warm start ignored", out)
 
     def test_mps_input_every_engine_and_check_line(self):
         mps = os.path.join(DATA, "netlib_small", "afiro.mps")

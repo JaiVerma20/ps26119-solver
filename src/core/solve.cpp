@@ -120,8 +120,26 @@ void gate(const Model& model, const Options& options, Solution& s) {
 }  // namespace core
 
 Solution solve(const Model& model, const Options& options) {
-  Solution s = solve_impl(model, options);
-  core::gate(model, options, s);
+  if (options.algorithm != Algorithm::Auto) {
+    Solution s = solve_impl(model, options);
+    core::gate(model, options, s);
+    return s;
+  }
+  // Auto: resolve the engine once, on the ORIGINAL model (DECISIONS #29).
+  Options resolved = options;
+  const double work = static_cast<double>(std::max(model.num_rows, 1)) * static_cast<double>(model.nnz());
+  // Warm starts and first-order knobs only exist for the first-order engines: honour them.
+  bool first_order_request = !options.warm_x.empty() || !options.warm_y.empty() || options.warm_primal_weight > 0;
+  for (const auto& kv : options.engine_params)
+    first_order_request = first_order_request || (kv.first.rfind("simplex_", 0) != 0 && kv.first.rfind("mip_", 0) != 0);
+  resolved.algorithm = !first_order_request && work <= kAutoSimplexWork ? Algorithm::Simplex : Algorithm::R2hpdhg;
+  Solution s = solve_impl(model, resolved);
+  core::gate(model, resolved, s);
+  if (!treat_as_mip(model, options)) {
+    char buf[96];
+    std::snprintf(buf, sizeof buf, "auto: %s (rows*nnz = %.2g)", to_string(resolved.algorithm), work);
+    s.message = s.message.empty() ? buf : std::string(buf) + "; " + s.message;
+  }
   return s;
 }
 
@@ -311,6 +329,8 @@ Solution solve_direct(const Model& model, const Options& options) {
           break;
         }
         sol = simplex::solve_primal_simplex(model, so);
+        if (!options.warm_x.empty() || !options.warm_y.empty())
+          sol.message += std::string(sol.message.empty() ? "" : "; ") + "warm start ignored (no simplex basis warm start yet)";
         break;
       }
       case Algorithm::Pdlp:

@@ -148,3 +148,49 @@ TEST(Gate, LeavesNonOptimalAndMilpAlone) {
   EXPECT_EQ(ms.status, Status::Optimal);
   EXPECT_TRUE(ms.check.empty());
 }
+
+// Auto (DECISIONS #29): simplex for small models, r2hpdhg for large ones or when a first-order
+// feature (warm start, PDHG knob) is requested; the decision is stated in the message.
+TEST(Integration, AutoEngineChoice) {
+  const Model small = mps("netlib_small/afiro.mps");
+  Solution s = solve(small);
+  ASSERT_EQ(s.status, Status::Optimal);
+  EXPECT_EQ(s.engine, "simplex");
+  EXPECT_NE(s.message.find("auto: simplex"), std::string::npos);
+  Options warm;
+  warm.warm_x = s.x;
+  warm.warm_y = s.y;
+  EXPECT_EQ(solve(small, warm).engine, "r2hpdhg");
+  Options knob;
+  knob.engine_params = {{"reflection", 1}};
+  EXPECT_EQ(solve(small, knob).engine, "r2hpdhg");
+  Options sknob;
+  sknob.engine_params = {{"simplex_pricing", 0}};
+  EXPECT_EQ(solve(small, sknob).engine, "simplex");
+  Model big;
+  ASSERT_TRUE(io::read_lpm(std::string(PS26119_SOURCE_DIR) + "/data/netlib_small/afiro.lpm", big).ok);
+  // replicate afiro block-diagonally until rows*nnz exceeds the Auto threshold
+  Model rep;
+  const int copies = 2000;
+  rep.num_rows = big.num_rows * copies;
+  rep.num_cols = big.num_cols * copies;
+  rep.col_start = {0};
+  for (int c = 0; c < copies; ++c) {
+    for (int j = 0; j < big.num_cols; ++j) {
+      rep.obj.push_back(big.obj[j]);
+      rep.col_lower.push_back(big.col_lower[j]);
+      rep.col_upper.push_back(big.col_upper[j]);
+      for (int p = big.col_start[j]; p < big.col_start[j + 1]; ++p) {
+        rep.row_index.push_back(big.row_index[p] + c * big.num_rows);
+        rep.value.push_back(big.value[p]);
+      }
+      rep.col_start.push_back(static_cast<int>(rep.value.size()));
+    }
+    rep.row_lower.insert(rep.row_lower.end(), big.row_lower.begin(), big.row_lower.end());
+    rep.row_upper.insert(rep.row_upper.end(), big.row_upper.begin(), big.row_upper.end());
+  }
+  ASSERT_GT(static_cast<double>(rep.num_rows) * static_cast<double>(rep.nnz()), kAutoSimplexWork);
+  Options quick;
+  quick.iteration_limit = 64;  // only the engine choice matters here
+  EXPECT_EQ(solve(rep, quick).engine, "r2hpdhg");
+}
