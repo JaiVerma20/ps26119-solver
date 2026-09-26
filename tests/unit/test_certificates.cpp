@@ -205,14 +205,15 @@ Model with_objective_cut(const Model& m, double fstar, double delta) {
 }
 }  // namespace
 
-TEST(Certificates, R2hpdhgDetectsBarelyInfeasibleNetlibCuts) {
+TEST(Certificates, FirstOrderEnginesDetectBarelyInfeasibleNetlibCuts) {
   // Each of the 10 small Netlib LPs with an objective cut 1e-4 (1 + |f*|) below its optimum.
   // Detection tests two directions: T(z) − z and the drift z − z0 since the restart anchor.
   // With T(z) − z alone, adlittle + cut took 56M iterations; the budget here is 3M in total.
+  for (Algorithm engine : {Algorithm::R2hpdhg, Algorithm::Pdlp}) {
   int certified = 0;
   for (const char* name :
        {"afiro", "sc50a", "sc50b", "kb2", "adlittle", "blend", "share2b", "sc105", "stocfor1", "recipe"}) {
-    SCOPED_TRACE(name);
+    SCOPED_TRACE(std::string(name) + " " + to_string(engine));
     Model m;
     ASSERT_TRUE(io::read_lpm(std::string(PS26119_SOURCE_DIR) + "/data/netlib_small/" + name + ".lpm", m).ok);
     Options ref;
@@ -221,7 +222,7 @@ TEST(Certificates, R2hpdhgDetectsBarelyInfeasibleNetlibCuts) {
     ASSERT_EQ(opt.status, Status::Optimal);
     const Model cut = with_objective_cut(m, opt.objective, 1e-4 * (1 + std::fabs(opt.objective)));
     Options o;
-    o.algorithm = Algorithm::R2hpdhg;
+    o.algorithm = engine;
     o.iteration_limit = 3'000'000;
     const Solution s = solve(cut, o);
     EXPECT_NE(s.status, Status::NumericalError) << s.message;
@@ -230,7 +231,9 @@ TEST(Certificates, R2hpdhgDetectsBarelyInfeasibleNetlibCuts) {
       EXPECT_EQ(s.check, "PASS") << s.message;
       ++certified;
     }
-    std::printf("  %-9s %-15s %10lld it\n", name, to_string(s.status), static_cast<long long>(s.iterations));
+    std::printf("  %-8s %-9s %-15s %10lld it\n", to_string(engine), name, to_string(s.status),
+                static_cast<long long>(s.iterations));
   }
-  EXPECT_GE(certified, 9);
+  EXPECT_GE(certified, 9) << to_string(engine);
+  }
 }
