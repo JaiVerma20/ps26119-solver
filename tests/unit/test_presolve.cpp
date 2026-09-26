@@ -198,3 +198,22 @@ TEST(Presolve, FarkasPostsolveKeepsEveryReducedCertificateValid) {
   EXPECT_GE(checked, 30);
   std::printf("reduced certificates postsolved and re-checked: %d\n", checked);
 }
+
+TEST(Presolve, UnboundedRayAndPointArePostsolved) {
+  // min -x - y with r0: y <= 3 (singleton -> bound), r1: x - y + w >= 0, w fixed at 1: unbounded
+  // along x. Presolve removes r0 and w; the reduced ray and point are mapped back and verified
+  // on the original model without re-solving it.
+  const Model m = make_model({-1, -1, 0}, {{0, 1, 0}, {1, -1, 1}}, {-kInf, 0}, {3, kInf}, {0, 0, 1}, {kInf, kInf, 1});
+  ASSERT_EQ(presolve(m).outcome, PresolveResult::Outcome::Reduced);
+  for (Algorithm a : {Algorithm::Simplex, Algorithm::R2hpdhg}) {
+    SCOPED_TRACE(to_string(a));
+    Options o;
+    o.algorithm = a;
+    const Solution s = solve(m, o);
+    ASSERT_EQ(s.status, Status::Unbounded) << s.message;
+    EXPECT_EQ(s.check, "PASS") << s.message;
+    ASSERT_EQ(s.primal_ray.size(), 3u);
+    EXPECT_EQ(s.primal_ray[2], 0.0);  // the fixed column does not move
+    EXPECT_NE(s.message.find("ray and point postsolved"), std::string::npos) << s.message;
+  }
+}

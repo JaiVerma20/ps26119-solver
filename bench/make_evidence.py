@@ -422,6 +422,33 @@ def main():
     else:
         doc.append("_No committed MIPLIB CSV yet._")
 
+    doc += ["", "## 4e. Certified infeasibility: Netlib LPs + an objective cut", ""]
+    cuts = sorted((p for p in paths if os.path.basename(p).startswith("infeasible-cut-")),
+                  key=lambda p: (load(p)[0]["engine"], commit_date(p)))
+    if cuts:
+        doc += ["Each Netlib LP with a known optimum f* gets one extra row cᵀx ≤ f* − offset − δ (≥ for max), "
+                "δ = 1e-4 (1 + |f*|): infeasible by LP duality, and the Farkas certificate is essentially the "
+                "optimal dual (`bench/netlib_infeasible_cut.py`). **Certified** = status Infeasible + in-process "
+                "gate PASS + `tools/verify.py` PASS with its own reader. *Exact rational* = verify.py proved "
+                "L₀(r) > 0 in rational arithmetic; *rounding-proof* = the C++ gate's directed-rounding bound "
+                "proved it; otherwise the documented tolerance test (violation ≤ 1e-8·L₀) passed.", ""]
+        body = []
+        for p in cuts:
+            rows = load(p)
+            cert = [r for r in rows if r["status"] == "Infeasible" and r["check"] == "PASS" and r["verify"] == "PASS"]
+            exact = sum("exact rational" in r["certificate"] for r in cert)
+            proof = sum("rounding-proof" in r["message"] for r in cert)
+            other = [f"{r['instance']} ({r['status']})" for r in rows if r not in cert]
+            body.append([rows[0]["engine"], f"`{rows[0]['git_hash']}`", f"**{len(cert)}/{len(rows)}**", exact, proof,
+                         fnum(sum(float(r["seconds"] or 0) for r in cert)), rows[0]["time_limit"],
+                         ", ".join(other) or "–", f"`{os.path.basename(p)}`"])
+        doc += [table(["engine", "commit", "certified", "exact rational (verify.py)", "rounding-proof (gate)",
+                       "total s (certified)", "limit s", "not certified", "source"], body), "",
+                "Rows of the same engine are in commit order, so a later row shows the effect of the changes "
+                "in between (docs/DECISIONS.md #31)."]
+    else:
+        doc.append("_No committed infeasibility CSV yet._")
+
     doc += ["", "## 5. What we do NOT do yet (honest list)", "",
             ("- **GPU evidence is one consumer laptop GPU** (§3: " + ", ".join(sorted({load(p)[0].get("gpu", "?")
              for p in gpu_scales})) + "). CPU baselines in that run are single-thread only (multi-core "

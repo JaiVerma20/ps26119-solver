@@ -271,6 +271,29 @@ Solution solve_impl(const Model& model, const Options& options) {
       return s;
     }
   }
+  if (lp_model && red.status == Status::Unbounded && static_cast<int>(red.primal_ray.size()) == pr.reduced.num_cols &&
+      static_cast<int>(red.x.size()) == pr.reduced.num_cols) {
+    // Same for a primal ray: fixed columns get d = 0, kept columns keep d_j (a bound that a
+    // removed singleton row created is a reduced column bound, which the ray already respects,
+    // so the row stays satisfied along it); the point is the ordinary primal postsolve.
+    std::vector<double> d(model.num_cols, 0.0);
+    for (int j = 0; j < pr.reduced.num_cols; ++j) d[pr.col_map[j]] = red.primal_ray[j];
+    Solution s = postsolve(model, pr, red);
+    if (check_unboundedness_certificate(model, s.x, d).passed) {
+      s.status = Status::Unbounded;
+      s.primal_ray = std::move(d);
+      s.dual_ray.clear();
+      s.y.clear();
+      s.z.clear();
+      s.objective = s.dual_objective = std::numeric_limits<double>::quiet_NaN();
+      s.message += std::string(s.message.empty() ? "" : "; ") + "presolve removed " +
+                   std::to_string(pr.removed_rows) + " rows, " + std::to_string(pr.removed_cols) +
+                   " cols; reduced-model ray and point postsolved to the original model";
+      s.model_fingerprint = model.fingerprint_hex();
+      s.seconds = elapsed();
+      return s;
+    }
+  }
   if (lp_model && (red.status == Status::Infeasible || red.status == Status::Unbounded))
     return on_original(red, std::string("reduced model ") + to_string(red.status));
   Solution post = postsolve(model, pr, red);
