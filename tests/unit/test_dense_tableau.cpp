@@ -149,3 +149,20 @@ TEST(DenseTableau, iteration_limit_is_reported) {
   EXPECT_TRUE(solve_dense_tableau(r.problem, opt).status == Status::IterationLimit);
 }
 
+
+// Integration audit finding C1: NaN in x or y, or wrong sizes, must fail every check.
+TEST(DenseTableau, checker_rejects_non_finite_and_wrong_sizes) {
+  Model lp;
+  const Solution res = solve_file("tiny_max.mps", &lp);
+  ASSERT_EQ(res.status, Status::Optimal);
+  ASSERT_TRUE(check_solution(lp, res.x, res.y).passed());
+  std::vector<double> x = res.x, y = res.y;
+  x[0] = std::nan("");
+  EXPECT_FALSE(check_solution(lp, x, res.y).passed());
+  x[0] = kInf;
+  EXPECT_FALSE(check_solution(lp, x, res.y).passed());
+  y[0] = std::nan("");
+  EXPECT_FALSE(check_solution(lp, res.x, y).passed());
+  EXPECT_FALSE(check_solution(lp, {1.0}, res.y).passed());
+  EXPECT_FALSE(check_solution(lp, res.x, {}).passed());
+}

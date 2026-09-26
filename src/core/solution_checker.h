@@ -46,6 +46,8 @@ struct CheckReport {
   std::string summary() const;
 };
 
+// x must have num_cols entries and row_dual num_rows entries, all finite; otherwise every
+// check fails (violations reported as +inf).
 CheckReport check_solution(const Model& lp, const std::vector<double>& x,
                            const std::vector<double>& row_dual,
                            const CheckTolerances& tolerances = {});

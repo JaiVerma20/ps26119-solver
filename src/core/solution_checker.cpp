@@ -64,6 +64,20 @@ CheckReport check_solution(const Model& lp, const std::vector<double>& x,
   const int m = lp.num_rows;
   const int n = lp.num_cols;
   const double sense = lp.sense;
+  // Wrong sizes or non-finite numbers can never pass (and std::max(v, NaN) == v would
+  // otherwise hide a NaN: integration audit finding C1).
+  auto reject = [&rep]() {
+    rep.max_primal_violation = rep.max_dual_violation = rep.relative_gap = kInf;
+    rep.primal_ok = rep.dual_ok = rep.gap_ok = false;
+    return rep;
+  };
+  if (static_cast<int>(x.size()) != n || static_cast<int>(row_dual.size()) != m) return reject();
+  for (double v : x) {
+    if (!std::isfinite(v)) return reject();
+  }
+  for (double v : row_dual) {
+    if (!std::isfinite(v)) return reject();
+  }
 
   // Primal feasibility.
   const std::vector<double> ax = lp.row_activity(x);
@@ -111,6 +125,7 @@ CheckReport check_solution(const Model& lp, const std::vector<double>& x,
   rep.relative_gap = std::fabs(rep.primal_objective - rep.dual_objective) /
                      (1.0 + std::fabs(rep.primal_objective) + std::fabs(rep.dual_objective));
 
+  if (!std::isfinite(rep.primal_objective) || !std::isfinite(rep.dual_objective)) return reject();
   rep.primal_ok = rep.max_primal_violation <= tol.primal;
   rep.dual_ok = rep.max_dual_violation <= tol.dual;
   rep.gap_ok = rep.relative_gap <= tol.gap;
