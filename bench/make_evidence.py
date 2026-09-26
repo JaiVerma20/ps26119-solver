@@ -437,7 +437,8 @@ def main():
             rows = load(p)
             cert = [r for r in rows if r["status"] == "Infeasible" and r["check"] == "PASS" and r["verify"] == "PASS"]
             exact = sum("exact rational" in r["certificate"] for r in cert)
-            proof = sum("rounding-proof" in r["message"] for r in cert)
+            proof = (sum(r["gate_certificate"] == "rounding-proof" for r in cert) if "gate_certificate" in rows[0]
+                     else "not recorded")  # older CSVs: the (truncated) message may miss it
             other = [f"{r['instance']} ({r['status']})" for r in rows if r not in cert]
             body.append([rows[0]["engine"], f"`{rows[0]['git_hash']}`", f"**{len(cert)}/{len(rows)}**", exact, proof,
                          fnum(sum(float(r["seconds"] or 0) for r in cert)), rows[0]["time_limit"],

@@ -8,6 +8,7 @@ Files used:
 - `bench/results/batch-T8760-macbook-air-m4-ea97521.csv` (committed 2026-09-25)
 - `bench/results/batch-macbook-air-m4-8fd5170.csv` (committed 2026-09-25)
 - `bench/results/batch-macbook-air-m4-ea97521.csv` (committed 2026-09-25)
+- `bench/results/infeasible-cut-simplex-macbook-air-m4-c935a78.csv` (committed 2026-09-27)
 - `bench/results/miplib3-macbook-air-m4-0935157.csv` (committed 2026-09-25)
 - `bench/results/miplib3-macbook-air-m4-d824f82.csv` (committed 2026-09-26)
 - `bench/results/miplib3-macbook-air-m4-eb90bbf.csv` (committed 2026-09-26)
@@ -370,6 +371,16 @@ Source: `bench/results/miplib3-macbook-air-m4-eb90bbf.csv` — `macbook-air-m4`,
 | bell3a | 123 | 133 | 71 | TimeLimit | 878430.31599999999 | 878430.3159999951 | 0.000577381 | 300 | — |
 | misc03 | 96 | 160 | 159 | Optimal | 3360 | 3359.9999999999295 | 0 | 1.19 | PASS |
 | p0201 | 133 | 201 | 201 | Optimal | 7615 | 7615.000000000004 | 0 | 6.95 | PASS |
+
+## 4e. Certified infeasibility: Netlib LPs + an objective cut
+
+Each Netlib LP with a known optimum f* gets one extra row cᵀx ≤ f* − offset − δ (≥ for max), δ = 1e-4 (1 + |f*|): infeasible by LP duality, and the Farkas certificate is essentially the optimal dual (`bench/netlib_infeasible_cut.py`). **Certified** = status Infeasible + in-process gate PASS + `tools/verify.py` PASS with its own reader. *Exact rational* = verify.py proved L₀(r) > 0 in rational arithmetic; *rounding-proof* = the C++ gate's directed-rounding bound proved it; otherwise the documented tolerance test (violation ≤ 1e-8·L₀) passed.
+
+| engine | commit | certified | exact rational (verify.py) | rounding-proof (gate) | total s (certified) | limit s | not certified | source |
+|---|---|---|---|---|---|---|---|---|
+| simplex | `c935a78` | **87/93** | 70 | not recorded | 83.4 | 60.0 | d2q06c (NumericalError), d6cube (TimeLimit), dfl001 (TimeLimit), greenbeb (NumericalError), nesm (NumericalError), pilot87 (NumericalError) | `infeasible-cut-simplex-macbook-air-m4-c935a78.csv` |
+
+Rows of the same engine are in commit order, so a later row shows the effect of the changes in between (docs/DECISIONS.md #31).
 
 ## 5. What we do NOT do yet (honest list)
 

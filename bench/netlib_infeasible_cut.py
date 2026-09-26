@@ -37,7 +37,8 @@ from machine_info import machine_info  # noqa: E402
 DATA = os.path.join(ROOT, "data", "netlib")
 GEN = os.path.join(ROOT, "bench", "generated", "infeasible_cut")
 FIELDS = ["git_hash", "machine", "cpu", "gpu", "driver", "cuda", "date", "instance", "rows", "cols", "nnz",
-          "highs_optimum", "delta", "engine", "backend", "time_limit", "status", "check", "verify", "certificate",
+          "highs_optimum", "delta", "engine", "backend", "time_limit", "status", "check", "gate_certificate", "verify",
+          "certificate",
           "iterations", "seconds", "message"]
 
 
@@ -107,8 +108,12 @@ def main():
                     r.update(status="NoOutput", verify="FAIL")
                 else:
                     h = read_solution(sol).header
+                    msg = h.get("message", "")
+                    # "(rounding-proof)" exactly: the tolerance message says "..., not rounding-proof"
+                    gate = ("rounding-proof" if "(rounding-proof)" in msg else
+                            "tolerance" if "within tolerance" in msg else "")
                     r.update(status=h.get("status"), iterations=h.get("iterations"), seconds=h.get("seconds"),
-                             check=(h.get("check") or "").split(" ")[0], message=h.get("message", "")[:300])
+                             check=(h.get("check") or "").split(" ")[0], gate_certificate=gate, message=msg[:300])
                     rep = verify.verify(lpm, sol)
                     r.update(verify=rep["verdict"], certificate=rep.get("certificate", ""))
                 out_rows.append(r)
