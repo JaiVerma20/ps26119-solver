@@ -39,6 +39,15 @@ hash-named CSV (`docs/EVIDENCE.md`); nothing here is a target presented as a res
    row; updating d_j from the pivot row in phase 2 should save ~25% per iteration. Then
    Forrest–Tomlin + hypersparse FTRAN/BTRAN.
 
+## Ready for the PPT (done, on `main`)
+
+- **All CPU evidence from one commit** (`f440782`, `scripts/reproduce.sh`): `docs/EVIDENCE.md`
+  starts with a headline table — copy slide numbers from there, with the source file.
+- **Live demo**: `scripts/demo.sh` (~15 s on the M4): verified LP with every engine, a certified
+  Infeasible and Unbounded answer re-checked by `tools/verify.py`, a MILP, the hourly refinery
+  year (429k rows) solved and verified, and hardened input handling.
+- Interfaces and guarantees: `docs/FORMATS.md`; limitations: `docs/LIMITATIONS.md`.
+
 ## Jai / integration (no NVIDIA needed)
 
 - Merge the GPU PR after checking it (provenance, GPU model/driver/CUDA, ctest, sanitizer
@@ -46,6 +55,9 @@ hash-named CSV (`docs/EVIDENCE.md`); nothing here is a target presented as a res
 - Decide the licence (the repository has no LICENSE file; needed before any public release).
 - PPT: every slide number from `docs/EVIDENCE.md`; GPU ratios stated as "vs 1 CPU thread"
   until the all-core rerun lands; say plainly that compute-sanitizer has not run yet.
+  r²HPDHG alone solves 83/93 Netlib in the f440782 run (85/93 at d824f82 — same iteration
+  counts; two models near the 60 s limit timed out on a slower machine state): quote the
+  f440782 number, and `auto` 93/93 as the product result.
 
 ## Known limitations to state in the PPT (docs/LIMITATIONS.md)
 
