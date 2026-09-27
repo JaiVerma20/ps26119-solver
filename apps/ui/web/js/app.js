@@ -7,8 +7,9 @@ import * as models from "./pages/models.js";
 import * as solve from "./pages/solve.js";
 import * as verify from "./pages/verify.js";
 import * as bench from "./pages/bench.js";
+import * as scenarios from "./pages/scenarios.js";
 
-const PAGES = { dashboard, models, solve, verify, bench };
+const PAGES = { dashboard, models, solve, verify, bench, scenarios };
 let current = null, unmount = null;
 
 function route() {
@@ -61,7 +62,7 @@ store.on((patch) => {
 window.addEventListener("hashchange", route);
 window.addEventListener("keydown", (e) => {
   if (e.target.matches("input, select, textarea")) return;
-  const map = { 1: "dashboard", 2: "models", 3: "solve", 4: "verify", 5: "bench" };
+  const map = { 1: "dashboard", 2: "models", 3: "solve", 4: "verify", 5: "bench", 6: "scenarios" };
   if (map[e.key] && !e.metaKey && !e.ctrlKey) location.hash = `#/${map[e.key]}`;
 });
 

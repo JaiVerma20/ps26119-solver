@@ -218,7 +218,9 @@ class Jobs:
         self.lock = threading.Lock()
 
     def start(self, model_rel: str, opts: dict) -> Job:
-        job = Job(model_rel, opts)
+        return self.add(Job(model_rel, opts))
+
+    def add(self, job: Job) -> Job:
         with self.lock:
             self.jobs[job.id] = job
         threading.Thread(target=job.run, daemon=True).start()

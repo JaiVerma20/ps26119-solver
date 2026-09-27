@@ -63,8 +63,8 @@ export function lineChart(series, opts = {}) {
     if (!p.length) continue;
     const d = p.map(([x, y], i) => `${i ? "L" : "M"}${X(x).toFixed(1)},${Y(y).toFixed(1)}`).join("");
     svg.append(s("path", { d, fill: "none", stroke: se.color, "stroke-width": 1.8, "stroke-dasharray": se.dash, "vector-effect": "non-scaling-stroke" }));
-    const [lx, ly] = p[p.length - 1];
-    svg.append(s("circle", { cx: X(lx), cy: Y(ly), r: 2.8, fill: se.color }));
+    if (opts.markers) for (const [x, y] of p) svg.append(s("circle", { cx: X(x), cy: Y(y), r: 3.2, fill: se.color }));
+    else { const [lx, ly] = p[p.length - 1]; svg.append(s("circle", { cx: X(lx), cy: Y(ly), r: 2.8, fill: se.color })); }
   }
   return svg;
 }

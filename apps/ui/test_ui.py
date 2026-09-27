@@ -17,7 +17,8 @@ os.environ.setdefault("PS26119_PYTHON", sys.executable)
 sys.path.insert(0, HERE)
 
 import server  # noqa: E402
-from backend import evidence, generate, models, paths, runner  # noqa: E402
+from backend import evidence, generate, models, paths, runner, scenarios  # noqa: E402
+from lpm import read_lpm  # noqa: E402
 
 
 class Parsing(unittest.TestCase):
@@ -171,6 +172,62 @@ class Endpoints(unittest.TestCase):
         self.assertEqual(status, "TimeLimit")
         self.assertTrue(ev["verify"]["skipped"])
         self.assertNotIn("report", ev["verify"])
+
+    def test_scenarios_whatif_and_sweep_on_a_refinery_model(self):
+        stem = os.path.join(generate.GEN_DIR, "refinery-T12-s4243")
+        try:
+            g = generate.generate("refinery", 12, 4243)
+            meta = self.get("/api/scenarios")
+            self.assertIn(g["path"], [m["path"] for m in meta["models"]])
+            for bad in ({"base": "data/netlib_small/afiro.mps"}, {"base": g["path"], "levers": {"price": 80}},
+                        {"base": g["path"], "levers": {"tax": 5}}, {"base": g["path"], "mode": "sweep", "sweep": {"lever": "price", "from": 5, "to": 1, "steps": 3}}):
+                self.assertEqual(self.post("/api/scenario", bad)[0], 400, bad)
+
+            # levers touch exactly the rows / columns they name
+            out = stem + "-cdu.lpm"
+            scenarios.write_scenario(stem + ".lpm", 12, {"cdu": -10}, out, "t")
+            a, b = read_lpm(stem + ".lpm"), read_lpm(out)
+            changed = [i for i, (x, y) in enumerate(zip(a.row_upper, b.row_upper)) if x != y]
+            L = scenarios.LAYOUT
+            self.assertEqual(changed, [t * L.nrows + L.r_cdu for t in range(12)])
+            self.assertAlmostEqual(b.row_upper[L.r_cdu], 0.9 * a.row_upper[L.r_cdu])
+            self.assertEqual((a.obj, a.col_upper, a.value), (b.obj, b.col_upper, b.value))
+            os.remove(out)
+
+            code, j = self.post("/api/scenario", {"base": g["path"], "mode": "whatif", "levers": {"price": 5, "cdu": -10}})
+            self.assertEqual(code, 200)
+            ev = self.wait(j["job"])
+            self.assertNotIn("error", ev, ev.get("error"))
+            base, sm = ev["base"], ev["summary"]
+            self.assertLess(abs(base["objective"] - base["known"]["optimum"]) / (1 + abs(base["known"]["optimum"])), 1e-6)
+            self.assertEqual(len(base["marginal"]["cdu"]), 12)
+            self.assertLess(sm["agree"], 1e-6)  # cold and warm answers agree
+            self.assertAlmostEqual(sm["delta"], ev["solved"]["objective"] - base["objective"], places=6)
+            verdicts = [e["verdict"] for e in self.events(j["job"]) if e["type"] == "verified"]
+            self.assertEqual(verdicts, ["PASS", "PASS"])
+
+            code, j = self.post("/api/scenario", {"base": g["path"], "mode": "sweep", "sweep": {"lever": "price", "from": -5, "to": 5, "steps": 3},
+                                                  "sequential": True})
+            evs = self.events(j["job"], wait=True)
+            pts = [e for e in evs if e["type"] == "point"]
+            seq = [e for e in evs if e["type"] == "sequential_point"]
+            self.assertEqual([p["value"] for p in pts], [-5.0, 0.0, 5.0])
+            self.assertTrue(all(p["status"] == "Optimal" for p in pts))
+            self.assertAlmostEqual(pts[1]["objective"], base["objective"], delta=1e-6 * (1 + abs(base["objective"])))
+            self.assertLess(pts[0]["objective"], pts[1]["objective"])  # lower prices, lower profit
+            self.assertLess(pts[1]["objective"], pts[2]["objective"])
+            for p, q in zip(pts, seq):  # batched and one-by-one answers agree
+                self.assertLess(abs(p["objective"] - q["objective"]) / (1 + abs(q["objective"])), 1e-6)
+            self.assertEqual([e["verdict"] for e in evs if e["type"] == "verified"], ["PASS"] * 3)
+        finally:
+            for f in (stem + ".lpm", stem + ".json"):
+                if os.path.exists(f):
+                    os.remove(f)
+
+    def events(self, job, wait=True):
+        if wait:
+            self.wait(job)
+        return self.get(f"/api/jobs/{job}")["events"]
 
     def test_evidence_matches_the_committed_csvs(self):
         e = self.get("/api/evidence")

@@ -21,14 +21,23 @@ Environment: `PS26119_BIN` (solver binary, default `build/ps26119`), `PS26119_PY
 | 3 | Solve | engine / backend / precision / threads / limits, the exact CLI command, live progress, 15 result KPIs, residual and objective charts, solver log, primal and dual values | `ps26119 solve -vv` stderr + the solution file |
 | 4 | Verification | the trust chain of the last run: engine verdict → in-process gate or certificate → rounding-proof bound → fingerprint → independent verifier; solver vs verify.py side by side | the solution file + `verify.py --json` |
 | 5 | Benchmarks | Netlib per engine, certified infeasibility, GPU vs CPU with sanitizer status, large-LP scaling, MIPLIB | `bench/make_evidence.py` rules over `bench/results/` |
+| 6 | Scenarios | what-if planning on the refinery LP: price / crude / demand / CDU / FCC levers; cold vs warm-started re-solve (convergence overlay, Δ profit); sweep of one lever through K values in one `ps26119 batch` pass (optionally also one by one); marginal values of capacity and demand from the duals | `ps26119 solve --warm`, `ps26119 batch`, verify.py on every answer |
 
-⌘/Ctrl+Enter starts a solve on the Solve page.
+Keys 1–6 switch pages; ⌘/Ctrl+Enter starts a solve on the Solve page.
+
+Scenario notes: levers scale every period uniformly; the refinery structure is real and the
+prices synthetic. Marginal values are the solver's duals as reported (checked on refinery-T12:
+for the CDU and FCC rows y equals Δprofit / Δcapacity by finite differences). On a CPU the
+batched sweep is not always faster than one-by-one solves (every scenario stays in the SpMM until
+the slowest converges) — the page shows both timings when asked.
 
 ## Architecture
 ```
 browser (web/: vanilla ES modules, SVG charts)  ──HTTP/SSE──  server.py (127.0.0.1 only)
                                                                ├─ backend/runner.py   ps26119 solve -vv (subprocess), progress parser, verify.py
                                                                ├─ backend/models.py   catalog, ps26119 info, sparsity grid
+                                                               ├─ backend/scenarios.py what-if / sweep jobs on the refinery LP (lever edits, --warm, batch)
+                                                               ├─ backend/generate.py bench/generate_*.py on demand, known-optimum sidecars
                                                                ├─ backend/evidence.py bench/make_evidence helpers over bench/results/*.csv
                                                                ├─ backend/system.py   version, git hash, CPU, CUDA build probe
                                                                └─ backend/paths.py    allowed model folders (no path traversal)

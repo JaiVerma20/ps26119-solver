@@ -76,7 +76,7 @@ export function mount(root) {
         h("dt", "gpu backend"), h("dd", s.cuda_build ? h("span.ok", `CUDA · ${s.gpu}`) : h("span.muted", "not in this build (CPU-only Mac build)")),
         h("dt", "os"), h("dd", s.os),
         h("dt", "evidence"), h("dd", store.evidence?.netlib?.[0] ? `CPU @ ${store.evidence.netlib[0].source.git_hash}` + (store.evidence.gpu?.[0] ? ` · GPU @ ${store.evidence.gpu[0].source.git_hash}` : "") : "…")),
-      h("div", { style: { marginTop: "12px", display: "flex", gap: "8px" } }, h("a.btn.primary", { href: "#/solve" }, "Open solver ▸"), h("a.btn", { href: "#/verify" }, "Verification")));
+      h("div", { style: { marginTop: "12px", display: "flex", gap: "8px" } }, h("a.btn.primary", { href: "#/solve" }, "Open solver ▸"), h("a.btn", { href: "#/scenarios" }, "What-if planning"), h("a.btn", { href: "#/verify" }, "Verification")));
   }
 
   function drawClaims() {

@@ -12,6 +12,7 @@ export const api = {
   modelInfo: (path) => get(`/api/model/info?path=${encodeURIComponent(path)}`),
   sparsity: (path) => get(`/api/model/sparsity?path=${encodeURIComponent(path)}`),
   evidence: () => get("/api/evidence"),
+  scenarios: () => get("/api/scenarios"),
   async solve(opts) {
     const r = await fetch("/api/solve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(opts) });
     const j = await r.json();
