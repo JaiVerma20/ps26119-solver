@@ -397,7 +397,7 @@ The two independent rigour checks — the C++ gate's directed-rounding bound and
 - **No crossover** from a first-order solution to a vertex, and **no simplex warm start / dual simplex** yet (the integrated primal simplex starts from the slack basis every time). First-order solutions are accurate to the stated tolerance but are not vertices.
 - The primal simplex prices every column and uses product-form updates without hypersparsity: fast on Netlib-size models, slow beyond ~10⁴ rows (§2c); dfl001 is not solved by it within 60 s.
 - Presolve is basic (empty rows, fixed/empty columns, singleton rows) — no doubleton/dominated-column reductions.
-- **MILP is a prototype** (§4d): branch-and-bound with cold-started sparse simplex node LPs, most-fractional branching, a rounding heuristic, **no cuts**, no strong branching. **No QP** yet.
+- **MILP is a prototype** (§4d): branch-and-bound with cold-started sparse simplex node LPs, pseudocost branching, rounding + diving heuristics, **no cuts**, no strong branching, no node warm start. **No QP** yet.
 - **Generated instances**: the refinery LP has refinery structure, but its prices and inequality right-hand sides come from the KKT construction (synthetic), not from plant data; random LPs of this kind are friendly to first-order methods. Mittelmann large models are the next evidence step.
 - Batched scenarios (§4c) run on the CPU only (no GPU SpMM kernel yet) and without infeasibility detection.
 - The `auto` engine rule and the adaptive-scaling threshold are tuned constants (on Netlib and the generated models).

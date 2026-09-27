@@ -480,7 +480,7 @@ def main():
             "- Presolve is basic (empty rows, fixed/empty columns, singleton rows) — no doubleton/dominated-column "
             "reductions.",
             "- **MILP is a prototype** (§4d): branch-and-bound with cold-started sparse simplex node LPs, "
-            "most-fractional branching, a rounding heuristic, **no cuts**, no strong branching. **No QP** yet.",
+            "pseudocost branching, rounding + diving heuristics, **no cuts**, no strong branching, no node warm start. **No QP** yet.",
             "- **Generated instances**: the refinery LP has refinery structure, but its prices and inequality "
             "right-hand sides come from the KKT construction (synthetic), not from plant data; random LPs of this "
             "kind are friendly to first-order methods. Mittelmann large models are the next evidence step.",
