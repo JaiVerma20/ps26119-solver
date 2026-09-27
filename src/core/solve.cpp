@@ -242,7 +242,11 @@ Solution solve_impl(const Model& model, const Options& options) {
   // presolve work touches it (mapping a wrong-sized warm start would read out of bounds).
   const bool bad_warm = (!options.warm_x.empty() && static_cast<int>(options.warm_x.size()) != model.num_cols) ||
                         (!options.warm_y.empty() && static_cast<int>(options.warm_y.size()) != model.num_rows);
-  if (!options.presolve || bad_warm || !model.validate().empty()) return solve_direct(model, options);
+  auto finite = [](const std::vector<double>& v) {
+    return std::all_of(v.begin(), v.end(), [](double a) { return std::isfinite(a); });
+  };
+  const bool bad_warm_values = !finite(options.warm_x) || !finite(options.warm_y);  // rejected by solve_direct
+  if (!options.presolve || bad_warm || bad_warm_values || !model.validate().empty()) return solve_direct(model, options);
   if (auto why = model.crossed_bounds(); !why.empty()) return trivially_infeasible(model, options, why);
   const auto t0 = std::chrono::steady_clock::now();
   PresolveResult pr = presolve(model);
@@ -453,6 +457,15 @@ Solution solve_direct(const Model& model, const Options& options, bool certify) 
       (!options.warm_y.empty() && static_cast<int>(options.warm_y.size()) != model.num_rows)) {
     sol.status = Status::NotSolved;
     sol.message = "warm start vectors have the wrong size";
+    return sol;
+  }
+  auto finite = [](const std::vector<double>& v) {
+    return std::all_of(v.begin(), v.end(), [](double a) { return std::isfinite(a); });
+  };
+  if (!finite(options.warm_x) || !finite(options.warm_y) ||
+      !(options.warm_primal_weight >= 0 && std::isfinite(options.warm_primal_weight))) {
+    sol.status = Status::NotSolved;  // an inf/NaN warm start used to poison the iteration
+    sol.message = "warm start contains non-finite values";
     return sol;
   }
   if (auto why = model.crossed_bounds(); !why.empty()) return trivially_infeasible(model, options, why);

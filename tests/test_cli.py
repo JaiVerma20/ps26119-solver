@@ -144,6 +144,28 @@ class Cli(unittest.TestCase):
                     self.assertNotIn("Sanitizer", out, out[-600:])
                     self.assertNotIn("runtime error", out, out[-600:])
 
+    def test_malformed_warm_start_files(self):
+        lp = os.path.join(DATA, "netlib_small", "afiro.lpm")
+        good = os.path.join(self.tmp, "good.sol")
+        self.assertEqual(run("solve", lp, "--algorithm", "r2hpdhg", "--out", good)[0], 0)
+        text = open(good).read()
+        cols = text.index("COLUMNS")
+        first = text[cols:].split("\n")[1]  # "0 <x0> <z0>"
+        fields = first.split()
+        idx, x0, z0 = fields[0], fields[1], fields[2]
+        cases = {
+            "overflow": text.replace(first, " ".join([idx, "1e999"] + fields[2:]), 1),  # inf value
+            "garbage": text.replace(first, " ".join([idx, x0 + "xyz"] + fields[2:]), 1),  # not a number
+            "negcount": text.replace(text[cols:].split("\n")[0], "COLUMNS -5", 1),
+            "hugecount": text.replace(text[cols:].split("\n")[0], "COLUMNS 99999999999", 1),
+        }
+        for name, body in cases.items():
+            bad = os.path.join(self.tmp, name + ".sol")
+            open(bad, "w").write(body)
+            code, out = run("solve", lp, "--algorithm", "r2hpdhg", "--warm", bad)
+            self.assertEqual(code, 3, (name, out[-300:]))
+            self.assertIn("read error (warm start)", out, name)
+
     def test_gpu_request_is_never_served_silently_by_the_cpu(self):
         # auto + --gpu must pick r2hpdhg (the only GPU engine). On a build without CUDA this is
         # a clear NotSolved (exit 5), never a CPU simplex answer presented as a GPU run.

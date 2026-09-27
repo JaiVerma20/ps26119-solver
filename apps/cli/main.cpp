@@ -256,6 +256,12 @@ int cmd_solve(int argc, char** argv) {
       std::fprintf(stderr, "read error (warm start): %s\n", err.c_str());
       return kExitReadError;
     }
+    for (const auto* v : {&prev.x, &prev.y})
+      for (double a : *v)
+        if (!std::isfinite(a)) {
+          std::fprintf(stderr, "read error (warm start): %s contains non-finite values\n", warm.c_str());
+          return kExitReadError;
+        }
     if (static_cast<int>(prev.x.size()) != model.num_cols || static_cast<int>(prev.y.size()) != model.num_rows) {
       std::fprintf(stderr, "warm start %s does not match the model's size\n", warm.c_str());
       return 2;
