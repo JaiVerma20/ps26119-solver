@@ -2,6 +2,7 @@
 #include "ps26119/ps26119.h"
 
 #include <cstdio>
+#include <cmath>
 #include <cstring>
 #include <exception>
 
@@ -35,8 +36,15 @@ const char* to_options(const ps26119_options* opt, int num_rows, int num_cols, O
     case PS26119_ALG_AUTO: o.algorithm = Algorithm::Auto; break;
     default: return "unknown algorithm";
   }
+  if (opt->precision != PS26119_PREC_FP64 && opt->precision != PS26119_PREC_MIXED) return "unknown precision";
   o.precision = opt->precision == PS26119_PREC_MIXED ? Precision::Mixed : Precision::Fp64;
   o.use_gpu = opt->use_gpu != 0;
+  // 0 means "library default"; negative or NaN values are errors (they used to be ignored
+  // silently, so a caller's typo ran with a 1-hour limit).
+  if (!(opt->tolerance >= 0) || !std::isfinite(opt->tolerance)) return "tolerance must be a finite number >= 0";
+  if (!(opt->time_limit >= 0)) return "time_limit must be >= 0 (0 = default)";
+  if (opt->iteration_limit < 0) return "iteration_limit must be >= 0 (0 = default)";
+  if (opt->threads < 0) return "threads must be >= 0 (0 = all cores)";
   if (opt->tolerance > 0) o.tolerance = opt->tolerance;
   if (opt->time_limit > 0) o.time_limit = opt->time_limit;
   if (opt->iteration_limit > 0) o.iteration_limit = opt->iteration_limit;

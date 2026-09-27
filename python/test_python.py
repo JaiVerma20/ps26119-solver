@@ -72,6 +72,16 @@ class Binding(unittest.TestCase):
         self.assertEqual(bad.status, ps26119.INVALID_ARGUMENT)
         self.assertIn("read error", bad.message)
 
+    def test_invalid_arguments_are_errors(self):
+        with self.assertRaises(ValueError):
+            ps26119.solve_lp([1], [[1]], [1], [INF], algorithm="nope")
+        with self.assertRaises(ValueError):
+            ps26119.solve_lp([1], [[1]], [1], [INF], precision="fp16")
+        for kw in ({"time_limit": -1}, {"time_limit": float("nan")}, {"tolerance": -1}, {"iteration_limit": -5},
+                   {"threads": -3}):
+            r = ps26119.solve_lp([1], [[1]], [1], [INF], **kw)
+            self.assertEqual(r.status, ps26119.INVALID_ARGUMENT, kw)
+
     def test_version(self):
         self.assertTrue(ps26119.version())
 
