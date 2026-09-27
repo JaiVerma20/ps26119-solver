@@ -65,8 +65,13 @@ Solution solve_pdlp(const Model& model, const EngineOptions& opt) {
       const double wa = 1.0 / static_cast<double>(inner);
       b.axpby(wa, x, 1.0 - wa, xa);
       b.axpby(wa, y, 1.0 - wa, ya);
+      ++it;
+      if (s + 1 < K && ctx.out_of_time()) {  // the clock every iteration, as in r2hpdhg.cpp
+        const KktStats kt = ctx.kkt(x, y);
+        if (kt.finite() && ctx.record(kt, it)) return ctx.finish(Status::Optimal, x, y, it, msg);
+        return ctx.finish(Status::TimeLimit, x, y, it, msg);
+      }
     }
-    it += K;
 
     const KktStats kc = ctx.kkt(x, y), ka = ctx.kkt(xa, ya);
     const bool use_avg = ka.finite() && ka.rel_kkt() < kc.rel_kkt();

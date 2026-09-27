@@ -29,7 +29,14 @@
 namespace ps26119 {
 
 namespace {
-Solution solve_direct(const Model& model, const Options& options);
+// certify = false: skip the certified dual bound (the presolve wrapper recomputes it on the
+// ORIGINAL model, so computing it for the reduced one is wasted work).
+Solution solve_direct(const Model& model, const Options& options, bool certify = true);
+
+// The certified bound's bound-propagation refinement runs only while the call is within its time
+// limit plus a small grace (10% + 1 s): enough to keep a rigorous bound on a time-limited
+// refinery-year run (~0.4 s), without letting it run for seconds past the limit (1e6 rows).
+bool within_bound_budget(double elapsed, double time_limit) { return elapsed < 1.1 * time_limit + 1.0; }
 
 bool first_order(Algorithm a) { return a == Algorithm::Auto || a == Algorithm::Pdlp || a == Algorithm::R2hpdhg; }
 
@@ -252,7 +259,7 @@ Solution solve_impl(const Model& model, const Options& options) {
     red.status = Status::Optimal;
     red.engine = "presolve";
   } else {
-    red = solve_direct(pr.reduced, budget(inner, 0));
+    red = solve_direct(pr.reduced, budget(inner, 0), /*certify=*/false);
   }
   if (lp_model && red.status == Status::Infeasible && static_cast<int>(red.dual_ray.size()) == pr.reduced.num_rows) {
     // Cheaper than a re-solve: map the reduced model's Farkas vector to the original rows
@@ -368,12 +375,12 @@ Solution solve_impl(const Model& model, const Options& options) {
     post.status = Status::NumericalError;  // never claim Optimal without a point (a model may have 0 columns)
   }
   if (static_cast<int>(post.y.size()) == model.num_rows && model.num_rows + model.num_cols > 0)
-    post.certified_bound = certified_dual_bound(model, post.y).bound;
+    post.certified_bound = certified_dual_bound(model, post.y, /*use_implied_bounds=*/within_bound_budget(elapsed(), options.time_limit)).bound;
   post.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
   return post;
 }
 
-Solution solve_direct(const Model& model, const Options& options) {
+Solution solve_direct(const Model& model, const Options& options, bool certify) {
   const auto t0 = std::chrono::steady_clock::now();
   Solution sol;
   sol.model_fingerprint = model.fingerprint_hex();
@@ -494,8 +501,13 @@ Solution solve_direct(const Model& model, const Options& options) {
   if (has_integers(model)) {  // options.relax_integrality: say what was solved
     sol.message = std::string("LP relaxation (integrality ignored)") + (sol.message.empty() ? "" : "; ") + sol.message;
   }
-  if (static_cast<int>(sol.y.size()) == model.num_rows && model.num_rows + model.num_cols > 0)
-    sol.certified_bound = certified_dual_bound(model, sol.y).bound;
+  if (certify && static_cast<int>(sol.y.size()) == model.num_rows && model.num_rows + model.num_cols > 0)
+    sol.certified_bound =
+        certified_dual_bound(model, sol.y,
+                             /*use_implied_bounds=*/within_bound_budget(
+                                 std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(),
+                                 options.time_limit))
+            .bound;
 
   sol.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
   return sol;

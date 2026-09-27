@@ -3,6 +3,8 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <algorithm>
+#include <chrono>
 #include <limits>
 #include <random>
 #include <cstdio>
@@ -327,5 +329,52 @@ TEST(Certificates, EngineRayTestIgnoresRoundingNoise) {
     const Model inf = infeasible();  // ScaledProblem keeps a pointer to its model
     const pdhg::ScaledProblem si = pdhg::make_scaled_problem(inf, none);
     EXPECT_TRUE(pdhg::ray_test(si, {0, 0}, {-1, 1}).primal_infeasible);
+  }
+}
+
+TEST(Limits, FirstOrderEnginesStopNearTheTimeLimit) {
+  // 60k x 60k random covering LP (min cᵀx, A x >= 1, x >= 0, 5 entries per column): far from
+  // converged after 0.3 s. The engines used to read the clock only every 64 iterations, and the
+  // certified bound's refinement then ran for seconds (a 3 s limit took 32 s at 1e6 rows).
+  // Margin: setup is not interruptible, and the sanitizer CI jobs are several times slower.
+  const int n = 60000;
+  std::mt19937 rng(3);
+  Model m;
+  m.num_rows = m.num_cols = n;
+  m.col_start.push_back(0);
+  for (int j = 0; j < n; ++j) {
+    for (int k = 0; k < 5; ++k) {
+      m.row_index.push_back(static_cast<int>(rng() % n));
+      m.value.push_back(1.0 + (rng() % 100) / 50.0);
+    }
+    std::sort(m.row_index.end() - 5, m.row_index.end());
+    for (int k = 1; k < 5; ++k)  // no duplicate rows within a column
+      if (m.row_index[m.row_index.size() - 5 + k] <= m.row_index[m.row_index.size() - 6 + k])
+        m.row_index[m.row_index.size() - 5 + k] = -1;
+    // drop the duplicates marked -1
+    std::vector<int> ri(m.row_index.end() - 5, m.row_index.end());
+    std::vector<double> va(m.value.end() - 5, m.value.end());
+    m.row_index.resize(m.row_index.size() - 5);
+    m.value.resize(m.value.size() - 5);
+    for (int k = 0; k < 5; ++k)
+      if (ri[k] >= 0) m.row_index.push_back(ri[k]), m.value.push_back(va[k]);
+    m.col_start.push_back(static_cast<int>(m.value.size()));
+  }
+  m.obj.resize(n);
+  for (double& c : m.obj) c = 1.0 + (rng() % 1000) / 100.0;
+  m.col_lower.assign(n, 0.0);
+  m.col_upper.assign(n, kInf);
+  m.row_lower.assign(n, 1.0);
+  m.row_upper.assign(n, kInf);
+  ASSERT_TRUE(m.validate().empty()) << m.validate();
+  for (Algorithm a : {Algorithm::R2hpdhg, Algorithm::Pdlp}) {
+    Options o;
+    o.algorithm = a;
+    o.time_limit = 0.3;
+    const auto t0 = std::chrono::steady_clock::now();
+    const Solution s = solve(m, o);
+    const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+    EXPECT_TRUE(s.status == Status::TimeLimit || s.status == Status::Optimal) << to_string(s.status);
+    EXPECT_LT(wall, o.time_limit + s.setup_seconds + 3.0) << to_string(a) << ": " << s.iterations << " iterations";
   }
 }

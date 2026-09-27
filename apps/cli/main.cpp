@@ -280,9 +280,13 @@ int cmd_solve(int argc, char** argv) {
     std::printf("check      %s  (in-process, original model: primal %.1e  dual %.1e  gap %.1e)\n", sol.check.c_str(),
                 sol.check_primal, sol.check_dual, sol.check_gap);
   }
-  if (sol.certified_bound == sol.certified_bound)
-    std::printf("certified  %s %.12g  (rounding-proof %s bound from y)\n", model.sense > 0 ? "optimum >=" : "optimum <=",
-                sol.certified_bound, model.sense > 0 ? "lower" : "upper");
+  if (sol.certified_bound == sol.certified_bound) {
+    if (std::isfinite(sol.certified_bound))
+      std::printf("certified  %s %.12g  (rounding-proof %s bound from y)\n", model.sense > 0 ? "optimum >=" : "optimum <=",
+                  sol.certified_bound, model.sense > 0 ? "lower" : "upper");
+    else
+      std::printf("certified  none  (y gives no finite rounding-proof bound)\n");
+  }
   std::printf("iterations %lld   seconds %.3f   (setup %.3f)\n", static_cast<long long>(sol.iterations), sol.seconds,
               sol.setup_seconds);
   if (sol.iterations_to_fast >= 0)
