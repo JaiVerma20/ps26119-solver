@@ -206,7 +206,7 @@ TEST(Mip, PseudocostBranchingSolvesGt2WithinANodeBudget) {
   // MIPLIB 3 gt2 (29 x 188, all integer). With most-fractional branching it was not solved in
   // 190k nodes / 60 s; pseudocost branching proves the optimum 21166 (HiGHS) in a few thousand.
   Model m;
-  ASSERT_TRUE(io::read_lpm(std::string(PS26119_SOURCE_DIR) + "/data/miplib3/gt2.lpm", m).ok);
+  ASSERT_TRUE(io::read_lpm(std::string(PS26119_SOURCE_DIR) + "/data/mip_small/gt2.lpm", m).ok);
   Options o;
   o.iteration_limit = 20000;  // node limit for branch-and-bound
   const Solution s = solve(m, o);
