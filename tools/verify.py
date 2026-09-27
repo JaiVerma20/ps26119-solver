@@ -64,7 +64,12 @@ def load_model(path: str):
 def verify(model_path: str, solution_path: str, expected: float | None = None) -> dict:
     tol = load_tolerances()
     m, reader = load_model(model_path)
-    s = read_solution(solution_path)
+    try:
+        s = read_solution(solution_path)
+    except OSError:
+        raise
+    except Exception as e:  # malformed file: a clear error, not a traceback (IndexError, ...)
+        raise ValueError(f"cannot read solution file {solution_path}: {type(e).__name__}: {e}") from None
     n, mrows = m.num_cols, m.num_rows
     rep: dict = {
         "model": os.path.basename(model_path),
