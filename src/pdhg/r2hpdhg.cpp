@@ -74,8 +74,15 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
       b.r2h_dual(y, y0, ax, sigma, w, rho, yh, need_residual ? yb : -1);
       if (inner == 0) r0 = fixed_point_residual();  // residual at the epoch's anchor
       ++inner;
+      ++it;
+      // The clock is read every iteration (negligible next to the SpMVs): checking only every
+      // K iterations let a 3 s limit run to 12 s on a 1e6-row model (K iterations + setup).
+      if (s + 1 < K && ctx.out_of_time()) {
+        const KktStats kt = ctx.kkt(xh, yh);
+        if (kt.finite() && ctx.record(kt, it)) return ctx.finish(Status::Optimal, xh, yh, it, msg);
+        return ctx.finish(Status::TimeLimit, xh, yh, it, msg);
+      }
     }
-    it += K;
 
     const double r = fixed_point_residual();
     const KktStats k = ctx.kkt(xh, yh);

@@ -1,5 +1,9 @@
 # Final integration report — ps26119 + gpuopt
 
+> **Historical document (2026-09-26, the day of the integration).** Numbers and statuses below
+> were true then; for the current state see `docs/SIH_STATUS.md`, `docs/EVIDENCE.md`,
+> `docs/LIMITATIONS.md` and `NEXT_STEPS.md`.
+
 Date: 2026-09-26. Integration lead: Claude (for Jai), under the brief "correctness >
 performance > feature count > code size". Machine for every number below: MacBook Air M4
 (10 cores, 16 GB), CPU only. Benchmark CSVs carry the git hash of the binary that produced

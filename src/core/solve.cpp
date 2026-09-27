@@ -29,7 +29,14 @@
 namespace ps26119 {
 
 namespace {
-Solution solve_direct(const Model& model, const Options& options);
+// certify = false: skip the certified dual bound (the presolve wrapper recomputes it on the
+// ORIGINAL model, so computing it for the reduced one is wasted work).
+Solution solve_direct(const Model& model, const Options& options, bool certify = true);
+
+// The certified bound's bound-propagation refinement runs only while the call is within its time
+// limit plus a small grace (10% + 1 s): enough to keep a rigorous bound on a time-limited
+// refinery-year run (~0.4 s), without letting it run for seconds past the limit (1e6 rows).
+bool within_bound_budget(double elapsed, double time_limit) { return elapsed < 1.1 * time_limit + 1.0; }
 
 bool first_order(Algorithm a) { return a == Algorithm::Auto || a == Algorithm::Pdlp || a == Algorithm::R2hpdhg; }
 
@@ -156,12 +163,36 @@ Solution solve(const Model& model, const Options& options) {
   Options resolved = options;
   const double work = static_cast<double>(std::max(model.num_rows, 1)) * static_cast<double>(model.nnz());
   // Warm starts and first-order knobs only exist for the first-order engines: honour them.
-  bool first_order_request = !options.warm_x.empty() || !options.warm_y.empty() || options.warm_primal_weight > 0;
+  // --gpu too: only r2HPDHG runs on the GPU, so a GPU request must never be quietly served by
+  // the CPU simplex (it used to be, for small models).
+  bool first_order_request = options.use_gpu || !options.warm_x.empty() || !options.warm_y.empty() ||
+                             options.warm_primal_weight > 0;
   for (const auto& kv : options.engine_params)
     first_order_request = first_order_request || (kv.first.rfind("simplex_", 0) != 0 && kv.first.rfind("mip_", 0) != 0);
   resolved.algorithm = !first_order_request && work <= kAutoSimplexWork ? Algorithm::Simplex : Algorithm::R2hpdhg;
+  const auto t0 = std::chrono::steady_clock::now();
   Solution s = solve_impl(model, resolved);
   core::gate(model, resolved, s);
+  // Robustness: when the fp64 simplex gives up numerically (e.g. a 1e308 cost; badly scaled
+  // data) on an LP small enough for the dense double-double oracle, retry with the oracle.
+  // Only a gate-verified Optimal is taken (the oracle returns no certificates for other
+  // claims); otherwise the simplex's honest NumericalError stands.
+  if (s.status == Status::NumericalError && resolved.algorithm == Algorithm::Simplex && !treat_as_mip(model, options) &&
+      static_cast<double>(model.num_rows) * (model.num_cols + 2.0 * model.num_rows) <= 8e6) {
+    Options oracle = resolved;
+    oracle.algorithm = Algorithm::Oracle;
+    oracle.time_limit =
+        std::max(0.0, options.time_limit - std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
+    Solution o = solve_impl(model, oracle);
+    core::gate(model, oracle, o);
+    if (o.status == Status::Optimal && o.check == "PASS") {
+      o.message = "simplex: NumericalError (" + s.message + "); retried with the double-double oracle" +
+                  (o.message.empty() ? "" : "; " + o.message);
+      o.iterations += s.iterations;
+      s = std::move(o);
+      resolved.algorithm = Algorithm::Oracle;
+    }
+  }
   if (!treat_as_mip(model, options)) {
     char buf[96];
     std::snprintf(buf, sizeof buf, "auto: %s (rows*nnz = %.2g)", to_string(resolved.algorithm), work);
@@ -249,7 +280,7 @@ Solution solve_impl(const Model& model, const Options& options) {
     red.status = Status::Optimal;
     red.engine = "presolve";
   } else {
-    red = solve_direct(pr.reduced, budget(inner, 0));
+    red = solve_direct(pr.reduced, budget(inner, 0), /*certify=*/false);
   }
   if (lp_model && red.status == Status::Infeasible && static_cast<int>(red.dual_ray.size()) == pr.reduced.num_rows) {
     // Cheaper than a re-solve: map the reduced model's Farkas vector to the original rows
@@ -271,7 +302,7 @@ Solution solve_impl(const Model& model, const Options& options) {
       return s;
     }
   }
-  if (lp_model && red.status == Status::Unbounded && static_cast<int>(red.primal_ray.size()) == pr.reduced.num_cols &&
+  if (red.status == Status::Unbounded && static_cast<int>(red.primal_ray.size()) == pr.reduced.num_cols &&
       static_cast<int>(red.x.size()) == pr.reduced.num_cols) {
     // Same for a primal ray: fixed columns get d = 0, kept columns keep d_j (a bound that a
     // removed singleton row created is a reduced column bound, which the ray already respects,
@@ -279,7 +310,12 @@ Solution solve_impl(const Model& model, const Options& options) {
     std::vector<double> d(model.num_cols, 0.0);
     for (int j = 0; j < pr.reduced.num_cols; ++j) d[pr.col_map[j]] = red.primal_ray[j];
     Solution s = postsolve(model, pr, red);
-    if (check_unboundedness_certificate(model, s.x, d).passed) {
+    bool integral = true;  // a MILP's point must also be integral (branch_and_bound.cpp)
+    if (!lp_model)
+      for (int j = 0; j < model.num_cols; ++j)
+        integral = integral && !(j < static_cast<int>(model.is_integer.size()) && model.is_integer[j] &&
+                                 std::fabs(s.x[j] - std::round(s.x[j])) > tol::kMipIntegrality);
+    if (integral && check_unboundedness_certificate(model, s.x, d).passed) {
       s.status = Status::Unbounded;
       s.primal_ray = std::move(d);
       s.dual_ray.clear();
@@ -296,6 +332,15 @@ Solution solve_impl(const Model& model, const Options& options) {
   }
   if (lp_model && (red.status == Status::Infeasible || red.status == Status::Unbounded))
     return on_original(red, std::string("reduced model ") + to_string(red.status));
+  if (!lp_model && red.status == Status::Unbounded) {  // MILP: never report an unchecked claim
+    Solution s = red;
+    s.status = Status::NumericalError;
+    s.message += "; presolved MILP reported Unbounded, but its certificate does not hold on the original model";
+    s.model_fingerprint = model.fingerprint_hex();
+    s.x.clear();
+    s.primal_ray.clear();
+    return s;
+  }
   Solution post = postsolve(model, pr, red);
   const std::string note = "presolve removed " + std::to_string(pr.removed_rows) + " rows, " +
                            std::to_string(pr.removed_cols) + " cols";
@@ -365,12 +410,12 @@ Solution solve_impl(const Model& model, const Options& options) {
     post.status = Status::NumericalError;  // never claim Optimal without a point (a model may have 0 columns)
   }
   if (static_cast<int>(post.y.size()) == model.num_rows && model.num_rows + model.num_cols > 0)
-    post.certified_bound = certified_dual_bound(model, post.y).bound;
+    post.certified_bound = certified_dual_bound(model, post.y, /*use_implied_bounds=*/within_bound_budget(elapsed(), options.time_limit)).bound;
   post.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
   return post;
 }
 
-Solution solve_direct(const Model& model, const Options& options) {
+Solution solve_direct(const Model& model, const Options& options, bool certify) {
   const auto t0 = std::chrono::steady_clock::now();
   Solution sol;
   sol.model_fingerprint = model.fingerprint_hex();
@@ -491,8 +536,13 @@ Solution solve_direct(const Model& model, const Options& options) {
   if (has_integers(model)) {  // options.relax_integrality: say what was solved
     sol.message = std::string("LP relaxation (integrality ignored)") + (sol.message.empty() ? "" : "; ") + sol.message;
   }
-  if (static_cast<int>(sol.y.size()) == model.num_rows && model.num_rows + model.num_cols > 0)
-    sol.certified_bound = certified_dual_bound(model, sol.y).bound;
+  if (certify && static_cast<int>(sol.y.size()) == model.num_rows && model.num_rows + model.num_cols > 0)
+    sol.certified_bound =
+        certified_dual_bound(model, sol.y,
+                             /*use_implied_bounds=*/within_bound_budget(
+                                 std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(),
+                                 options.time_limit))
+            .bound;
 
   sol.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
   return sol;

@@ -153,3 +153,44 @@ TEST(CApi, SolveLpExReturnsCertificates) {
   EXPECT_GT(pray[0], 0);
   EXPECT_FALSE(std::isnan(x[0]));
 }
+
+TEST(CApi, InvalidOptionsAreRejectedNotIgnored) {
+  // negative / NaN limits used to be replaced silently by the defaults (a 1-hour time limit)
+  const double inf = HUGE_VAL;
+  const double c[1] = {1}, cl[1] = {0}, cu[1] = {inf}, rl[1] = {1}, ru[1] = {inf};
+  const int cs[2] = {0, 1}, ri[1] = {0};
+  const double v[1] = {1};
+  ps26119_result res;
+  auto run = [&](const ps26119_options& o) {
+    return ps26119_solve_lp(1, 1, 1, 0.0, c, cl, cu, rl, ru, cs, ri, v, &o, &res, nullptr, nullptr, nullptr);
+  };
+  ps26119_options o;
+  ps26119_default_options(&o);
+  EXPECT_EQ(run(o), PS26119_OPTIMAL);
+  o.time_limit = 0;  // 0 = default: allowed
+  o.iteration_limit = 0;
+  o.tolerance = 0;
+  EXPECT_EQ(run(o), PS26119_OPTIMAL);
+  const auto bad = [&](auto mutate, const char* what) {
+    ps26119_options b;
+    ps26119_default_options(&b);
+    mutate(b);
+    EXPECT_EQ(run(b), PS26119_INVALID_ARGUMENT) << what;
+    EXPECT_GT(std::strlen(res.message), 0u) << what;
+  };
+  bad([](ps26119_options& b) { b.time_limit = -1; }, "negative time");
+  bad([](ps26119_options& b) { b.time_limit = NAN; }, "NaN time");
+  bad([](ps26119_options& b) { b.tolerance = -1e-8; }, "negative tolerance");
+  bad([](ps26119_options& b) { b.tolerance = NAN; }, "NaN tolerance");
+  bad([](ps26119_options& b) { b.iteration_limit = -5; }, "negative iterations");
+  bad([](ps26119_options& b) { b.threads = -3; }, "negative threads");
+  bad([](ps26119_options& b) { b.precision = 7; }, "unknown precision");
+  bad([](ps26119_options& b) { b.algorithm = 99; }, "unknown algorithm");
+  // the MPS entry point validates the same way and survives a NULL path
+  ps26119_options b;
+  ps26119_default_options(&b);
+  b.time_limit = -1;
+  EXPECT_EQ(ps26119_solve_mps(PS26119_SOURCE_DIR "/data/netlib_small/afiro.mps", &b, &res, nullptr),
+            PS26119_INVALID_ARGUMENT);
+  EXPECT_EQ(ps26119_solve_mps(nullptr, nullptr, &res, nullptr), PS26119_INVALID_ARGUMENT);
+}

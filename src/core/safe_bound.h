@@ -35,6 +35,9 @@ struct SafeBound {
 };
 
 // y: row multipliers in the ORIGINAL objective sense (same convention as Solution::y).
-SafeBound certified_dual_bound(const Model& model, const std::vector<double>& y);
+// use_implied_bounds = false skips the bound-propagation refinement (O(passes·nnz)); the
+// result is still rigorous, only possibly −∞. Used when a time limit is already exhausted.
+SafeBound certified_dual_bound(const Model& model, const std::vector<double>& y,
+                               bool use_implied_bounds = true);
 
 }  // namespace ps26119

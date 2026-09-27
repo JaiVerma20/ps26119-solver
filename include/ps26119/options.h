@@ -39,7 +39,10 @@ struct Options {
   Precision precision = Precision::Fp64;
   bool use_gpu = false;                               // needs a CUDA build
   double tolerance = tol::kFirstOrderHigh;            // relative KKT target (first-order engines)
-  double time_limit = 3600.0;                         // seconds, wall clock
+  // Wall clock for the whole solve() call (not file reading). Engines check it every iteration;
+  // two parts are not interruptible: first-order setup (scaling; ~5 s at 6M nonzeros) and the
+  // final verification. The certified bound's refinement is skipped past 1.1·limit + 1 s.
+  double time_limit = 3600.0;
   std::int64_t iteration_limit = 100'000'000;         // engine iterations
   int verbosity = 0;                                  // 0 silent, 1 summary, 2 progress
   // Termination normalization overrides (set internally by presolve so that a reduced model

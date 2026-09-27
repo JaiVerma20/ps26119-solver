@@ -34,9 +34,9 @@ typedef struct {
   int algorithm;          /* PS26119_ALG_* */
   int precision;          /* PS26119_PREC_* */
   int use_gpu;            /* 0/1 (needs a CUDA build) */
-  double tolerance;       /* relative KKT target for first-order engines */
-  double time_limit;      /* seconds */
-  long long iteration_limit;
+  double tolerance;       /* relative KKT target for first-order engines (0 = default 1e-8) */
+  double time_limit;      /* seconds (0 = default); negative or NaN -> PS26119_INVALID_ARGUMENT */
+  long long iteration_limit; /* 0 = default; negative -> PS26119_INVALID_ARGUMENT */
   int verbosity;
   int threads;            /* CPU threads (0 = all cores); results do not depend on it */
   /* Warm start (first-order engines): previous x (num_cols) and y (num_rows), or NULL. */

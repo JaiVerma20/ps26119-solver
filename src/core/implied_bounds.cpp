@@ -30,9 +30,19 @@ ImpliedBounds implied_bounds(const Model& M, int max_passes) {
   const la::Csr<double> A = la::csr_from_model(M);  // row access
   auto& lo = r.lower;
   auto& up = r.upper;
+  // Worklist: a row is re-examined only if one of its columns' bounds changed since it was last
+  // examined. Its result depends only on those bounds, so skipping it cannot change anything:
+  // the output is bit-identical to scanning every row every pass, at a fraction of the cost
+  // (the refinery hourly year spent seconds here after a time-limited solve).
+  std::vector<char> dirty(M.num_rows, 1);
+  auto touch = [&](int j) {
+    for (int k = M.col_start[j]; k < M.col_start[j + 1]; ++k) dirty[M.row_index[k]] = 1;
+  };
   for (int pass = 0; pass < max_passes; ++pass) {
     bool changed = false;
     for (int i = 0; i < M.num_rows; ++i) {
+      if (!dirty[i]) continue;
+      dirty[i] = 0;
       const bool has_up = std::isfinite(M.row_upper[i]), has_lo = std::isfinite(M.row_lower[i]);
       if (!has_up && !has_lo) continue;
       // min and max activity with counts of infinite contributions
@@ -71,10 +81,10 @@ ImpliedBounds implied_bounds(const Model& M, int max_passes) {
           const double v = ((dd(M.row_upper[i]) - rest) / dd(a)).to_double();  // a x_j ≤ ru − rest
           if (a > 0) {
             const double nb = loosen_up(v, scale);
-            if (nb < up[j] - 1e-7 * (1 + std::fabs(nb))) up[j] = nb, changed = true;
+            if (nb < up[j] - 1e-7 * (1 + std::fabs(nb))) up[j] = nb, changed = true, touch(j);
           } else {
             const double nb = loosen_down(v, scale);
-            if (nb > lo[j] + 1e-7 * (1 + std::fabs(nb))) lo[j] = nb, changed = true;
+            if (nb > lo[j] + 1e-7 * (1 + std::fabs(nb))) lo[j] = nb, changed = true, touch(j);
           }
         }
         if (has_lo && (ninf_max == 0 || (ninf_max == 1 && jinf_max == j))) {
@@ -84,10 +94,10 @@ ImpliedBounds implied_bounds(const Model& M, int max_passes) {
           const double v = ((dd(M.row_lower[i]) - rest) / dd(a)).to_double();  // a x_j ≥ rl − rest
           if (a > 0) {
             const double nb = loosen_down(v, scale);
-            if (nb > lo[j] + 1e-7 * (1 + std::fabs(nb))) lo[j] = nb, changed = true;
+            if (nb > lo[j] + 1e-7 * (1 + std::fabs(nb))) lo[j] = nb, changed = true, touch(j);
           } else {
             const double nb = loosen_up(v, scale);
-            if (nb < up[j] - 1e-7 * (1 + std::fabs(nb))) up[j] = nb, changed = true;
+            if (nb < up[j] - 1e-7 * (1 + std::fabs(nb))) up[j] = nb, changed = true, touch(j);
           }
         }
       }

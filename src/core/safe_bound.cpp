@@ -175,7 +175,7 @@ SafeBound bound_with(const Model& M, const std::vector<double>& y_orig, const st
 
 }  // namespace
 
-SafeBound certified_dual_bound(const Model& M, const std::vector<double>& y_in) {
+SafeBound certified_dual_bound(const Model& M, const std::vector<double>& y_in, bool use_implied_bounds) {
   if (static_cast<int>(y_in.size()) != M.num_rows) return SafeBound{};
   // The bound is valid for ANY multipliers, so first zero the ones that point at an infinite
   // row bound (typically rounding-sized wrong signs on inactive rows); z is recomputed from
@@ -186,7 +186,7 @@ SafeBound certified_dual_bound(const Model& M, const std::vector<double>& y_in) 
     if ((ym > 0 && !std::isfinite(M.row_lower[i])) || (ym < 0 && !std::isfinite(M.row_upper[i]))) y[i] = 0.0;
   }
   SafeBound r = bound_with(M, y, M.col_lower, M.col_upper);
-  if (r.unbounded_col_terms > 0 && r.unbounded_row_terms == 0) {
+  if (use_implied_bounds && r.unbounded_col_terms > 0 && r.unbounded_row_terms == 0) {
     // Columns bounded on one side only: use rigorous implied bounds (implied_bounds.h).
     const ImpliedBounds ib = implied_bounds(M);
     r = bound_with(M, y, ib.lower, ib.upper);

@@ -2,6 +2,10 @@
 // optimum of a MIN model (never be below it for MAX), for ANY multipliers y, and must be
 // tight when y is optimal.
 #include <gtest/gtest.h>
+#include "la/dd.h"
+#include "la/csr.h"
+#include <limits>
+#include <cstring>
 
 #include <cmath>
 #include <random>
@@ -137,4 +141,119 @@ TEST(SafeBound, ExactCancellationOnFreeColumns) {
   // A z that is NOT zero on a free column must still give −inf (never a fake finite bound).
   b = certified_dual_bound(m, {0.5, -0.4999999999999999});
   EXPECT_FALSE(b.finite);
+}
+
+namespace {
+// The previous full-scan implementation of implied_bounds (every row, every pass), kept here as
+// the reference: the worklist version must return bit-identical bounds.
+ImpliedBounds implied_bounds_full_scan(const Model& M, int max_passes = 20) {
+  using la::dd;
+  const double inf = std::numeric_limits<double>::infinity();
+  auto loosen_up = [&](double v, double s) { return std::nextafter(v + 1e-9 * (s + std::fabs(v)), inf); };
+  auto loosen_down = [&](double v, double s) { return std::nextafter(v - 1e-9 * (s + std::fabs(v)), -inf); };
+  ImpliedBounds r;
+  r.lower = M.col_lower;
+  r.upper = M.col_upper;
+  const la::Csr<double> A = la::csr_from_model(M);
+  auto& lo = r.lower;
+  auto& up = r.upper;
+  for (int pass = 0; pass < max_passes; ++pass) {
+    bool changed = false;
+    for (int i = 0; i < M.num_rows; ++i) {
+      const bool has_up = std::isfinite(M.row_upper[i]), has_lo = std::isfinite(M.row_lower[i]);
+      if (!has_up && !has_lo) continue;
+      dd amin = 0.0, amax = 0.0;
+      double mag = 0.0;
+      int ninf_min = 0, ninf_max = 0, jinf_min = -1, jinf_max = -1;
+      for (std::int64_t p = A.row_ptr[i]; p < A.row_ptr[i + 1]; ++p) {
+        const int j = A.col[p];
+        const double a = A.val[p];
+        const double bmin = a > 0 ? lo[j] : up[j], bmax = a > 0 ? up[j] : lo[j];
+        if (std::isfinite(bmin)) {
+          const dd t = la::mul_exact(a, bmin);
+          amin += t;
+          mag += std::fabs(t.to_double());
+        } else {
+          ++ninf_min, jinf_min = j;
+        }
+        if (std::isfinite(bmax)) {
+          const dd t = la::mul_exact(a, bmax);
+          amax += t;
+          mag += std::fabs(t.to_double());
+        } else {
+          ++ninf_max, jinf_max = j;
+        }
+      }
+      for (std::int64_t p = A.row_ptr[i]; p < A.row_ptr[i + 1]; ++p) {
+        const int j = A.col[p];
+        const double a = A.val[p];
+        const double scale = mag / std::fabs(a);
+        if (has_up && (ninf_min == 0 || (ninf_min == 1 && jinf_min == j))) {
+          dd rest = amin;
+          if (ninf_min == 0) rest -= la::mul_exact(a, a > 0 ? lo[j] : up[j]);
+          const double v = ((dd(M.row_upper[i]) - rest) / dd(a)).to_double();
+          if (a > 0) {
+            const double nb = loosen_up(v, scale);
+            if (nb < up[j] - 1e-7 * (1 + std::fabs(nb))) up[j] = nb, changed = true;
+          } else {
+            const double nb = loosen_down(v, scale);
+            if (nb > lo[j] + 1e-7 * (1 + std::fabs(nb))) lo[j] = nb, changed = true;
+          }
+        }
+        if (has_lo && (ninf_max == 0 || (ninf_max == 1 && jinf_max == j))) {
+          dd rest = amax;
+          if (ninf_max == 0) rest -= la::mul_exact(a, a > 0 ? up[j] : lo[j]);
+          const double v = ((dd(M.row_lower[i]) - rest) / dd(a)).to_double();
+          if (a > 0) {
+            const double nb = loosen_down(v, scale);
+            if (nb > lo[j] + 1e-7 * (1 + std::fabs(nb))) lo[j] = nb, changed = true;
+          } else {
+            const double nb = loosen_up(v, scale);
+            if (nb < up[j] - 1e-7 * (1 + std::fabs(nb))) up[j] = nb, changed = true;
+          }
+        }
+      }
+    }
+    if (!changed) break;
+  }
+  return r;
+}
+}  // namespace
+
+TEST(SafeBound, ImpliedBoundsWorklistIsBitIdenticalToFullScan) {
+  std::mt19937 rng(17);
+  std::uniform_real_distribution<double> U(-1.0, 1.0);
+  int nontrivial = 0;
+  auto compare = [&](const Model& m, const std::string& what) {
+    const ImpliedBounds a = implied_bounds(m), b = implied_bounds_full_scan(m);
+    for (int j = 0; j < m.num_cols; ++j) {
+      ASSERT_EQ(std::memcmp(&a.lower[j], &b.lower[j], sizeof(double)), 0) << what << " lower " << j;
+      ASSERT_EQ(std::memcmp(&a.upper[j], &b.upper[j], sizeof(double)), 0) << what << " upper " << j;
+      nontrivial += a.lower[j] != m.col_lower[j] || a.upper[j] != m.col_upper[j];
+    }
+  };
+  for (int t = 0; t < 300; ++t) {
+    const int mr = 2 + t % 9, n = 2 + (t / 9) % 9;
+    std::vector<std::vector<double>> rows(mr, std::vector<double>(n, 0.0));
+    for (auto& r : rows)
+      for (double& v : r) v = rng() % 3 == 0 ? 0.0 : U(rng) * 5;
+    std::vector<double> rl(mr), ru(mr), cl(n), cu(n);
+    for (int i = 0; i < mr; ++i) {
+      const int k = rng() % 3;
+      rl[i] = k == 1 ? -kInf : U(rng) * 4 - 2;
+      ru[i] = k == 0 ? kInf : rl[i] == -kInf ? U(rng) * 4 + 1 : rl[i] + 1 + U(rng);
+    }
+    for (int j = 0; j < n; ++j) {
+      const int k = rng() % 4;
+      cl[j] = k == 3 ? -kInf : 0.0;
+      cu[j] = k == 0 ? 3.0 : kInf;
+    }
+    compare(test::make_model(std::vector<double>(n, 1.0), rows, rl, ru, cl, cu), "random " + std::to_string(t));
+  }
+  for (const char* name : {"afiro", "adlittle", "blend", "share2b", "sc105", "stocfor1", "recipe", "kb2"}) {
+    Model m;
+    ASSERT_TRUE(io::read_lpm(std::string(PS26119_SOURCE_DIR) + "/data/netlib_small/" + name + ".lpm", m).ok);
+    compare(m, name);
+  }
+  EXPECT_GT(nontrivial, 100);  // the comparison actually covers tightened bounds
 }

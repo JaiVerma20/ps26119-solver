@@ -102,7 +102,7 @@ NotSolved. Fields: x, row_activity, y, z, objective, primal_residual,
 dual_residual, gap, iterations, seconds, engine, precision, model fingerprint, check (the
 in-process verification gate: every Optimal LP answer is re-checked on the original model
 by core/solution_checker; failure → NumericalError), certified bound.
-CLI exit codes: 0 optimal, 1 limit/infeasible/unbounded, 3 read error, 5 numerical.
+CLI exit codes: 0 optimal, 1 limit/infeasible/unbounded, 2 usage, 3 read error, 4 cannot write output, 5 numerical / not solved.
 
 ## 8. Tolerances (defaults)
 - First-order engines, relative KKT: 1e-4 "fast" and 1e-8 "high" — report both.

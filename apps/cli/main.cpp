@@ -9,7 +9,8 @@
 //           [--iteration-limit n] [--out solution.sol] [-v|-vv]
 //
 // Exit codes (CLAUDE.md §7): 0 optimal, 1 limit/infeasible/unbounded, 2 usage,
-// 3 read error, 5 numerical error / not solved.
+// 3 read error, 4 cannot write the output, 5 numerical error / not solved.
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -45,7 +46,8 @@ void usage(std::FILE* f) {
                "  %s batch <base> <scenario>... [--out-dir d] [--tol e] [--time-limit s] [--set k=v]\n"
                "        scenarios share the base matrix; their objective and bounds may differ\n"
                "solve options:\n"
-               "  --algorithm auto|simplex|r2hpdhg|pdlp|oracle   (default auto = r2hpdhg)\n"
+               "  --algorithm auto|simplex|r2hpdhg|pdlp|oracle   (default auto: simplex for small models,\n"
+               "                                         r2hpdhg for large ones, --gpu or --warm)\n"
                "                                         simplex: revised primal simplex (vertex, exact duals)\n"
                "                                         oracle: dense double-double simplex, small models only\n"
                "  --precision fp64|mixed                 (first-order engines, default fp64)\n"
@@ -59,9 +61,59 @@ void usage(std::FILE* f) {
                "  --warm-weight                          with --warm: also reuse its primal weight (faster on some\n"
                "                                         re-solves, slower on others; see bench/warm_start.py)\n"
                "  --set name=value                       expert engine knob (see Options::engine_params), repeatable\n"
-               "  -v | -vv                               verbosity\n",
+               "  -v | -vv                               verbosity\n"
+               "exit codes: 0 optimal, 1 infeasible/unbounded/limit, 2 usage, 3 read error,\n"
+               "            4 cannot write output, 5 numerical error / not solved\n",
                kProductName, kVersion, kProductName, kProductName, kProductName, kProductName, kProductName,
                kProductName);
+}
+
+constexpr int kExitWriteError = 4;
+
+// Numeric flags parse completely or the command stops with a usage error (exit 2).
+double parse_number(const char* flag, const char* s, bool positive_only) {
+  char* end = nullptr;
+  const double v = std::strtod(s, &end);
+  const bool ok = end != s && *end == '\0' && std::isfinite(v) && (positive_only ? v > 0 : v >= 0);
+  if (!ok) {
+    std::fprintf(stderr, "%s needs a %s number, got '%s'\n", flag, positive_only ? "positive" : "non-negative", s);
+    std::exit(2);
+  }
+  return v;
+}
+
+int parse_threads(const char* s) {
+  const double v = parse_number("--threads", s, false);
+  if (v != std::floor(v) || v > 4096) {
+    std::fprintf(stderr, "--threads needs an integer between 0 and 4096, got '%s'\n", s);
+    std::exit(2);
+  }
+  return static_cast<int>(v);
+}
+
+// name=number for --set; exits with a usage error otherwise.
+std::pair<std::string, double> parse_set(const std::string& kv) {
+  const auto eq = kv.find('=');
+  char* end = nullptr;
+  const double v = eq == std::string::npos ? 0 : std::strtod(kv.c_str() + eq + 1, &end);
+  if (eq == std::string::npos || eq == 0 || end == kv.c_str() + eq + 1 || *end != '\0') {
+    std::fprintf(stderr, "--set expects name=number, got '%s'\n", kv.c_str());
+    std::exit(2);
+  }
+  return {kv.substr(0, eq), v};
+}
+
+// Fails fast when the output file cannot be created, instead of after a long solve. A file
+// this check creates is removed again (the solution is written only at the end).
+bool output_writable(const std::string& path) {
+  std::FILE* probe = std::fopen(path.c_str(), "r");
+  const bool existed = probe != nullptr;
+  if (probe) std::fclose(probe);
+  std::FILE* f = std::fopen(path.c_str(), "a");
+  if (!f) return false;
+  std::fclose(f);
+  if (!existed) std::remove(path.c_str());
+  return true;
 }
 
 bool ends_with(const std::string& s, const char* suf) {
@@ -126,15 +178,7 @@ int cmd_inspect(const std::string& what, int argc, char** argv) {
 int cmd_solve(int argc, char** argv) {
   std::string path, out, warm;
   bool warm_weight = false;
-  // numeric flags must parse completely and be positive
-  auto positive = [](const char* flag, const char* s, double& v) {
-    char* end = nullptr;
-    v = std::strtod(s, &end);
-    if (end == s || *end != '\0' || !(v > 0)) {
-      std::fprintf(stderr, "%s needs a positive number, got '%s'\n", flag, s);
-      std::exit(2);
-    }
-  };
+  auto positive = [](const char* flag, const char* s, double& v) { v = parse_number(flag, s, true); };
   Options opt;
   for (int i = 0; i < argc; ++i) {
     const std::string a = argv[i];
@@ -168,7 +212,7 @@ int cmd_solve(int argc, char** argv) {
     } else if (a == "--warm") {
       warm = next();
     } else if (a == "--threads") {
-      opt.threads = std::atoi(next());
+      opt.threads = parse_threads(next());
     } else if (a == "--presolve") {
       opt.presolve = true;
     } else if (a == "--no-presolve") {
@@ -176,15 +220,7 @@ int cmd_solve(int argc, char** argv) {
     } else if (a == "--warm-weight") {
       warm_weight = true;
     } else if (a == "--set") {
-      const std::string kv = next();
-      const auto eq = kv.find('=');
-      char* end = nullptr;
-      const double v = eq == std::string::npos ? 0 : std::strtod(kv.c_str() + eq + 1, &end);
-      if (eq == std::string::npos || end == kv.c_str() + eq + 1 || *end != '\0') {
-        std::fprintf(stderr, "--set expects name=number, got '%s'\n", kv.c_str());
-        return 2;
-      }
-      opt.engine_params.emplace_back(kv.substr(0, eq), v);
+      opt.engine_params.push_back(parse_set(next()));
     } else if (a == "--out") {
       out = next();
     } else if (a == "-v") {
@@ -204,6 +240,10 @@ int cmd_solve(int argc, char** argv) {
   if (path.empty()) {
     usage(stderr);
     return 2;
+  }
+  if (!out.empty() && !output_writable(out)) {
+    std::fprintf(stderr, "cannot write the solution file '%s'\n", out.c_str());
+    return kExitWriteError;
   }
 
   Model model;
@@ -240,9 +280,13 @@ int cmd_solve(int argc, char** argv) {
     std::printf("check      %s  (in-process, original model: primal %.1e  dual %.1e  gap %.1e)\n", sol.check.c_str(),
                 sol.check_primal, sol.check_dual, sol.check_gap);
   }
-  if (sol.certified_bound == sol.certified_bound)
-    std::printf("certified  %s %.12g  (rounding-proof %s bound from y)\n", model.sense > 0 ? "optimum >=" : "optimum <=",
-                sol.certified_bound, model.sense > 0 ? "lower" : "upper");
+  if (sol.certified_bound == sol.certified_bound) {
+    if (std::isfinite(sol.certified_bound))
+      std::printf("certified  %s %.12g  (rounding-proof %s bound from y)\n", model.sense > 0 ? "optimum >=" : "optimum <=",
+                  sol.certified_bound, model.sense > 0 ? "lower" : "upper");
+    else
+      std::printf("certified  none  (y gives no finite rounding-proof bound)\n");
+  }
   std::printf("iterations %lld   seconds %.3f   (setup %.3f)\n", static_cast<long long>(sol.iterations), sol.seconds,
               sol.setup_seconds);
   if (sol.iterations_to_fast >= 0)
@@ -253,7 +297,7 @@ int cmd_solve(int argc, char** argv) {
     std::string err;
     if (!io::write_solution(out, model, sol, err)) {
       std::fprintf(stderr, "%s\n", err.c_str());
-      return 5;
+      return kExitWriteError;
     }
   }
   return exit_code(sol.status);
@@ -273,17 +317,15 @@ int cmd_batch(int argc, char** argv) {
       return argv[++i];
     };
     if (a == "--out-dir") out_dir = next();
-    else if (a == "--tol") opt.tolerance = std::atof(next());
-    else if (a == "--time-limit") opt.time_limit = std::atof(next());
-    else if (a == "--iteration-limit") opt.iteration_limit = std::atoll(next());
+    else if (a == "--tol") opt.tolerance = parse_number("--tol", next(), true);
+    else if (a == "--time-limit") opt.time_limit = parse_number("--time-limit", next(), true);
+    else if (a == "--iteration-limit")
+      opt.iteration_limit = static_cast<std::int64_t>(parse_number("--iteration-limit", next(), true));
+    else if (a == "-v") opt.verbosity = 1;
     else if (a == "-vv") opt.verbosity = 2;
-    else if (a == "--threads") opt.threads = std::atoi(next());
-    else if (a == "--set") {
-      const std::string kv = next();
-      const auto eq = kv.find('=');
-      if (eq == std::string::npos) return 2;
-      opt.engine_params.emplace_back(kv.substr(0, eq), std::atof(kv.c_str() + eq + 1));
-    } else if (!a.empty() && a[0] == '-') {
+    else if (a == "--threads") opt.threads = parse_threads(next());
+    else if (a == "--set") opt.engine_params.push_back(parse_set(next()));
+    else if (!a.empty() && a[0] == '-') {
       std::fprintf(stderr, "unknown option %s\n", a.c_str());
       return 2;
     } else {
@@ -321,7 +363,10 @@ int cmd_batch(int argc, char** argv) {
     worst = std::max(worst, exit_code(s.status));
     if (!out_dir.empty()) {
       std::string err;
-      if (!io::write_solution(out_dir + "/" + names[k] + ".sol", base, s, err)) std::fprintf(stderr, "%s\n", err.c_str());
+      if (!io::write_solution(out_dir + "/" + names[k] + ".sol", base, s, err)) {
+        std::fprintf(stderr, "%s\n", err.c_str());
+        worst = std::max(worst, kExitWriteError);
+      }
     }
   }
   return worst;

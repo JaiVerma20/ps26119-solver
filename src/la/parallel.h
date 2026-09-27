@@ -7,6 +7,11 @@
 // count (kReduceChunks) combined in order, so they are identical for any thread count too.
 //
 // No OpenMP dependency (Apple clang ships without libomp). Threads = 1 runs inline.
+//
+// Concurrent callers (several solve() calls on different threads of one process): run() and
+// set_threads() are serialised by use_m_, so one job is in the pool at a time. That is correct
+// for any interleaving and keeps results bit-identical (they never depend on the thread
+// count); concurrent solves simply share the pool. run() is not re-entrant (never nested).
 #pragma once
 
 #include <algorithm>
@@ -29,12 +34,13 @@ class ThreadPool {
   // 0 = hardware concurrency. Changing the size restarts the workers.
   void set_threads(int t) {
     if (t <= 0) t = static_cast<int>(std::max(1u, std::thread::hardware_concurrency()));
-    if (t == threads_) return;
+    std::lock_guard<std::mutex> use(use_m_);
+    if (t == threads_.load()) return;
     stop();
-    threads_ = t;
-    for (int i = 1; i < threads_; ++i) workers_.emplace_back([this] { loop(); });
+    threads_.store(t);
+    for (int i = 1; i < t; ++i) workers_.emplace_back([this] { loop(); });
   }
-  int threads() const { return threads_; }
+  int threads() const { return threads_.load(); }
 
   // Runs f(chunk) for chunk = 0..chunks-1, spread over the pool; returns when all are done.
   //
@@ -48,7 +54,8 @@ class ThreadPool {
   //     outlives every use.
   // Chunks are claimed with an atomic counter; idle workers spin briefly before sleeping.
   void run(int chunks, const std::function<void(int)>& f) {
-    if (threads_ <= 1 || chunks <= 1) {
+    std::lock_guard<std::mutex> use(use_m_);
+    if (threads_.load() <= 1 || chunks <= 1) {
       for (int c = 0; c < chunks; ++c) f(c);
       return;
     }
@@ -121,7 +128,8 @@ class ThreadPool {
     quit_.store(false);
   }
 
-  int threads_ = 1;
+  std::atomic<int> threads_{1};
+  std::mutex use_m_;  // one job (or resize) at a time, see the header comment
   std::vector<std::thread> workers_;
   std::mutex m_;
   std::condition_variable cv_;

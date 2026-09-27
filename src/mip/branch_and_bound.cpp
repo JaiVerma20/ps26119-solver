@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "core/certificates.h"
 #include "core/safe_bound.h"
 #include "oracle/dense_simplex.h"
 #include "ps26119/tolerances.h"
@@ -230,9 +231,46 @@ Solution solve_branch_and_bound(const Model& M, const BranchAndBoundOptions& opt
     if (lp.status == Status::Infeasible) continue;
     if (lp.status != Status::Optimal) {  // unbounded relaxation or numerical trouble
       if (lp.status == Status::Unbounded && !std::isfinite(incumbent)) {
-        best.status = Status::Unbounded;
-        best.message = "LP relaxation unbounded (MILP unbounded or infeasible)";
+        // An unbounded relaxation means "unbounded OR infeasible" — reporting Unbounded here
+        // was an unproven claim. For rational data, if any integer-feasible point exists, the
+        // integer hull has the same recession cone as the relaxation (Meyer 1974), so an
+        // integer point + this relaxation's ray proves unboundedness. Find a point by solving
+        // the zero-objective MILP (its relaxations are never unbounded) with what is left.
         best.iterations = lp_iterations;
+        if (lp.primal_ray.size() != static_cast<std::size_t>(M.num_cols)) {
+          best.status = Status::NotSolved;
+          best.message = "LP relaxation unbounded (MILP unbounded or infeasible); the node solver returned no ray";
+          best.seconds = elapsed();
+          return best;
+        }
+        Model feas = M;
+        std::fill(feas.obj.begin(), feas.obj.end(), 0.0);
+        BranchAndBoundOptions fo = opt;
+        fo.time_limit = std::max(0.0, opt.time_limit - elapsed());
+        fo.node_limit = std::max<std::int64_t>(0, opt.node_limit - nodes);
+        const Solution f = solve_branch_and_bound(feas, fo);
+        best.iterations += f.iterations;
+        if (f.status == Status::Optimal && f.x.size() == static_cast<std::size_t>(M.num_cols)) {
+          const CertificateCheck c = check_unboundedness_certificate(M, f.x, lp.primal_ray);
+          if (c.passed) {
+            best.status = Status::Unbounded;
+            best.x = f.x;
+            best.row_activity = M.row_activity(f.x);
+            best.primal_ray = lp.primal_ray;
+            best.check = "PASS";
+            best.message = "LP relaxation unbounded and an integer-feasible point exists (integer point + ray); " + c.detail;
+          } else {
+            best.status = Status::NumericalError;
+            best.message = "LP relaxation unbounded, but the ray fails at the integer point: " + c.detail;
+          }
+        } else if (f.status == Status::Infeasible) {
+          best.status = Status::Infeasible;
+          best.message = "no integer-feasible point (the LP relaxation is unbounded, the tree was exhausted)";
+        } else {
+          best.status = f.status == Status::Optimal ? Status::NumericalError : f.status;
+          best.message = std::string("LP relaxation unbounded; integer feasibility not decided (") + to_string(f.status) + ")";
+        }
+        best.objective = std::numeric_limits<double>::quiet_NaN();
         best.seconds = elapsed();
         return best;
       }

@@ -107,6 +107,12 @@ class Result:
     primal_ray: np.ndarray = field(repr=False, default=None)  # ray from x (Unbounded)
 
 
+def _lookup(table, key, what):
+    if key not in table:
+        raise ValueError(f"unknown {what} {key!r}; expected one of {sorted(table)}")
+    return table[key]
+
+
 def _csc(A, m, n):
     if isinstance(A, tuple):
         cs, ri, v = A
@@ -147,8 +153,8 @@ def solve_lp(c, A, row_lower, row_upper, col_lower=None, col_upper=None, sense=1
     lib = _get()
     opt = _Options()
     lib.ps26119_default_options(ctypes.byref(opt))
-    opt.algorithm = _ALG[algorithm]
-    opt.precision = _PREC[precision]
+    opt.algorithm = _lookup(_ALG, algorithm, "algorithm")
+    opt.precision = _lookup(_PREC, precision, "precision")
     opt.use_gpu = int(bool(gpu))
     opt.tolerance = tolerance
     opt.time_limit = time_limit
@@ -181,8 +187,8 @@ def _options(algorithm, precision, gpu, tolerance, time_limit, iteration_limit, 
     lib = _get()
     opt = _Options()
     lib.ps26119_default_options(ctypes.byref(opt))
-    opt.algorithm = _ALG[algorithm]
-    opt.precision = _PREC[precision]
+    opt.algorithm = _lookup(_ALG, algorithm, "algorithm")
+    opt.precision = _lookup(_PREC, precision, "precision")
     opt.use_gpu = int(bool(gpu))
     opt.tolerance = tolerance
     opt.time_limit = time_limit
