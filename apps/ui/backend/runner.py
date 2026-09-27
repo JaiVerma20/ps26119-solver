@@ -4,6 +4,7 @@ every number shown in the UI comes from the solver's own output or the verifier'
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -93,7 +94,17 @@ def solution_summary(path: str, max_vector: int = 2000) -> dict:
     return res
 
 
+def sha256_file(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 class Job:
+    kind = "solve"
+
     def __init__(self, model_rel: str, opts: dict):
         self.id = uuid.uuid4().hex[:12]
         self.model_rel = model_rel
@@ -173,6 +184,8 @@ class Job:
         result = {"exit_code": code, "wall_seconds": round(wall, 3), "stdout": stdout, **info,
                   "backend": "gpu" if self.opts.get("gpu") else "cpu", "threads": self.opts["threads"]}
         if os.path.exists(sol):
+            result["solution_file"] = paths.rel(sol)
+            result["solution_sha256"] = sha256_file(sol)  # identifies the exact artifact the verifier checked
             try:
                 result["solution"] = solution_summary(sol)
             except Exception as e:  # noqa: BLE001 — report, never crash the server
@@ -196,6 +209,75 @@ class Job:
         with self.cond:
             self.done = True
             self.cond.notify_all()
+        self.persist()
+
+    def persist(self):
+        """Keep the run on disk (apps/ui/.runs/jobs/<id>/job.json) so its certificate and report
+        survive a server restart. Progress is thinned to the last 2000 points."""
+        try:
+            os.makedirs(self.dir, exist_ok=True)
+            prog = [e for e in self.events if e["type"] == "progress"]
+            keep = [e for e in self.events if e["type"] != "progress"] + prog[-2000:]
+            keep.sort(key=lambda e: e.get("at", 0))
+            with open(os.path.join(self.dir, "job.json.tmp"), "w") as f:
+                json.dump({"id": self.id, "kind": self.kind, "model": self.model_rel, "created": self.created,
+                           "opts": {k: v for k, v in self.opts.items() if k != "base"}, "events": keep}, f,
+                          default=lambda v: None)
+            os.replace(os.path.join(self.dir, "job.json.tmp"), os.path.join(self.dir, "job.json"))
+        except (OSError, TypeError, ValueError):
+            pass  # persistence is a convenience; the live run is unaffected
+
+
+class StoredJob(Job):
+    """A finished run read back from disk."""
+
+    def __init__(self, d: dict):
+        super().__init__(d.get("model", ""), d.get("opts", {}))
+        self.id, self.kind, self.created = d["id"], d.get("kind", "solve"), d.get("created", 0)
+        self.dir = os.path.join(paths.RUNS, "jobs", self.id)
+        self.events, self.done = d.get("events", []), True
+
+    def persist(self):
+        pass
+
+
+def load_job(jid: str) -> Job | None:
+    p = os.path.join(paths.RUNS, "jobs", jid, "job.json")
+    try:
+        with open(p) as f:
+            return StoredJob(json.load(f))
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+def run_summary(job: Job) -> dict:
+    ev = {}
+    for e in job.events:
+        ev[e["type"]] = e
+    sol = (ev.get("result") or {}).get("solution") or {}
+    ver = (ev.get("verify") or {}).get("report") or {}
+    return {"id": job.id, "kind": job.kind, "model": job.model_rel, "created": job.created, "done": job.done,
+            "status": sol.get("status"), "objective": sol.get("objective"), "engine": sol.get("engine"),
+            "seconds": sol.get("seconds"), "verdict": ver.get("verdict"), "algorithm": job.opts.get("algorithm"),
+            "gpu": bool(job.opts.get("gpu")), "rows": (ev.get("result") or {}).get("rows")}
+
+
+def list_runs(limit: int = 60) -> list[dict]:
+    """Solve runs on disk, newest first (live runs are listed by Jobs.runs())."""
+    root = os.path.join(paths.RUNS, "jobs")
+    if not os.path.isdir(root):
+        return []
+    items = []
+    for jid in os.listdir(root):
+        p = os.path.join(root, jid, "job.json")
+        if re.fullmatch(r"[0-9a-f]{12}", jid) and os.path.exists(p):
+            items.append((os.path.getmtime(p), jid))
+    out = []
+    for _, jid in sorted(items, reverse=True)[:limit]:
+        j = load_job(jid)
+        if j and j.kind == "solve":
+            out.append(run_summary(j))
+    return out
 
 
 def verify(model_abs: str, sol: str, workdir: str) -> dict:
@@ -228,7 +310,8 @@ class Jobs:
 
     def get(self, jid: str) -> Job | None:
         with self.lock:
-            return self.jobs.get(jid)
+            job = self.jobs.get(jid)
+        return job or (load_job(jid) if re.fullmatch(r"[0-9a-f]{12}", jid) else None)
 
 
 def validate_options(body: dict) -> tuple[dict | None, str | None]:

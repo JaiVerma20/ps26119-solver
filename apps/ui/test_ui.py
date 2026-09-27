@@ -17,7 +17,7 @@ os.environ.setdefault("PS26119_PYTHON", sys.executable)
 sys.path.insert(0, HERE)
 
 import server  # noqa: E402
-from backend import evidence, generate, models, paths, runner, scenarios  # noqa: E402
+from backend import certificate, evidence, generate, models, paths, preflight, report, runner, scenarios  # noqa: E402
 from lpm import read_lpm  # noqa: E402
 
 
@@ -228,6 +228,97 @@ class Endpoints(unittest.TestCase):
         if wait:
             self.wait(job)
         return self.get(f"/api/jobs/{job}")["events"]
+
+    def solve_and_wait(self, body):
+        code, j = self.post("/api/solve", body)
+        self.assertEqual(code, 200, j)
+        self.wait(j["job"])
+        return j["job"]
+
+    def test_certificate_report_and_persistence(self):
+        jid = self.solve_and_wait({"path": "data/netlib_small/afiro.mps", "algorithm": "simplex"})
+        c = self.get(f"/api/jobs/{jid}/certificate")
+        self.assertEqual(c["final"], {"verdict": "PASS", "reasons": []})
+        names = [k["name"] for k in c["checks"] if k["required"]]
+        self.assertEqual(names, ["Definitive answer", "Original-model check (in-process)", "Independent verification",
+                                 "Same model (fingerprint)"])
+        self.assertEqual(c["model"]["fingerprint"], c["model"]["verifier_fingerprint"])
+        self.assertAlmostEqual(c["result"]["objective"], -464.75314286, places=6)
+        # the recorded SHA-256 is that of the solution file the verifier read
+        self.assertEqual(c["artifact"]["sha256"], runner.sha256_file(os.path.join(paths.ROOT, c["artifact"]["solution_file"])))
+        # the run survives a server restart (read back from job.json)
+        stored = runner.load_job(jid)
+        self.assertIsNotNone(stored)
+        self.assertEqual(certificate.build(stored)["final"]["verdict"], "PASS")
+        self.assertIn(jid, [r["id"] for r in self.get("/api/runs")])
+        # the self-contained report: the certificate, the evidence with sources, no scripts, no external files
+        with urllib.request.urlopen(f"{self.base}/api/report?jobs={jid}&download=1", timeout=60) as r:
+            html_ = r.read().decode()
+            self.assertIn("attachment", r.headers.get("Content-Disposition", ""))
+        self.assertIn("✓ PASS", html_)
+        self.assertIn(c["artifact"]["sha256"], html_)
+        self.assertIn("bench/results/", html_)
+        for banned in ("<script", "src=\"http", "href=\"http", "@import"):
+            self.assertNotIn(banned, html_)
+        self.assertEqual(report.e("<b>&"), "&lt;b&gt;&amp;")
+        for bad in ("jobs=../../x", "jobs=" + ",".join(["0" * 12] * 21), "jobs=ffffffffffff"):
+            with self.assertRaises(urllib.error.HTTPError):
+                urllib.request.urlopen(f"{self.base}/api/report?{bad}", timeout=10)
+
+    def test_a_limit_or_claim_is_certified_only_as_what_it_is(self):
+        jid = self.solve_and_wait({"path": "data/netlib_small/afiro.mps", "algorithm": "simplex", "time_limit": 1e-9})
+        c = self.get(f"/api/jobs/{jid}/certificate")
+        if c["result"]["status"] == "Optimal":
+            self.skipTest("AFIRO solved inside the time limit on this machine")
+        self.assertEqual(c["final"]["verdict"], "NOT CERTIFIED")
+        self.assertIn("Definitive answer", c["final"]["reasons"])
+        jid = self.solve_and_wait({"path": "data/examples/infeasible.mps", "algorithm": "simplex"})
+        c = self.get(f"/api/jobs/{jid}/certificate")
+        self.assertEqual((c["result"]["status"], c["final"]["verdict"]), ("Infeasible", "PASS"))
+        cert = next(k for k in c["checks"] if k["name"] == "Certificate")
+        self.assertIn("Farkas", cert["detail"])
+
+    def test_gpu_detail_is_the_committed_csv(self):
+        import csv
+        g = self.get("/api/gpu")
+        for m in g["machines"]:
+            path = os.path.join(paths.ROOT, "bench", "results", m["source"]["file"])
+            with open(path) as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(sum(len(i["runs"]) for i in m["instances"]), len(rows))
+            for r in rows:  # every configuration, number for number
+                inst = next(i for i in m["instances"] if i["instance"] == r["instance"])
+                run = next(x for x in inst["runs"] if x["backend"] == r["backend"] and x["precision"] == r["precision"]
+                           and (x["threads"] or None) == (int(r["threads"]) if r["threads"] else None))
+                self.assertEqual(run["status"], r["status"])
+                self.assertEqual(run["iterations"], int(r["iterations"]))
+                if r["seconds_to_1e-8"]:
+                    self.assertEqual(run["s_1e8"], float(r["seconds_to_1e-8"]))
+            for p in m["pairs"]:  # ratios are CPU seconds / GPU seconds, as bench/gpu_compare.py defines them
+                if p["ratio_vs_best"] is not None:
+                    self.assertAlmostEqual(p["ratio_vs_best"], p["best_cpu_s"] / p["gpu_s"], places=6)
+
+    def test_preflight_reports_every_dependency(self):
+        r = self.get("/api/preflight")
+        self.assertIn(r["state"], ("ok", "warn", "fail"))
+        ids = {i["id"]: i for i in r["items"]}
+        self.assertEqual(ids["binary"]["state"], "ok")
+        self.assertIn("verifier", ids)
+        self.assertTrue(all(i["state"] in ("ok", "info", "warn", "fixable", "fail") for i in r["items"]))
+        self.assertTrue(any(k.startswith("model:") for k in ids))
+
+    def test_web_modules_parse(self):
+        import shutil
+        import subprocess
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node not installed (syntax check of the browser modules)")
+        web = os.path.join(HERE, "web", "js")
+        files = [os.path.join(d, f) for d, _, fs in os.walk(web) for f in fs if f.endswith(".js")]
+        self.assertGreater(len(files), 10)
+        for f in files:
+            p = subprocess.run([node, "--check", f], capture_output=True, text=True)
+            self.assertEqual(p.returncode, 0, f + ": " + p.stderr)
 
     def test_evidence_matches_the_committed_csvs(self):
         e = self.get("/api/evidence")

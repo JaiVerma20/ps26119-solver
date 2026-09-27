@@ -13,6 +13,19 @@ export const api = {
   sparsity: (path) => get(`/api/model/sparsity?path=${encodeURIComponent(path)}`),
   evidence: () => get("/api/evidence"),
   scenarios: () => get("/api/scenarios"),
+  gpu: () => get("/api/gpu"),
+  preflight: () => get("/api/preflight"),
+  async prepare() {
+    const r = await fetch("/api/preflight/prepare", { method: "POST" });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || r.statusText);
+    return j;
+  },
+  runs: () => get("/api/runs"),
+  certificate: (job) => get(`/api/jobs/${job}/certificate`),
+  // the self-contained HTML report (certificates of these runs + optionally the evidence)
+  reportUrl: (jobs, { evidence = true, download = false, title = "" } = {}) =>
+    `/api/report?jobs=${jobs.join(",")}&evidence=${evidence ? 1 : 0}${download ? "&download=1" : ""}${title ? `&title=${encodeURIComponent(title)}` : ""}`,
   async solve(opts) {
     const r = await fetch("/api/solve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(opts) });
     const j = await r.json();

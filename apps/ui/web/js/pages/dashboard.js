@@ -76,7 +76,7 @@ export function mount(root) {
         h("dt", "gpu backend"), h("dd", s.cuda_build ? h("span.ok", `CUDA · ${s.gpu}`) : h("span.muted", "not in this build (CPU-only Mac build)")),
         h("dt", "os"), h("dd", s.os),
         h("dt", "evidence"), h("dd", store.evidence?.netlib?.[0] ? `CPU @ ${store.evidence.netlib[0].source.git_hash}` + (store.evidence.gpu?.[0] ? ` · GPU @ ${store.evidence.gpu[0].source.git_hash}` : "") : "…")),
-      h("div", { style: { marginTop: "12px", display: "flex", gap: "8px" } }, h("a.btn.primary", { href: "#/solve" }, "Open solver ▸"), h("a.btn", { href: "#/scenarios" }, "What-if planning"), h("a.btn", { href: "#/verify" }, "Verification")));
+      h("div", { style: { marginTop: "12px", display: "flex", gap: "8px" } }, h("a.btn.primary", { href: "#/demo" }, "▶ Jury demo"), h("a.btn", { href: "#/solve" }, "Open solver"), h("a.btn", { href: "#/scenarios" }, "What-if"), h("a.btn", { href: "#/preflight" }, "System check")));
   }
 
   function drawClaims() {
@@ -85,7 +85,7 @@ export function mount(root) {
     const out = [];
     const auto = ev.netlib.find((n) => n.engine === "auto");
     if (auto) out.push(h("div.claim.okb", h("div.big", auto.solved, h("small", ` / ${auto.total}`)), h("div.t", "Netlib LPs solved & verified"),
-      h("div.d", `all 93 classic LPs, auto engine, 60 s each; equal to HiGHS to 1e-6`), h("div.src", srcChip(auto.source))));
+      h("div.d", `all ${auto.total} classic Netlib LPs, auto engine, 60 s each; equal to HiGHS to 1e-6`), h("div.src", srcChip(auto.source))));
     const sx = ev.infeasible.find((x) => x.engine === "simplex"), pd = ev.infeasible.find((x) => x.engine === "r2hpdhg");
     if (sx) out.push(h("div.claim.vio", h("div.big", sx.certified, h("small", ` / ${sx.total}`)), h("div.t", "Infeasible LPs proven, not just detected"),
       h("div.d", `Farkas certificates checked in-process and by the verifier; ${sx.exact_rational + (pd?.exact_rational || 0)} in exact rational arithmetic (simplex ${sx.certified}, r²HPDHG ${pd?.certified ?? "—"})`), h("div.src", srcChip(sx.source))));
@@ -114,15 +114,24 @@ export function mount(root) {
     drawSystem();
   }
 
-  function drawRecent() {
-    if (!store.history.length) { recent.replaceChildren(h("div.empty", "no runs yet — try a scenario above")); return; }
-    recent.replaceChildren(h("table.t", h("thead", h("tr", h("th", "model"), h("th", "status"), h("th", "engine"),
-      h("th.num", "rows × cols"), h("th.num", "objective"), h("th.num", "time"), h("th", "independent verify"))),
-      h("tbody", store.history.map((r) => h("tr", h("td.mono", r.path.split("/").pop()), h("td", statusBadge(r.status)), h("td.mono", r.engine || "—"),
-        h("td.num", `${fint(r.rows)} × ${fint(r.cols)}`), h("td.num", fnum(r.objective, 10)), h("td.num", fsec(r.seconds)), h("td", passBadge(r.verdict)))))));
+  // runs are kept on disk by the server (apps/ui/.runs/jobs/*/job.json): they survive restarts
+  let lastDone = null;
+  async function drawRecent() {
+    let runs = [];
+    try { runs = (await api.runs()).slice(0, 12); } catch { /* the table stays empty */ }
+    if (!runs.length) { recent.replaceChildren(h("div.empty", "no runs yet — try a scenario above")); return; }
+    recent.replaceChildren(h("table.t", h("thead", h("tr", h("th", "when"), h("th", "model"), h("th", "status"), h("th", "engine"),
+      h("th.num", "rows"), h("th.num", "objective"), h("th.num", "time"), h("th", "independent verify"), h("th", ""))),
+      h("tbody", runs.map((r) => h("tr", h("td.mono.dim", new Date(r.created * 1000).toLocaleTimeString()), h("td.mono", r.model.split("/").pop()),
+        h("td", statusBadge(r.status)), h("td.mono", r.engine || "—"), h("td.num", fint(r.rows)), h("td.num", fnum(r.objective, 10)), h("td.num", fsec(r.seconds)),
+        h("td", passBadge(r.verdict)), h("td", r.status ? h("a", { href: `#/certificate?job=${r.id}` }, "certificate ▸") : ""))))));
   }
 
-  const off = store.on((p) => { if ("evidence" in p) drawClaims(); if ("system" in p) drawSystem(); if ("run" in p) drawRecent(); });
+  const off = store.on((p) => {
+    if ("evidence" in p) drawClaims();
+    if ("system" in p) drawSystem();
+    if ("run" in p && store.run?.done && store.run.job !== lastDone) { lastDone = store.run.job; setTimeout(drawRecent, 300); }
+  });
   drawSystem(); drawClaims(); drawRecent();
   return off;
 }
