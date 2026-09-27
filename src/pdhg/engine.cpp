@@ -154,10 +154,17 @@ Status EngineContext::check_infeasibility(int dx, int dy, const KktStats& curren
   }
   // Unbounded needs a primal-feasible point, judged per row like the verifier (and like an
   // Optimal answer): the L2-relative test alone let a row be violated by 1.04e-6.
-  if (t.dual_infeasible && current.rel_primal() <= tol::kVerifyPrimal && current.primal_max_rel <= tol::kVerifyPrimal) {
+  if (t.dual_infeasible) {
+    // On an unbounded LP the primal iterate drifts along the ray and may never become
+    // feasible to verifier accuracy (a 7x7 random LP ran 100M iterations with a valid ray from
+    // iteration ~2000 on). So stop at the first valid ray either way; when the iterate is not
+    // feasible, the dispatcher (core/solve.cpp) computes a feasible point by a zero-objective
+    // solve before the gate checks point + ray.
+    const bool feasible = current.rel_primal() <= tol::kVerifyPrimal && current.primal_max_rel <= tol::kVerifyPrimal;
     primal_ray_ = std::move(t.primal_ray);
     message = "unbounded: primal ray certificate (cᵀd " + std::to_string(t.primal_ray_objective) +
-              ", violation " + std::to_string(t.primal_ray_violation) + ") at a primal-feasible iterate";
+              ", violation " + std::to_string(t.primal_ray_violation) + ")" +
+              (feasible ? " at a primal-feasible iterate" : "; iterate not primal-feasible yet");
     return Status::Unbounded;
   }
   return Status::NotSolved;

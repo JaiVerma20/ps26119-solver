@@ -444,6 +444,37 @@ Solution solve_direct(const Model& model, const Options& options) {
           break;
         }
         sol = options.algorithm == Algorithm::Pdlp ? pdhg::solve_pdlp(model, eo) : pdhg::solve_r2hpdhg(model, eo);
+        if (sol.status == Status::Unbounded && !check_unboundedness_certificate(model, sol.x, sol.primal_ray).passed) {
+          // A valid ray from an iterate that is not primal-feasible: find a feasible point with
+          // the same engine on the zero-objective model (never unbounded), within what is left
+          // of the budget. Feasible → the gate checks point + ray; infeasible → that verdict
+          // (with its own Farkas certificate) is the answer; otherwise an honest limit status.
+          Model feas = model;
+          std::fill(feas.obj.begin(), feas.obj.end(), 0.0);
+          Options fo = options;
+          fo.presolve = false;
+          fo.warm_x.clear();
+          fo.warm_y.clear();
+          fo.time_limit = std::max(0.0, options.time_limit -
+                                            std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
+          fo.iteration_limit = std::max<std::int64_t>(0, options.iteration_limit - sol.iterations);
+          Solution f = solve_direct(feas, fo);
+          const std::int64_t total = sol.iterations + f.iterations;
+          if (f.status == Status::Optimal) {
+            sol.x = f.x;
+            sol.row_activity = model.row_activity(sol.x);
+            sol.message += "; feasible point from a zero-objective solve (" + std::to_string(f.iterations) + " iterations)";
+          } else if (f.status == Status::Infeasible) {
+            f.message = "unbounded direction found, but the model is infeasible: " + f.message;
+            f.primal_ray.clear();
+            sol = f;
+          } else {
+            sol.status = f.status;
+            sol.message += std::string("; no feasible point found for the ray (") + to_string(f.status) + ")";
+            sol.primal_ray.clear();
+          }
+          sol.iterations = total;
+        }
         break;
       }
     }

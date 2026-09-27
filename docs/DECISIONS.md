@@ -208,3 +208,13 @@ Newest last. Each entry: what, why, evidence, how to undo.
     (`Mip.DivingFindsAnIncumbentWhereRoundingFails`). *Evidence*: `miplib3-macbook-air-m4-b04f2d8.csv`,
     300 s: 12/14 proven optimal and verified (was 10/14 at `eb90bbf`): gt2 0.7 s, bell3a 134 s;
     pk1 (incumbent 12, optimum 11) and bell5 (gap 0.02%) at the limit.
+
+33. **First-order Unbounded: stop at the first valid ray, find the feasible point separately.**
+    The engines required a primal-feasible *iterate* before claiming Unbounded, but on an
+    unbounded LP the iterate drifts along the ray: random 7x7 model (seed 2027 #1932) ran 100M
+    iterations with a valid ray from iteration ~2000. Now the engine stops at the first ray that
+    passes the ray test; if its iterate is not feasible, the dispatcher solves the zero-objective
+    model (never unbounded) with the same engine and the remaining budget: feasible → point + ray
+    go to the gate; infeasible → that certified Infeasible is the answer; limit → honest limit.
+    Random MPS cross-check vs HiGHS, 2000 models, seed 2027: r2hpdhg 1999 → 2000/2000, PDLP
+    1969 → 2000/2000 (`Certificates.FirstOrderUnboundedWithoutAFeasibleIterate`).

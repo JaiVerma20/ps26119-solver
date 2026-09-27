@@ -237,3 +237,46 @@ TEST(Certificates, FirstOrderEnginesDetectBarelyInfeasibleNetlibCuts) {
   EXPECT_GE(certified, 9) << to_string(engine);
   }
 }
+
+TEST(Certificates, FirstOrderUnboundedWithoutAFeasibleIterate) {
+  // Random 7x7 LP (crosscheck_random_mps.py seed 2027, model 1932): unbounded, but the PDHG
+  // iterate drifts along the ray and never became primal-feasible to 1e-6 — 100M iterations
+  // without a verdict. Now: stop at the first valid ray, get a feasible point from a
+  // zero-objective solve, and let the gate check point + ray.
+  const Model m = [] {
+    Model x = make_model({5, -1, 4, -5, 0, 0, -5},
+                         {{0, 5, 0, 0, 0, 2, 0},
+                          {0, 5, -5, 0, 0, 0, -1},
+                          {0, 0, 0, -1, 0, 0, 5},
+                          {-3, 0, 0, 0, 0, -3, 4},
+                          {0, 4, -1, -5, 0, 0, 0},
+                          {4, 0, 0, 0, 0, -4, 4},
+                          {0, 0, 0, 0, -5, -2, 0}},
+                         {-kInf, -kInf, -15, -21, 24, -kInf, -kInf}, {31, 23, kInf, kInf, 24, -24, -9},
+                         {0, 4, 1, -kInf, 0, 1, -kInf}, {kInf, 9, kInf, 2, kInf, 4, kInf});
+    x.sense = -1;
+    return x;
+  }();
+  for (Algorithm a : {Algorithm::R2hpdhg, Algorithm::Pdlp}) {
+    for (bool presolve : {false, true}) {
+      Options o;
+      o.algorithm = a;
+      o.presolve = presolve;
+      o.iteration_limit = 200000;
+      const Solution s = solve(m, o);
+      EXPECT_EQ(s.status, Status::Unbounded) << to_string(a) << " " << s.message;
+      EXPECT_EQ(s.check, "PASS") << to_string(a) << " " << s.message;
+    }
+  }
+  // primal AND dual infeasible (x has an improving ray, but y <= -1 with y >= 0): the answer
+  // must be a certified Infeasible, whichever direction the engine finds first
+  const Model both = make_model({-1, 0}, {{0, 1}}, {-kInf}, {-1}, {0, 0}, {kInf, kInf});
+  for (Algorithm a : {Algorithm::R2hpdhg, Algorithm::Pdlp, Algorithm::Simplex}) {
+    Options o;
+    o.algorithm = a;
+    o.presolve = false;
+    const Solution s = solve(both, o);
+    EXPECT_EQ(s.status, Status::Infeasible) << to_string(a) << " " << s.message;
+    EXPECT_EQ(s.check, "PASS") << to_string(a) << " " << s.message;
+  }
+}
