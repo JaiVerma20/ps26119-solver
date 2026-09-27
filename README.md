@@ -78,7 +78,7 @@ Reproduce all CPU evidence from one commit: `PS26119_MACHINE=<name> scripts/repr
 
 ## Documentation
 
-`docs/ARCHITECTURE.md` (design) · `docs/EVIDENCE.md` (all numbers) · `docs/BENCHMARKS.md`
+`docs/ARCHITECTURE.md` (design) · `docs/FORMATS.md` (statuses, CLI, exit codes, file formats, APIs) · `docs/EVIDENCE.md` (all numbers) · `docs/BENCHMARKS.md`
 (methodology) · `docs/LIMITATIONS.md` · `docs/DECISIONS.md` · `docs/PROVENANCE.md` ·
 `docs/GPU_VERIFICATION.md` · `docs/CONTRIBUTING.md` · `docs/DEVELOPMENT.md` ·
 `docs/FINAL_INTEGRATION_REPORT.md` · `docs/SIH_STATUS.md` (requirement status matrix) · `docs/audit/` (the independent audit of both codebases).
