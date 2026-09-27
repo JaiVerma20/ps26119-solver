@@ -412,8 +412,13 @@ def main():
         solved = [r for r in rows if r["status"] == "Optimal" and r["verify"] == "PASS"]
         node = ("dense double-double simplex as node solver" if r0["git_hash"] == "0935157" else
                 "sparse primal simplex as node solver, pruning by certified dual bounds (DECISIONS #28)")
+        def has(commit):  # is `commit` an ancestor of the CSV's commit?
+            return subprocess.run(["git", "merge-base", "--is-ancestor", commit, r0["git_hash"].replace("-dirty", "")],
+                                  cwd=ROOT, capture_output=True).returncode == 0
+        rule = ("pseudocost branching, rounding + fractional diving heuristics (DECISIONS #32)"
+                if has("98a62d2") else "most-fractional branching, rounding heuristic")
         doc += [f"Source: `{p}` — `{r0['machine']}`, commit `{r0['git_hash']}`, time limit per model in the CSV. "
-                f"Prototype: {node}, depth-first then best-bound, most-fractional branching, no cuts. "
+                f"Prototype: {node}, depth-first then best-bound, {rule}, no cuts. "
                 f"**{len(solved)} of {len(rows)}** solved to proven optimality within the limit, each verified "
                 "(feasibility + integrality) and equal to the HiGHS optimum.", "",
                 table(["instance", "rows", "cols", "int", "status", "objective", "HiGHS", "gap", "s", "verify"],

@@ -356,7 +356,7 @@ Source: `bench/results/batch-T8760-macbook-air-m4-8fd5170.csv`, `bench/results/b
 
 ## 4d. MILP prototype (branch-and-bound, small MIPLIB 3)
 
-Source: `bench/results/miplib3-macbook-air-m4-eb90bbf.csv` — `macbook-air-m4`, commit `eb90bbf`, time limit per model in the CSV. Prototype: sparse primal simplex as node solver, pruning by certified dual bounds (DECISIONS #28), depth-first then best-bound, most-fractional branching, no cuts. **10 of 14** solved to proven optimality within the limit, each verified (feasibility + integrality) and equal to the HiGHS optimum.
+Source: `bench/results/miplib3-macbook-air-m4-eb90bbf.csv` — `macbook-air-m4`, commit `eb90bbf`, time limit per model in the CSV. Prototype: sparse primal simplex as node solver, pruning by certified dual bounds (DECISIONS #28), depth-first then best-bound, most-fractional branching, rounding heuristic, no cuts. **10 of 14** solved to proven optimality within the limit, each verified (feasibility + integrality) and equal to the HiGHS optimum.
 
 | instance | rows | cols | int | status | objective | HiGHS | gap | s | verify |
 |---|---|---|---|---|---|---|---|---|---|

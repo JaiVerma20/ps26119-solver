@@ -205,4 +205,6 @@ Newest last. Each entry: what, why, evidence, how to undo.
     Also a fractional-diving heuristic (root, then every 100 nodes without / 1000 with an
     incumbent; dive LPs capped at a fifth of node LPs). Scratch runs, 60 s: pk1 incumbent 30 → 18,
     bell5 final incumbent slightly worse (8966493 vs 8966406), others unchanged
-    (`Mip.DivingFindsAnIncumbentWhereRoundingFails`).
+    (`Mip.DivingFindsAnIncumbentWhereRoundingFails`). *Evidence*: `miplib3-macbook-air-m4-b04f2d8.csv`,
+    300 s: 12/14 proven optimal and verified (was 10/14 at `eb90bbf`): gt2 0.7 s, bell3a 134 s;
+    pk1 (incumbent 12, optimum 11) and bell5 (gap 0.02%) at the limit.
