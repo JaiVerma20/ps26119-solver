@@ -1,0 +1,24 @@
+========= COMPUTE-SANITIZER
+Running main() from /home/vatsshivanshu/ps26119-build-gpu/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = Gpu.*
+[==========] Running 4 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 4 tests from Gpu
+[ RUN      ] Gpu.BackendOpsMatchCpu
+========= Error: Failed to initialize WDDM debugger interface. Please run EnableDebuggerInterface.bat as an administrator
+========= 
+========= Error: Device not supported. Please refer to the "Supported Devices" section of the sanitizer documentation
+========= 
+[       OK ] Gpu.BackendOpsMatchCpu (364 ms)
+[ RUN      ] Gpu.EnginesMatchCpuOnSmallNetlib
+[       OK ] Gpu.EnginesMatchCpuOnSmallNetlib (44673 ms)
+[ RUN      ] Gpu.LongRowKernelMatchesCpu
+[       OK ] Gpu.LongRowKernelMatchesCpu (106 ms)
+[ RUN      ] Gpu.CertifiedVerdictsAndDeterminism
+[       OK ] Gpu.CertifiedVerdictsAndDeterminism (623 ms)
+[----------] 4 tests from Gpu (45771 ms total)
+
+[----------] Global test environment tear-down
+[==========] 4 tests from 1 test suite ran. (45772 ms total)
+[  PASSED  ] 4 tests.
+========= ERROR SUMMARY: 2 errors

@@ -1,0 +1,552 @@
+=== ps26119 gpu_check  commit 183c59c  machine rtx4050-laptop  2026-09-27T10:04:43+00:00
+=== machine
+Linux LAPTOP-A5GQSGG5 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+name, driver_version, memory.total [MiB], clocks.max.sm [MHz]
+NVIDIA GeForce RTX 4050 Laptop GPU, 616.64, 6141 MiB, 3105 MHz
+Cuda compilation tools, release 13.3, V13.3.73
+Build cuda_13.3.r13.3/compiler.38244171_0
+=== python tools (private venv: cmake, ninja, highspy, numpy, scipy, matplotlib)
+cmake version 4.4.3
+=== configure + build (CUDA ON)
+-- Configuring done (1.1s)
+-- Generating done (0.4s)
+-- Build files have been written to: /home/vatsshivanshu/ps26119-build-gpu
+[1/50] Building CXX object CMakeFiles/ps26119_core.dir/src/core/status.cpp.o
+[2/50] Building CXX object CMakeFiles/ps26119_core.dir/src/io/solution_writer.cpp.o
+[3/50] Building CXX object CMakeFiles/ps26119_core.dir/src/core/safe_bound.cpp.o
+[4/50] Building CXX object CMakeFiles/ps26119_core.dir/src/core/solution_checker.cpp.o
+[5/50] Building CXX object CMakeFiles/ps26119_core.dir/src/core/c_api.cpp.o
+[6/50] Building CXX object CMakeFiles/ps26119_core.dir/src/core/certificates.cpp.o
+[7/50] Building CXX object CMakeFiles/ps26119_core.dir/src/io/solution_reader.cpp.o
+[8/50] Building CXX object CMakeFiles/ps26119_core.dir/src/core/implied_bounds.cpp.o
+[9/50] Building CXX object CMakeFiles/ps26119_core.dir/src/oracle/dense_simplex.cpp.o
+[10/50] Building CXX object CMakeFiles/ps26119_core.dir/src/core/presolve.cpp.o
+[11/50] Building CXX object CMakeFiles/ps26119_core.dir/src/io/lpm_reader.cpp.o
+[12/50] Building CXX object CMakeFiles/ps26119_core.dir/src/oracle/dense_tableau.cpp.o
+[13/50] Building CXX object CMakeFiles/ps26119_core.dir/src/la/csr.cpp.o
+[14/50] Building CXX object CMakeFiles/ps26119_core.dir/src/io/mps_reader.cpp.o
+[15/50] Building CXX object CMakeFiles/ps26119_core.dir/src/pdhg/scaling.cpp.o
+[16/50] Building CXX object CMakeFiles/ps26119_core.dir/src/pdhg/r2hpdhg.cpp.o
+[17/50] Building CXX object CMakeFiles/ps26119_core.dir/src/simplex/primal_simplex.cpp.o
+[18/50] git hash for --version
+[19/50] Building CXX object CMakeFiles/ps26119_shared.dir/src/core/c_api.cpp.o
+[20/50] Building CXX object CMakeFiles/ps26119_core.dir/src/pdhg/engine.cpp.o
+[21/50] Building CXX object CMakeFiles/ps26119_core.dir/src/pdhg/pdlp.cpp.o
+[22/50] Building CXX object CMakeFiles/ps26119_core.dir/src/pdhg/cpu_backend.cpp.o
+[23/50] Building CXX object CMakeFiles/ps26119_core.dir/src/core/solve.cpp.o
+[24/50] Building CXX object CMakeFiles/ps26119_core.dir/src/mip/branch_and_bound.cpp.o
+[25/50] Building CXX object CMakeFiles/ps26119_core.dir/src/pdhg/batch.cpp.o
+[26/50] Building CXX object CMakeFiles/ps26119_cli.dir/apps/cli/main.cpp.o
+[27/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_la.cpp.o
+[28/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_model.cpp.o
+[29/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_lpm.cpp.o
+[30/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_c_api.cpp.o
+[31/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_oracle.cpp.o
+[32/50] Building C object tests/CMakeFiles/c_api_smoke.dir/c_api_smoke.c.o
+[33/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_safe_bound.cpp.o
+[34/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_batch.cpp.o
+[35/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_presolve.cpp.o
+[36/50] Building CUDA object CMakeFiles/ps26119_core.dir/src/gpu/cuda_backend.cu.o
+[37/50] Linking CXX static library libps26119_core.a
+[38/50] Linking CXX executable tests/c_api_smoke
+[39/50] Linking CXX executable ps26119
+[40/50] Linking CXX shared library libps26119.so
+[41/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_dense_tableau_random.cpp.o
+[42/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_pdhg.cpp.o
+[43/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_mip.cpp.o
+[44/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_dense_tableau.cpp.o
+[45/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_integration.cpp.o
+[46/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_differential.cpp.o
+[47/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_simplex.cpp.o
+[48/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_gpu.cpp.o
+[49/50] Building CXX object tests/CMakeFiles/ps26119_tests.dir/unit/test_certificates.cpp.o
+[50/50] Linking CXX executable tests/ps26119_tests
+=== tests (CPU + GPU)
+Test project /home/vatsshivanshu/ps26119-build-gpu
+        Start   1: Model.HandBuiltIsValid
+  1/198 Test   #1: Model.HandBuiltIsValid ..................................................   Passed    0.01 sec
+        Start   2: Model.DetectsBrokenInvariants
+  2/198 Test   #2: Model.DetectsBrokenInvariants ...........................................   Passed    0.01 sec
+        Start   3: Model.EmptyModelIsValid
+  3/198 Test   #3: Model.EmptyModelIsValid .................................................   Passed    0.01 sec
+        Start   4: Model.FingerprintIsStableAndSensitive
+  4/198 Test   #4: Model.FingerprintIsStableAndSensitive ...................................   Passed    0.01 sec
+        Start   5: Model.ObjectiveAndActivity
+  5/198 Test   #5: Model.ObjectiveAndActivity ..............................................   Passed    0.00 sec
+        Start   6: Status.RoundTripsAndExitCodes
+  6/198 Test   #6: Status.RoundTripsAndExitCodes ...........................................   Passed    0.00 sec
+        Start   7: Solve.InvalidModelIsNotSolved
+  7/198 Test   #7: Solve.InvalidModelIsNotSolved ...........................................   Passed    0.00 sec
+        Start   8: Version.HasName
+  8/198 Test   #8: Version.HasName .........................................................   Passed    0.01 sec
+        Start   9: Lpm.AfiroSizesFromMpsBridge
+  9/198 Test   #9: Lpm.AfiroSizesFromMpsBridge .............................................   Passed    0.01 sec
+        Start  10: Lpm.FingerprintMatchesPythonForAllSmallNetlib
+ 10/198 Test  #10: Lpm.FingerprintMatchesPythonForAllSmallNetlib ...........................   Passed    0.19 sec
+        Start  11: Lpm.WriteReadRoundTrip
+ 11/198 Test  #11: Lpm.WriteReadRoundTrip ..................................................   Passed    0.00 sec
+        Start  12: Lpm.RejectsMalformedInput
+ 12/198 Test  #12: Lpm.RejectsMalformedInput ...............................................   Passed    0.00 sec
+        Start  13: SolutionFile.WriteReadRoundTrip
+ 13/198 Test  #13: SolutionFile.WriteReadRoundTrip .........................................   Passed    0.01 sec
+        Start  14: SolutionFile.CertificatesRoundTrip
+ 14/198 Test  #14: SolutionFile.CertificatesRoundTrip ......................................   Passed    0.01 sec
+        Start  15: DoubleDouble.ErrorFreeTransforms
+ 15/198 Test  #15: DoubleDouble.ErrorFreeTransforms ........................................   Passed    0.00 sec
+        Start  16: DoubleDouble.AbsorptionThatPlainDoubleLoses
+ 16/198 Test  #16: DoubleDouble.AbsorptionThatPlainDoubleLoses .............................   Passed    0.00 sec
+        Start  17: DoubleDouble.ProductBeyondDoublePrecision
+ 17/198 Test  #17: DoubleDouble.ProductBeyondDoublePrecision ...............................   Passed    0.00 sec
+        Start  18: DoubleDouble.TenthsSumToOne
+ 18/198 Test  #18: DoubleDouble.TenthsSumToOne .............................................   Passed    0.00 sec
+        Start  19: DoubleDouble.DivisionKnownExact
+ 19/198 Test  #19: DoubleDouble.DivisionKnownExact .........................................   Passed    0.00 sec
+        Start  20: DoubleDouble.SqrtTwo
+ 20/198 Test  #20: DoubleDouble.SqrtTwo ....................................................   Passed    0.01 sec
+        Start  21: DoubleDouble.PiByMachin
+ 21/198 Test  #21: DoubleDouble.PiByMachin .................................................   Passed    0.01 sec
+        Start  22: DoubleDouble.ComparisonsAndAbs
+ 22/198 Test  #22: DoubleDouble.ComparisonsAndAbs ..........................................   Passed    0.00 sec
+        Start  23: DoubleDouble.CancellationInDotProduct
+ 23/198 Test  #23: DoubleDouble.CancellationInDotProduct ...................................   Passed    0.00 sec
+        Start  24: Norm2.DiagonalWithClusteredTopSingularValues
+ 24/198 Test  #24: Norm2.DiagonalWithClusteredTopSingularValues ............................   Passed    0.01 sec
+        Start  25: Norm2.RandomSparseNeverBelowTrueNorm
+ 25/198 Test  #25: Norm2.RandomSparseNeverBelowTrueNorm ....................................   Passed    0.01 sec
+        Start  26: Norm2.ZeroAndTransposeRoundTrip
+ 26/198 Test  #26: Norm2.ZeroAndTransposeRoundTrip .........................................   Passed    0.00 sec
+        Start  27: Oracle.WyndorMaxWithShadowPrices
+ 27/198 Test  #27: Oracle.WyndorMaxWithShadowPrices ........................................   Passed    0.00 sec
+        Start  28: Oracle.Infeasible
+ 28/198 Test  #28: Oracle.Infeasible .......................................................   Passed    0.01 sec
+        Start  29: Oracle.InfeasibleByBounds
+ 29/198 Test  #29: Oracle.InfeasibleByBounds ...............................................   Passed    0.00 sec
+        Start  30: Oracle.Unbounded
+ 30/198 Test  #30: Oracle.Unbounded ........................................................   Passed    0.00 sec
+        Start  31: Oracle.UnboundedFree
+ 31/198 Test  #31: Oracle.UnboundedFree ....................................................   Passed    0.00 sec
+        Start  32: Oracle.BealeCyclingExample
+ 32/198 Test  #32: Oracle.BealeCyclingExample ..............................................   Passed    0.00 sec
+        Start  33: Oracle.FreeVariablesAbsoluteValue
+ 33/198 Test  #33: Oracle.FreeVariablesAbsoluteValue .......................................   Passed    0.00 sec
+        Start  34: Oracle.Equalities
+ 34/198 Test  #34: Oracle.Equalities .......................................................   Passed    0.00 sec
+        Start  35: Oracle.RangedRow
+ 35/198 Test  #35: Oracle.RangedRow ........................................................   Passed    0.01 sec
+        Start  36: Oracle.NegativeAndUpperOnlyBounds
+ 36/198 Test  #36: Oracle.NegativeAndUpperOnlyBounds .......................................   Passed    0.01 sec
+        Start  37: Oracle.RedundantEqualities
+ 37/198 Test  #37: Oracle.RedundantEqualities ..............................................   Passed    0.01 sec
+        Start  38: Oracle.NoRowsAndFixedColumn
+ 38/198 Test  #38: Oracle.NoRowsAndFixedColumn .............................................   Passed    0.00 sec
+        Start  39: Oracle.MaxRangedFromBridge
+ 39/198 Test  #39: Oracle.MaxRangedFromBridge ..............................................   Passed    0.02 sec
+        Start  40: Oracle.RandomLpsSatisfyKkt
+ 40/198 Test  #40: Oracle.RandomLpsSatisfyKkt ..............................................   Passed    0.02 sec
+        Start  41: Oracle.SmallNetlibMatchesPublishedOptima
+ 41/198 Test  #41: Oracle.SmallNetlibMatchesPublishedOptima ................................   Passed    0.24 sec
+        Start  42: PdhgBackend.StepsMatchDefinitionsInBothPrecisions
+ 42/198 Test  #42: PdhgBackend.StepsMatchDefinitionsInBothPrecisions .......................   Passed    0.00 sec
+        Start  43: PdhgScaling.UnscaleInvertsScale
+ 43/198 Test  #43: PdhgScaling.UnscaleInvertsScale .........................................   Passed    0.00 sec
+        Start  44: PdhgScaling.GeometricMeanIsAdaptive
+ 44/198 Test  #44: PdhgScaling.GeometricMeanIsAdaptive .....................................   Passed    0.01 sec
+        Start  45: PdhgEngines.GpuRequestWithoutCudaIsNotSolved
+ 45/198 Test  #45: PdhgEngines.GpuRequestWithoutCudaIsNotSolved ............................   Passed    0.00 sec
+        Start  46: PdhgWarmStart.WrongSizeIsNotSolved
+ 46/198 Test  #46: PdhgWarmStart.WrongSizeIsNotSolved ......................................   Passed    0.00 sec
+        Start  47: PdhgWarmStart.PerturbedObjectiveNeedsFewerIterations
+ 47/198 Test  #47: PdhgWarmStart.PerturbedObjectiveNeedsFewerIterations ....................   Passed    0.07 sec
+        Start  48: PdhgEngineParams.KnownAndUnknownNames
+ 48/198 Test  #48: PdhgEngineParams.KnownAndUnknownNames ...................................   Passed    0.01 sec
+        Start  49: PdhgThreads.BitIdenticalForAnyThreadCount
+ 49/198 Test  #49: PdhgThreads.BitIdenticalForAnyThreadCount ...............................   Passed    6.37 sec
+        Start  50: CApi.StatusCodesMatchCppEnum
+ 50/198 Test  #50: CApi.StatusCodesMatchCppEnum ............................................   Passed    0.00 sec
+        Start  51: CApi.SolvesWyndorWithEveryAlgorithm
+ 51/198 Test  #51: CApi.SolvesWyndorWithEveryAlgorithm .....................................   Passed    0.00 sec
+        Start  52: CApi.SolveMpsFile
+ 52/198 Test  #52: CApi.SolveMpsFile .......................................................   Passed    0.01 sec
+        Start  53: CApi.NullOptionsAndOutputsAreAllowed
+ 53/198 Test  #53: CApi.NullOptionsAndOutputsAreAllowed ....................................   Passed    0.00 sec
+        Start  54: CApi.InvalidArgumentsNeverCrash
+ 54/198 Test  #54: CApi.InvalidArgumentsNeverCrash .........................................   Passed    0.00 sec
+        Start  55: CApi.Version
+ 55/198 Test  #55: CApi.Version ............................................................   Passed    0.00 sec
+        Start  56: CApi.WarmStartFromOptimum
+ 56/198 Test  #56: CApi.WarmStartFromOptimum ...............................................   Passed    0.00 sec
+        Start  57: CApi.SolveLpExReturnsCertificates
+ 57/198 Test  #57: CApi.SolveLpExReturnsCertificates .......................................   Passed    0.00 sec
+        Start  58: CApi.InvalidOptionsAreRejectedNotIgnored
+ 58/198 Test  #58: CApi.InvalidOptionsAreRejectedNotIgnored ................................   Passed    0.01 sec
+        Start  59: CApi.NonFiniteWarmStartIsRejected
+ 59/198 Test  #59: CApi.NonFiniteWarmStartIsRejected .......................................   Passed    0.00 sec
+        Start  60: Batch.ScenariosMatchSingleSolves
+ 60/198 Test  #60: Batch.ScenariosMatchSingleSolves ........................................   Passed    0.44 sec
+        Start  61: Batch.BadScenarioFailsAloneAndMaxSenseWorks
+ 61/198 Test  #61: Batch.BadScenarioFailsAloneAndMaxSenseWorks .............................   Passed    0.02 sec
+        Start  62: Batch.EmptyAndUnknownKnob
+ 62/198 Test  #62: Batch.EmptyAndUnknownKnob ...............................................   Passed    0.02 sec
+        Start  63: SafeBound.TightAtOptimalDualsOnSmallNetlib
+ 63/198 Test  #63: SafeBound.TightAtOptimalDualsOnSmallNetlib ..............................   Passed    0.35 sec
+        Start  64: SafeBound.ImpliedBoundsContainTheOptimum
+ 64/198 Test  #64: SafeBound.ImpliedBoundsContainTheOptimum ................................   Passed    0.24 sec
+        Start  65: SafeBound.ValidForRandomMultipliers
+ 65/198 Test  #65: SafeBound.ValidForRandomMultipliers .....................................   Passed    0.13 sec
+        Start  66: SafeBound.MaxSenseIsAnUpperBound
+ 66/198 Test  #66: SafeBound.MaxSenseIsAnUpperBound ........................................   Passed    0.01 sec
+        Start  67: SafeBound.InfiniteBoundsAreReportedNotFaked
+ 67/198 Test  #67: SafeBound.InfiniteBoundsAreReportedNotFaked .............................   Passed    0.00 sec
+        Start  68: SafeBound.ExactCancellationOnFreeColumns
+ 68/198 Test  #68: SafeBound.ExactCancellationOnFreeColumns ................................   Passed    0.01 sec
+        Start  69: SafeBound.ImpliedBoundsWorklistIsBitIdenticalToFullScan
+ 69/198 Test  #69: SafeBound.ImpliedBoundsWorklistIsBitIdenticalToFullScan .................   Passed    0.11 sec
+        Start  70: Presolve.EachReductionAndCascade
+ 70/198 Test  #70: Presolve.EachReductionAndCascade ........................................   Passed    0.00 sec
+        Start  71: Presolve.DetectsInfeasibility
+ 71/198 Test  #71: Presolve.DetectsInfeasibility ...........................................   Passed    0.00 sec
+        Start  72: Presolve.DualsMatchWithoutPresolve
+ 72/198 Test  #72: Presolve.DualsMatchWithoutPresolve ......................................   Passed    0.00 sec
+        Start  73: Presolve.SmallNetlibSameOptimumAndOriginalKkt
+ 73/198 Test  #73: Presolve.SmallNetlibSameOptimumAndOriginalKkt ...........................   Passed    0.57 sec
+        Start  74: Presolve.FollowUpSolvesShareTheCallersBudget
+ 74/198 Test  #74: Presolve.FollowUpSolvesShareTheCallersBudget ............................   Passed    0.01 sec
+        Start  75: Presolve.FarkasPostsolveMovesSingletonBoundsOntoTheirRows
+ 75/198 Test  #75: Presolve.FarkasPostsolveMovesSingletonBoundsOntoTheirRows ...............   Passed    0.00 sec
+        Start  76: Presolve.FarkasPostsolveKeepsEveryReducedCertificateValid
+ 76/198 Test  #76: Presolve.FarkasPostsolveKeepsEveryReducedCertificateValid ...............   Passed    0.01 sec
+        Start  77: Presolve.UnboundedRayAndPointArePostsolved
+ 77/198 Test  #77: Presolve.UnboundedRayAndPointArePostsolved ..............................   Passed    0.00 sec
+        Start  78: Mip.KnapsackMatchesEnumeration
+ 78/198 Test  #78: Mip.KnapsackMatchesEnumeration ..........................................   Passed    0.01 sec
+        Start  79: Mip.RandomPureIntegerProgramsMatchEnumeration
+ 79/198 Test  #79: Mip.RandomPureIntegerProgramsMatchEnumeration ...........................   Passed    0.02 sec
+        Start  80: Mip.MixedIntegerMatchesEnumerationOverIntegerPart
+ 80/198 Test  #80: Mip.MixedIntegerMatchesEnumerationOverIntegerPart .......................   Passed    0.01 sec
+        Start  81: Mip.RelaxationIsLabelledAndLargeModelsAreRefused
+ 81/198 Test  #81: Mip.RelaxationIsLabelledAndLargeModelsAreRefused ........................   Passed    0.00 sec
+        Start  82: Mip.SimplexAndOracleNodeSolversAgree
+ 82/198 Test  #82: Mip.SimplexAndOracleNodeSolversAgree ....................................   Passed    0.02 sec
+        Start  83: Mip.PresolveRoundsIntegerBoundsInward
+ 83/198 Test  #83: Mip.PresolveRoundsIntegerBoundsInward ...................................   Passed    0.00 sec
+        Start  84: Mip.PseudocostBranchingSolvesGt2WithinANodeBudget
+ 84/198 Test  #84: Mip.PseudocostBranchingSolvesGt2WithinANodeBudget .......................   Passed    0.80 sec
+        Start  85: Mip.DivingFindsAnIncumbentWhereRoundingFails
+ 85/198 Test  #85: Mip.DivingFindsAnIncumbentWhereRoundingFails ............................   Passed    0.01 sec
+        Start  86: Mip.UnboundedRelaxationIsDecidedNotAssumed
+ 86/198 Test  #86: Mip.UnboundedRelaxationIsDecidedNotAssumed ..............................   Passed    0.00 sec
+        Start  87: Mip.EveryReportedPointIsCheckedOnTheOriginalModel
+ 87/198 Test  #87: Mip.EveryReportedPointIsCheckedOnTheOriginalModel .......................   Passed    0.00 sec
+        Start  88: MpsReader.reads_tiny_max_model
+ 88/198 Test  #88: MpsReader.reads_tiny_max_model ..........................................   Passed    0.03 sec
+        Start  89: MpsReader.reads_ranges_bounds_and_offset
+ 89/198 Test  #89: MpsReader.reads_ranges_bounds_and_offset ................................   Passed    0.02 sec
+        Start  90: MpsReader.falls_back_to_fixed_format_for_names_with_spaces
+ 90/198 Test  #90: MpsReader.falls_back_to_fixed_format_for_names_with_spaces ..............   Passed    0.04 sec
+        Start  91: MpsReader.reads_integer_markers_and_binary_bounds
+ 91/198 Test  #91: MpsReader.reads_integer_markers_and_binary_bounds .......................   Passed    0.02 sec
+        Start  92: MpsReader.sums_duplicate_entries_and_accepts_missing_set_names
+ 92/198 Test  #92: MpsReader.sums_duplicate_entries_and_accepts_missing_set_names ..........   Passed    0.00 sec
+        Start  93: MpsReader.parses_number_formats
+ 93/198 Test  #93: MpsReader.parses_number_formats .........................................   Passed    0.01 sec
+        Start  94: MpsReader.extra_free_rows_are_dropped
+ 94/198 Test  #94: MpsReader.extra_free_rows_are_dropped ...................................   Passed    0.01 sec
+        Start  95: MpsReader.reports_errors_with_line_numbers
+ 95/198 Test  #95: MpsReader.reports_errors_with_line_numbers ..............................   Passed    0.01 sec
+        Start  96: MpsReader.rejects_nan_and_non_finite_coefficients
+ 96/198 Test  #96: MpsReader.rejects_nan_and_non_finite_coefficients .......................   Passed    0.01 sec
+        Start  97: MpsReader.huge_values_are_infinite_bounds
+ 97/198 Test  #97: MpsReader.huge_values_are_infinite_bounds ...............................   Passed    0.01 sec
+        Start  98: MpsReader.marker_is_case_insensitive
+ 98/198 Test  #98: MpsReader.marker_is_case_insensitive ....................................   Passed    0.01 sec
+        Start  99: MpsReader.duplicate_rhs_entry_warns
+ 99/198 Test  #99: MpsReader.duplicate_rhs_entry_warns .....................................   Passed    0.01 sec
+        Start 100: DenseTableau.solves_maximisation_example
+100/198 Test #100: DenseTableau.solves_maximisation_example ................................   Passed    0.03 sec
+        Start 101: DenseTableau.solves_model_with_ranges_free_fixed_and_negative_bounds
+101/198 Test #101: DenseTableau.solves_model_with_ranges_free_fixed_and_negative_bounds ....   Passed    0.02 sec
+        Start 102: DenseTableau.terminates_on_beale_cycling_example
+102/198 Test #102: DenseTableau.terminates_on_beale_cycling_example ........................   Passed    0.03 sec
+        Start 103: DenseTableau.solves_fixed_format_model
+103/198 Test #103: DenseTableau.solves_fixed_format_model ..................................   Passed    0.02 sec
+        Start 104: DenseTableau.solves_lp_relaxation_of_mip
+104/198 Test #104: DenseTableau.solves_lp_relaxation_of_mip ................................   Passed    0.04 sec
+        Start 105: DenseTableau.detects_infeasibility
+105/198 Test #105: DenseTableau.detects_infeasibility ......................................   Passed    0.03 sec
+        Start 106: DenseTableau.detects_unboundedness
+106/198 Test #106: DenseTableau.detects_unboundedness ......................................   Passed    0.02 sec
+        Start 107: DenseTableau.contradictory_bounds_are_infeasible_without_pivoting
+107/198 Test #107: DenseTableau.contradictory_bounds_are_infeasible_without_pivoting .......   Passed    0.01 sec
+        Start 108: DenseTableau.handles_redundant_equality_rows
+108/198 Test #108: DenseTableau.handles_redundant_equality_rows ............................   Passed    0.01 sec
+        Start 109: DenseTableau.handles_free_variables_and_empty_constraints
+109/198 Test #109: DenseTableau.handles_free_variables_and_empty_constraints ...............   Passed    0.00 sec
+        Start 110: DenseTableau.checker_rejects_a_wrong_answer
+110/198 Test #110: DenseTableau.checker_rejects_a_wrong_answer .............................   Passed    0.01 sec
+        Start 111: DenseTableau.iteration_limit_is_reported
+111/198 Test #111: DenseTableau.iteration_limit_is_reported ................................   Passed    0.02 sec
+        Start 112: DenseTableau.checker_rejects_non_finite_and_wrong_sizes
+112/198 Test #112: DenseTableau.checker_rejects_non_finite_and_wrong_sizes .................   Passed    0.02 sec
+        Start 113: DenseTableauRandom.random_lps_are_certified
+113/198 Test #113: DenseTableauRandom.random_lps_are_certified .............................   Passed    0.06 sec
+        Start 114: SparseLU.solves_small_known_system
+114/198 Test #114: SparseLU.solves_small_known_system ......................................   Passed    0.00 sec
+        Start 115: SparseLU.identity_and_permutation_have_no_fill
+115/198 Test #115: SparseLU.identity_and_permutation_have_no_fill ..........................   Passed    0.00 sec
+        Start 116: SparseLU.threshold_pivoting_avoids_tiny_pivot
+116/198 Test #116: SparseLU.threshold_pivoting_avoids_tiny_pivot ...........................   Passed    0.00 sec
+        Start 117: SparseLU.matches_dense_reference_on_random_matrices
+117/198 Test #117: SparseLU.matches_dense_reference_on_random_matrices .....................   Passed    0.03 sec
+        Start 118: SparseLU.singular_basis_is_completed_with_unit_columns
+118/198 Test #118: SparseLU.singular_basis_is_completed_with_unit_columns ..................   Passed    0.00 sec
+        Start 119: SparseLU.pfi_updates_match_fresh_factorization
+119/198 Test #119: SparseLU.pfi_updates_match_fresh_factorization ..........................   Passed    0.01 sec
+        Start 120: SparseLU.large_random_sparse_matrix
+120/198 Test #120: SparseLU.large_random_sparse_matrix .....................................   Passed    0.51 sec
+        Start 121: SparseLU.two_dimensional_grid_laplacian
+121/198 Test #121: SparseLU.two_dimensional_grid_laplacian .................................   Passed    0.08 sec
+        Start 122: SparseLU.bases_from_afiro
+122/198 Test #122: SparseLU.bases_from_afiro ...............................................   Passed    0.01 sec
+        Start 123: Simplex.solves_the_example_models
+123/198 Test #123: Simplex.solves_the_example_models .......................................   Passed    0.07 sec
+        Start 124: Simplex.detects_infeasible_and_unbounded
+124/198 Test #124: Simplex.detects_infeasible_and_unbounded ................................   Passed    0.03 sec
+        Start 125: Simplex.solves_netlib_afiro_and_adlittle
+125/198 Test #125: Simplex.solves_netlib_afiro_and_adlittle ................................   Passed    0.04 sec
+        Start 126: Simplex.agrees_with_oracle_on_small_random_lps
+126/198 Test #126: Simplex.agrees_with_oracle_on_small_random_lps ..........................   Passed    0.20 sec
+        Start 127: Simplex.agrees_with_oracle_on_medium_random_lps
+127/198 Test #127: Simplex.agrees_with_oracle_on_medium_random_lps .........................   Passed    0.12 sec
+        Start 128: Simplex.agrees_with_oracle_under_every_option_combination
+128/198 Test #128: Simplex.agrees_with_oracle_under_every_option_combination ...............   Passed    0.15 sec
+        Start 129: Simplex.never_optimal_above_the_requested_tolerance
+129/198 Test #129: Simplex.never_optimal_above_the_requested_tolerance .....................   Passed    0.03 sec
+        Start 130: Simplex.time_limit_is_reported_as_time_limit
+130/198 Test #130: Simplex.time_limit_is_reported_as_time_limit ............................   Passed    0.02 sec
+        Start 131: Simplex.explicit_zero_coefficients_are_harmless
+131/198 Test #131: Simplex.explicit_zero_coefficients_are_harmless .........................   Passed    0.00 sec
+        Start 132: Integration.MpsReaderMatchesLpmBridgeOnCommittedData
+132/198 Test #132: Integration.MpsReaderMatchesLpmBridgeOnCommittedData ....................   Passed    0.30 sec
+        Start 133: Integration.ReadMpsReportsErrorsWithoutThrowing
+133/198 Test #133: Integration.ReadMpsReportsErrorsWithoutThrowing .........................   Passed    0.02 sec
+        Start 134: Integration.AllEnginesAgreeAndPassTheGate
+134/198 Test #134: Integration.AllEnginesAgreeAndPassTheGate ...............................   Passed    0.16 sec
+        Start 135: Integration.SimplexEngineIdentityAndKnobs
+135/198 Test #135: Integration.SimplexEngineIdentityAndKnobs ...............................   Passed    0.01 sec
+        Start 136: Integration.InfeasibleAndUnboundedExamples
+136/198 Test #136: Integration.InfeasibleAndUnboundedExamples ..............................   Passed    0.06 sec
+        Start 137: Integration.AutoEngineChoice
+137/198 Test #137: Integration.AutoEngineChoice ............................................   Passed    0.27 sec
+        Start 138: Integration.DegenerateShapes
+138/198 Test #138: Integration.DegenerateShapes ............................................   Passed    0.00 sec
+        Start 139: Gate.DemotesAWrongOptimalFromAnExactEngine
+139/198 Test #139: Gate.DemotesAWrongOptimalFromAnExactEngine ..............................   Passed    0.01 sec
+        Start 140: Gate.FirstOrderKeepsItsLooserToleranceButRecordsTheFailure
+140/198 Test #140: Gate.FirstOrderKeepsItsLooserToleranceButRecordsTheFailure ..............   Passed    0.01 sec
+        Start 141: Gate.LeavesLpLimitsAloneAndChecksEveryMilpPoint
+141/198 Test #141: Gate.LeavesLpLimitsAloneAndChecksEveryMilpPoint .........................   Passed    0.05 sec
+        Start 142: Differential.IntegerCoefficientLps
+142/198 Test #142: Differential.IntegerCoefficientLps ......................................   Passed    0.22 sec
+        Start 143: Differential.RealCoefficientsBadlyScaledRows
+143/198 Test #143: Differential.RealCoefficientsBadlyScaledRows ............................   Passed    0.39 sec
+        Start 144: Differential.SparserMediumLps
+144/198 Test #144: Differential.SparserMediumLps ...........................................   Passed    0.23 sec
+        Start 145: Certificates.FarkasRigorousPassAndFailures
+145/198 Test #145: Certificates.FarkasRigorousPassAndFailures ..............................   Passed    0.01 sec
+        Start 146: Certificates.FarkasToleranceStageOnFreeColumns
+146/198 Test #146: Certificates.FarkasToleranceStageOnFreeColumns ..........................   Passed    0.00 sec
+        Start 147: Certificates.UnboundedRayChecks
+147/198 Test #147: Certificates.UnboundedRayChecks .........................................   Passed    0.01 sec
+        Start 148: Certificates.GateCertifiesDemotesOrFlags
+148/198 Test #148: Certificates.GateCertifiesDemotesOrFlags ................................   Passed    0.01 sec
+        Start 149: Certificates.EnginesCertifyTheirVerdicts
+149/198 Test #149: Certificates.EnginesCertifyTheirVerdicts ................................   Passed    0.01 sec
+        Start 150: Certificates.SimplexTightensPhaseOneUntilTheFarkasRayPasses
+150/198 Test #150: Certificates.SimplexTightensPhaseOneUntilTheFarkasRayPasses .............   Passed    0.09 sec
+        Start 151: Certificates.FirstOrderEnginesDetectBarelyInfeasibleNetlibCuts
+151/198 Test #151: Certificates.FirstOrderEnginesDetectBarelyInfeasibleNetlibCuts ..........   Passed    3.02 sec
+        Start 152: Certificates.FirstOrderUnboundedWithoutAFeasibleIterate
+152/198 Test #152: Certificates.FirstOrderUnboundedWithoutAFeasibleIterate .................   Passed    0.00 sec
+        Start 153: Certificates.ZeroMeasureFarkasVectorIsRejected
+153/198 Test #153: Certificates.ZeroMeasureFarkasVectorIsRejected ..........................   Passed    0.00 sec
+        Start 154: Certificates.EngineRayTestIgnoresRoundingNoise
+154/198 Test #154: Certificates.EngineRayTestIgnoresRoundingNoise ..........................   Passed    0.00 sec
+        Start 155: Limits.FirstOrderEnginesStopNearTheTimeLimit
+155/198 Test #155: Limits.FirstOrderEnginesStopNearTheTimeLimit ............................   Passed    0.87 sec
+        Start 156: Concurrency.ParallelSolvesFromSeveralThreadsMatchSequentialResults
+156/198 Test #156: Concurrency.ParallelSolvesFromSeveralThreadsMatchSequentialResults ......   Passed    0.50 sec
+        Start 157: Robustness.AutoRetriesWithTheOracleWhenTheSimplexGivesUp
+157/198 Test #157: Robustness.AutoRetriesWithTheOracleWhenTheSimplexGivesUp ................   Passed    0.01 sec
+        Start 158: Gpu.BackendOpsMatchCpu
+158/198 Test #158: Gpu.BackendOpsMatchCpu ..................................................   Passed    2.05 sec
+        Start 159: Gpu.EnginesMatchCpuOnSmallNetlib
+159/198 Test #159: Gpu.EnginesMatchCpuOnSmallNetlib ........................................   Passed   63.81 sec
+        Start 160: Gpu.LongRowKernelMatchesCpu
+160/198 Test #160: Gpu.LongRowKernelMatchesCpu .............................................   Passed    2.53 sec
+        Start 161: Gpu.CertifiedVerdictsAndDeterminism
+161/198 Test #161: Gpu.CertifiedVerdictsAndDeterminism .....................................   Passed    2.07 sec
+        Start 162: All/PdhgEngines.DualSignsMatchOracleOnWyndor/pdlp_fp64
+162/198 Test #162: All/PdhgEngines.DualSignsMatchOracleOnWyndor/pdlp_fp64 ..................   Passed    0.00 sec
+        Start 163: All/PdhgEngines.DualSignsMatchOracleOnWyndor/pdlp_mixed
+163/198 Test #163: All/PdhgEngines.DualSignsMatchOracleOnWyndor/pdlp_mixed .................   Passed    0.00 sec
+        Start 164: All/PdhgEngines.DualSignsMatchOracleOnWyndor/r2hpdhg_fp64
+164/198 Test #164: All/PdhgEngines.DualSignsMatchOracleOnWyndor/r2hpdhg_fp64 ...............   Passed    0.00 sec
+        Start 165: All/PdhgEngines.DualSignsMatchOracleOnWyndor/r2hpdhg_mixed
+165/198 Test #165: All/PdhgEngines.DualSignsMatchOracleOnWyndor/r2hpdhg_mixed ..............   Passed    0.01 sec
+        Start 166: All/PdhgEngines.HandLpsAgreeWithOracle/pdlp_fp64
+166/198 Test #166: All/PdhgEngines.HandLpsAgreeWithOracle/pdlp_fp64 ........................   Passed    0.00 sec
+        Start 167: All/PdhgEngines.HandLpsAgreeWithOracle/pdlp_mixed
+167/198 Test #167: All/PdhgEngines.HandLpsAgreeWithOracle/pdlp_mixed .......................   Passed    0.00 sec
+        Start 168: All/PdhgEngines.HandLpsAgreeWithOracle/r2hpdhg_fp64
+168/198 Test #168: All/PdhgEngines.HandLpsAgreeWithOracle/r2hpdhg_fp64 .....................   Passed    0.01 sec
+        Start 169: All/PdhgEngines.HandLpsAgreeWithOracle/r2hpdhg_mixed
+169/198 Test #169: All/PdhgEngines.HandLpsAgreeWithOracle/r2hpdhg_mixed ....................   Passed    0.01 sec
+        Start 170: All/PdhgEngines.SmallNetlibAgreesWithOracleAndPassesKkt/pdlp_fp64
+170/198 Test #170: All/PdhgEngines.SmallNetlibAgreesWithOracleAndPassesKkt/pdlp_fp64 .......   Passed    1.27 sec
+        Start 171: All/PdhgEngines.SmallNetlibAgreesWithOracleAndPassesKkt/pdlp_mixed
+171/198 Test #171: All/PdhgEngines.SmallNetlibAgreesWithOracleAndPassesKkt/pdlp_mixed ......   Passed    0.91 sec
+        Start 172: All/PdhgEngines.SmallNetlibAgreesWithOracleAndPassesKkt/r2hpdhg_fp64
+172/198 Test #172: All/PdhgEngines.SmallNetlibAgreesWithOracleAndPassesKkt/r2hpdhg_fp64 ....   Passed    0.64 sec
+        Start 173: All/PdhgEngines.SmallNetlibAgreesWithOracleAndPassesKkt/r2hpdhg_mixed
+173/198 Test #173: All/PdhgEngines.SmallNetlibAgreesWithOracleAndPassesKkt/r2hpdhg_mixed ...   Passed    0.60 sec
+        Start 174: All/PdhgEngines.IterationLimitIsNotOptimal/pdlp_fp64
+174/198 Test #174: All/PdhgEngines.IterationLimitIsNotOptimal/pdlp_fp64 ....................   Passed    0.02 sec
+        Start 175: All/PdhgEngines.IterationLimitIsNotOptimal/pdlp_mixed
+175/198 Test #175: All/PdhgEngines.IterationLimitIsNotOptimal/pdlp_mixed ...................   Passed    0.03 sec
+        Start 176: All/PdhgEngines.IterationLimitIsNotOptimal/r2hpdhg_fp64
+176/198 Test #176: All/PdhgEngines.IterationLimitIsNotOptimal/r2hpdhg_fp64 .................   Passed    0.02 sec
+        Start 177: All/PdhgEngines.IterationLimitIsNotOptimal/r2hpdhg_mixed
+177/198 Test #177: All/PdhgEngines.IterationLimitIsNotOptimal/r2hpdhg_mixed ................   Passed    0.03 sec
+        Start 178: All/PdhgEngines.DetectsInfeasibleAndUnbounded/pdlp_fp64
+178/198 Test #178: All/PdhgEngines.DetectsInfeasibleAndUnbounded/pdlp_fp64 .................   Passed    0.01 sec
+        Start 179: All/PdhgEngines.DetectsInfeasibleAndUnbounded/pdlp_mixed
+179/198 Test #179: All/PdhgEngines.DetectsInfeasibleAndUnbounded/pdlp_mixed ................   Passed    0.00 sec
+        Start 180: All/PdhgEngines.DetectsInfeasibleAndUnbounded/r2hpdhg_fp64
+180/198 Test #180: All/PdhgEngines.DetectsInfeasibleAndUnbounded/r2hpdhg_fp64 ..............   Passed    0.00 sec
+        Start 181: All/PdhgEngines.DetectsInfeasibleAndUnbounded/r2hpdhg_mixed
+181/198 Test #181: All/PdhgEngines.DetectsInfeasibleAndUnbounded/r2hpdhg_mixed .............   Passed    0.00 sec
+        Start 182: All/PdhgEngines.NoFalseCertificatesOnFeasibleModels/pdlp_fp64
+182/198 Test #182: All/PdhgEngines.NoFalseCertificatesOnFeasibleModels/pdlp_fp64 ...........   Passed    0.40 sec
+        Start 183: All/PdhgEngines.NoFalseCertificatesOnFeasibleModels/pdlp_mixed
+183/198 Test #183: All/PdhgEngines.NoFalseCertificatesOnFeasibleModels/pdlp_mixed ..........   Passed    0.40 sec
+        Start 184: All/PdhgEngines.NoFalseCertificatesOnFeasibleModels/r2hpdhg_fp64
+184/198 Test #184: All/PdhgEngines.NoFalseCertificatesOnFeasibleModels/r2hpdhg_fp64 ........   Passed    0.22 sec
+        Start 185: All/PdhgEngines.NoFalseCertificatesOnFeasibleModels/r2hpdhg_mixed
+185/198 Test #185: All/PdhgEngines.NoFalseCertificatesOnFeasibleModels/r2hpdhg_mixed .......   Passed    0.23 sec
+        Start 186: All/PdhgEngines.WarmStartFromOptimumStopsAtFirstCheck/pdlp_fp64
+186/198 Test #186: All/PdhgEngines.WarmStartFromOptimumStopsAtFirstCheck/pdlp_fp64 .........   Passed    0.35 sec
+        Start 187: All/PdhgEngines.WarmStartFromOptimumStopsAtFirstCheck/pdlp_mixed
+187/198 Test #187: All/PdhgEngines.WarmStartFromOptimumStopsAtFirstCheck/pdlp_mixed ........   Passed    0.39 sec
+        Start 188: All/PdhgEngines.WarmStartFromOptimumStopsAtFirstCheck/r2hpdhg_fp64
+188/198 Test #188: All/PdhgEngines.WarmStartFromOptimumStopsAtFirstCheck/r2hpdhg_fp64 ......   Passed    0.20 sec
+        Start 189: All/PdhgEngines.WarmStartFromOptimumStopsAtFirstCheck/r2hpdhg_mixed
+189/198 Test #189: All/PdhgEngines.WarmStartFromOptimumStopsAtFirstCheck/r2hpdhg_mixed .....   Passed    0.27 sec
+        Start 190: c_api.smoke
+190/198 Test #190: c_api.smoke .............................................................   Passed    0.00 sec
+        Start 191: tools.python
+191/198 Test #191: tools.python ............................................................   Passed   24.06 sec
+        Start 192: cli.contract
+192/198 Test #192: cli.contract ............................................................   Passed   11.20 sec
+        Start 193: python.binding
+193/198 Test #193: python.binding ..........................................................   Passed    0.95 sec
+        Start 194: bench.generators
+194/198 Test #194: bench.generators ........................................................   Passed    1.47 sec
+        Start 195: bench.gpu_compare
+195/198 Test #195: bench.gpu_compare .......................................................   Passed    3.63 sec
+        Start 196: bench.validate_results
+196/198 Test #196: bench.validate_results ..................................................   Passed    1.65 sec
+        Start 197: tools.crosscheck.simplex
+197/198 Test #197: tools.crosscheck.simplex ................................................   Passed    1.78 sec
+        Start 198: tools.crosscheck.r2hpdhg
+198/198 Test #198: tools.crosscheck.r2hpdhg ................................................   Passed    1.25 sec
+
+100% tests passed out of 198
+
+Total Test time (real) = 140.71 sec
+OK: no foreign solver linked or included
+=== compute-sanitizer (memcheck, racecheck) on the GPU tests
+  memcheck: ERRORS (see bench/results/logs/rtx4050-laptop-183c59c/sanitizer-memcheck.log)
+  racecheck: ERRORS (see bench/results/logs/rtx4050-laptop-183c59c/sanitizer-racecheck.log)
+=== bench: small Netlib (CPU and GPU, fp64 + mixed, verified)
+
+60/60 verified PASS -> /mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/bench/results/netlib-small-183c59c.csv
+
+40/40 verified PASS -> /mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/bench/results/netlib-small-gpu-183c59c.csv
+=== bench: scaling (generated LPs + refinery), CPU vs GPU, fp64 vs mixed
+rand-10000-s1          r2hpdhg  cpu  1 fp64  Optimal        it     1536 t    0.4056s (1e-4:  0.115918s) ms/it   0.2476 err 6.34e-10 verify PASS
+rand-10000-s1          r2hpdhg  cpu  1 mixed Optimal        it     1536 t    0.4200s (1e-4:  0.122479s) ms/it   0.2549 err 1.74e-10 verify PASS
+rand-10000-s1          r2hpdhg  cpu 12 fp64  Optimal        it     1536 t    0.7064s (1e-4:  0.204850s) ms/it   0.4369 err 6.34e-10 verify PASS
+rand-10000-s1          r2hpdhg  cpu 12 mixed Optimal        it     1536 t    0.7139s (1e-4:  0.195901s) ms/it   0.4416 err 1.74e-10 verify PASS
+rand-10000-s1          r2hpdhg  gpu    fp64  Optimal        it     1536 t    0.5074s (1e-4:  0.380389s) ms/it   0.1037 err 6.34e-10 verify PASS
+rand-10000-s1          r2hpdhg  gpu    mixed Optimal        it     1536 t    0.4764s (1e-4:  0.330780s) ms/it   0.1121 err 1.78e-10 verify PASS
+rand-100000-s1         r2hpdhg  cpu  1 fp64  Optimal        it     2496 t    9.4634s (1e-4:  2.071938s) ms/it   3.6893 err 2.44e-10 verify PASS
+rand-100000-s1         r2hpdhg  cpu  1 mixed Optimal        it     2944 t   10.4475s (1e-4:  1.597928s) ms/it   3.4654 err 5.12e-11 verify PASS
+rand-100000-s1         r2hpdhg  cpu 12 fp64  Optimal        it     2496 t    5.2957s (1e-4:  1.015408s) ms/it   2.0485 err 2.44e-10 verify PASS
+rand-100000-s1         r2hpdhg  cpu 12 mixed Optimal        it     2944 t    5.5219s (1e-4:  0.838633s) ms/it   1.8136 err 5.12e-11 verify PASS
+rand-100000-s1         r2hpdhg  gpu    fp64  Optimal        it     2496 t    1.7903s (1e-4:  0.674272s) ms/it   0.5130 err 2.44e-10 verify PASS
+rand-100000-s1         r2hpdhg  gpu    mixed Optimal        it     2944 t    1.8014s (1e-4:  0.648238s) ms/it   0.4275 err 5.09e-11 verify PASS
+rand-1000000-s1        r2hpdhg  cpu  1 fp64  TimeLimit      it     8024 t  605.1378s (1e-4: 44.281518s) ms/it  74.1178 err 4.67e-09 verify skipped
+rand-1000000-s1        r2hpdhg  cpu  1 mixed TimeLimit      it     8918 t  604.7359s (1e-4: 34.439790s) ms/it  66.6731 err 2.23e-09 verify skipped
+rand-1000000-s1        r2hpdhg  cpu 12 fp64  Optimal        it    17600 t  489.3651s (1e-4: 16.155785s) ms/it  27.5348 err 1.42e-11 verify skipped
+rand-1000000-s1        r2hpdhg  cpu 12 mixed Optimal        it    16576 t  435.7844s (1e-4: 11.025475s) ms/it  26.0044 err 1.22e-11 verify skipped
+rand-1000000-s1        r2hpdhg  gpu    fp64  Optimal        it    17600 t  115.7293s (1e-4: 11.564064s) ms/it   6.0399 err 1.42e-11 verify skipped
+rand-1000000-s1        r2hpdhg  gpu    mixed Optimal        it    16576 t  105.8289s (1e-4: 12.027617s) ms/it   5.7546 err 1.22e-11 verify skipped
+refinery-T12-s1        r2hpdhg  cpu  1 fp64  Optimal        it     1088 t    0.0084s (1e-4:  0.004321s) ms/it   0.0069 err 3.20e-11 verify PASS
+refinery-T12-s1        r2hpdhg  cpu  1 mixed Optimal        it     2240 t    0.0154s (1e-4:  0.004176s) ms/it   0.0065 err 7.82e-10 verify PASS
+refinery-T12-s1        r2hpdhg  cpu 12 fp64  Optimal        it     1088 t    0.0085s (1e-4:  0.004227s) ms/it   0.0070 err 3.20e-11 verify PASS
+refinery-T12-s1        r2hpdhg  cpu 12 mixed Optimal        it     2240 t    0.0157s (1e-4:  0.004284s) ms/it   0.0066 err 7.82e-10 verify PASS
+refinery-T12-s1        r2hpdhg  gpu    fp64  Optimal        it     1088 t    0.3496s (1e-4:  0.322381s) ms/it   0.0697 err 3.20e-11 verify PASS
+refinery-T12-s1        r2hpdhg  gpu    mixed Optimal        it     2368 t    0.3764s (1e-4:  0.279407s) ms/it   0.0607 err 3.03e-10 verify PASS
+refinery-T365-s1       r2hpdhg  cpu  1 fp64  Optimal        it     1984 t    0.6547s (1e-4:  0.248439s) ms/it   0.2927 err 8.21e-12 verify PASS
+refinery-T365-s1       r2hpdhg  cpu  1 mixed Optimal        it     2432 t    0.7320s (1e-4:  0.245495s) ms/it   0.2696 err 4.71e-11 verify PASS
+refinery-T365-s1       r2hpdhg  cpu 12 fp64  Optimal        it     1984 t    1.2491s (1e-4:  0.445869s) ms/it   0.5753 err 8.21e-12 verify PASS
+refinery-T365-s1       r2hpdhg  cpu 12 mixed Optimal        it     2432 t    1.3098s (1e-4:  0.440978s) ms/it   0.4918 err 4.71e-11 verify PASS
+refinery-T365-s1       r2hpdhg  gpu    fp64  Optimal        it     1984 t    0.5951s (1e-4:  0.436821s) ms/it   0.1107 err 8.21e-12 verify PASS
+refinery-T365-s1       r2hpdhg  gpu    mixed Optimal        it     2240 t    0.5756s (1e-4:  0.368486s) ms/it   0.1097 err 8.53e-11 verify PASS
+refinery-T8760-s1      r2hpdhg  cpu  1 fp64  Optimal        it     2880 t   26.5191s (1e-4:  8.032287s) ms/it   8.4856 err 1.49e-13 verify PASS
+refinery-T8760-s1      r2hpdhg  cpu  1 mixed Optimal        it     2752 t   21.3395s (1e-4:  6.643049s) ms/it   7.0283 err 7.90e-13 verify PASS
+refinery-T8760-s1      r2hpdhg  cpu 12 fp64  Optimal        it     2880 t   18.7071s (1e-4:  5.709838s) ms/it   5.8657 err 1.49e-13 verify PASS
+refinery-T8760-s1      r2hpdhg  cpu 12 mixed Optimal        it     2752 t   14.0595s (1e-4:  4.520579s) ms/it   4.4068 err 7.90e-13 verify PASS
+refinery-T8760-s1      r2hpdhg  gpu    fp64  Optimal        it     2880 t    6.1839s (1e-4:  2.958623s) ms/it   1.3828 err 1.49e-13 verify PASS
+refinery-T8760-s1      r2hpdhg  gpu    mixed Optimal        it     3136 t    5.7836s (1e-4:  2.803992s) ms/it   1.0957 err 6.20e-14 verify PASS
+csv -> /mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/bench/results/scale-rtx4050-laptop-183c59c.csv
+chart -> /mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/bench/results/scale-rtx4050-laptop-183c59c.png
+
+GPU vs CPU (CPU seconds / GPU seconds; < 1 = GPU slower). Baselines: 1 CPU thread and the fastest CPU configuration measured here:
+  rand-10000-s1          r2hpdhg  fp64  vs 1 thread: 1e-4   0.30× 1e-8   0.80× | vs best CPU (1 thr): 1e-4   0.30× 1e-8   0.80×  
+  rand-10000-s1          r2hpdhg  mixed vs 1 thread: 1e-4   0.37× 1e-8   0.88× | vs best CPU (1 thr): 1e-4   0.37× 1e-8   0.88×  
+  rand-100000-s1         r2hpdhg  fp64  vs 1 thread: 1e-4   3.07× 1e-8   5.29× | vs best CPU (12 thr): 1e-4   1.51× 1e-8   2.96×  
+  rand-100000-s1         r2hpdhg  mixed vs 1 thread: 1e-4   2.47× 1e-8   5.80× | vs best CPU (12 thr): 1e-4   1.29× 1e-8   3.07×  
+  rand-1000000-s1        r2hpdhg  fp64  vs 1 thread: 1e-4       – 1e-8       – | vs best CPU (12 thr): 1e-4   1.40× 1e-8   4.23×  CPU 1 thr: TimeLimit
+  rand-1000000-s1        r2hpdhg  mixed vs 1 thread: 1e-4       – 1e-8       – | vs best CPU (12 thr): 1e-4   0.92× 1e-8   4.12×  CPU 1 thr: TimeLimit
+  refinery-T12-s1        r2hpdhg  fp64  vs 1 thread: 1e-4   0.01× 1e-8   0.02× | vs best CPU (1 thr): 1e-4   0.01× 1e-8   0.02×  
+  refinery-T12-s1        r2hpdhg  mixed vs 1 thread: 1e-4   0.01× 1e-8   0.04× | vs best CPU (1 thr): 1e-4   0.01× 1e-8   0.04×  
+  refinery-T365-s1       r2hpdhg  fp64  vs 1 thread: 1e-4   0.57× 1e-8   1.10× | vs best CPU (1 thr): 1e-4   0.57× 1e-8   1.10×  
+  refinery-T365-s1       r2hpdhg  mixed vs 1 thread: 1e-4   0.67× 1e-8   1.27× | vs best CPU (1 thr): 1e-4   0.67× 1e-8   1.27×  
+  refinery-T8760-s1      r2hpdhg  fp64  vs 1 thread: 1e-4   2.71× 1e-8   4.29× | vs best CPU (12 thr): 1e-4   1.93× 1e-8   3.03×  
+  refinery-T8760-s1      r2hpdhg  mixed vs 1 thread: 1e-4   2.37× 1e-8   3.69× | vs best CPU (12 thr): 1e-4   1.61× 1e-8   2.43×  
+=== done.
+TESTS: all passed
+=== provenance / integrity check of this run's evidence (bench/validate_results.py)
+ok    bench/results/netlib-small-183c59c.csv
+ok    bench/results/netlib-small-gpu-183c59c.csv
+ok    bench/results/scale-rtx4050-laptop-183c59c.csv
+FAIL  bench/results/logs/rtx4050-laptop-183c59c/
+        error: sanitizer-memcheck.log: compute-sanitizer could not run on this device (tool startup error), so the kernels were NOT checked
+        error: sanitizer-racecheck.log: compute-sanitizer could not run on this device (tool startup error), so the kernels were NOT checked
+
+3 CSV files, 1 log folders: 1 failing
+VALIDATOR: problems listed above (a sanitizer that could not attach is reported as NOT RUN)
+New result files:
+bench/results/scale-rtx4050-laptop-183c59c.png
+bench/results/scale-rtx4050-laptop-183c59c.csv
+bench/results/netlib-small-gpu-183c59c.csv
+bench/results/netlib-small-183c59c.csv
+bench/results/warm-start-macbook-air-m4-f440782.csv
+bench/results/scale-macbook-air-m4-f440782.png
+bench/results/scale-macbook-air-m4-f440782.csv
+bench/results/netlib-small-f440782.csv
+bench/results/netlib-full-simplex-fp64-macbook-air-m4-f440782.csv
+bench/results/netlib-full-r2hpdhg-fp64-macbook-air-m4-f440782.csv
+Commit them:  git add bench/results && git commit -m "bench: rtx4050-laptop @ 183c59c"
