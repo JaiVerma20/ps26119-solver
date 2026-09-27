@@ -5,6 +5,7 @@
 #include <random>
 #include <algorithm>
 
+#include "core/certificates.h"
 #include "io/lpm_reader.h"
 #include "mip/branch_and_bound.h"
 #include "model_builder.h"
@@ -229,4 +230,33 @@ TEST(Mip, DivingFindsAnIncumbentWhereRoundingFails) {
   ASSERT_EQ(s.x.size(), 3u) << to_string(s.status) << ": " << s.message;
   EXPECT_NEAR(s.objective, 2.0, 1e-9);
   EXPECT_NE(s.message.find("dives"), std::string::npos) << s.message;
+}
+
+TEST(Mip, UnboundedRelaxationIsDecidedNotAssumed) {
+  // An unbounded LP relaxation means "unbounded OR infeasible". It used to be reported as
+  // Unbounded unconditionally.
+  // (a) unbounded: min -x, x - y <= 0.5, x, y integer >= 0 -> integer point + ray, certified.
+  Model u = make_model({-1, 0}, {{1, -1}}, {-kInf}, {0.5}, {0, 0}, {kInf, kInf});
+  u.is_integer = {1, 1};
+  Options o;
+  const Solution su = solve(u, o);
+  ASSERT_EQ(su.status, Status::Unbounded) << su.message;
+  EXPECT_EQ(su.check, "PASS") << su.message;
+  ASSERT_EQ(su.x.size(), 2u);
+  for (double v : su.x) EXPECT_EQ(v, std::round(v));
+  // (a') the same through presolve: a fixed column w (in the row) and a singleton row y >= 1
+  Model up = make_model({-1, 0, 0}, {{1, -1, 1}, {0, 1, 0}}, {-kInf, 1}, {2.5, kInf}, {0, 0, 2}, {kInf, kInf, 2});
+  up.is_integer = {1, 1, 1};
+  const Solution sp = solve(up, o);
+  ASSERT_EQ(sp.status, Status::Unbounded) << sp.message;
+  ASSERT_EQ(sp.primal_ray.size(), 3u);  // in the ORIGINAL space
+  EXPECT_EQ(sp.primal_ray[2], 0.0);
+  EXPECT_TRUE(check_unboundedness_certificate(up, sp.x, sp.primal_ray).passed);
+  EXPECT_NE(sp.message.find("postsolved to the original model"), std::string::npos) << sp.message;
+  // (b) infeasible although the relaxation is unbounded: 2y + 2z = 1 has no integer solution,
+  //     x (integer, free objective direction) makes the relaxation unbounded.
+  Model inf = make_model({-1, 0, 0}, {{0, 2, 2}}, {1}, {1}, {0, 0, 0}, {kInf, 5, 5});
+  inf.is_integer = {1, 1, 1};
+  const Solution si = solve(inf, o);
+  EXPECT_EQ(si.status, Status::Infeasible) << si.message;
 }

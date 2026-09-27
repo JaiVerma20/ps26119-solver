@@ -281,7 +281,7 @@ Solution solve_impl(const Model& model, const Options& options) {
       return s;
     }
   }
-  if (lp_model && red.status == Status::Unbounded && static_cast<int>(red.primal_ray.size()) == pr.reduced.num_cols &&
+  if (red.status == Status::Unbounded && static_cast<int>(red.primal_ray.size()) == pr.reduced.num_cols &&
       static_cast<int>(red.x.size()) == pr.reduced.num_cols) {
     // Same for a primal ray: fixed columns get d = 0, kept columns keep d_j (a bound that a
     // removed singleton row created is a reduced column bound, which the ray already respects,
@@ -289,7 +289,12 @@ Solution solve_impl(const Model& model, const Options& options) {
     std::vector<double> d(model.num_cols, 0.0);
     for (int j = 0; j < pr.reduced.num_cols; ++j) d[pr.col_map[j]] = red.primal_ray[j];
     Solution s = postsolve(model, pr, red);
-    if (check_unboundedness_certificate(model, s.x, d).passed) {
+    bool integral = true;  // a MILP's point must also be integral (branch_and_bound.cpp)
+    if (!lp_model)
+      for (int j = 0; j < model.num_cols; ++j)
+        integral = integral && !(j < static_cast<int>(model.is_integer.size()) && model.is_integer[j] &&
+                                 std::fabs(s.x[j] - std::round(s.x[j])) > tol::kMipIntegrality);
+    if (integral && check_unboundedness_certificate(model, s.x, d).passed) {
       s.status = Status::Unbounded;
       s.primal_ray = std::move(d);
       s.dual_ray.clear();
@@ -306,6 +311,15 @@ Solution solve_impl(const Model& model, const Options& options) {
   }
   if (lp_model && (red.status == Status::Infeasible || red.status == Status::Unbounded))
     return on_original(red, std::string("reduced model ") + to_string(red.status));
+  if (!lp_model && red.status == Status::Unbounded) {  // MILP: never report an unchecked claim
+    Solution s = red;
+    s.status = Status::NumericalError;
+    s.message += "; presolved MILP reported Unbounded, but its certificate does not hold on the original model";
+    s.model_fingerprint = model.fingerprint_hex();
+    s.x.clear();
+    s.primal_ray.clear();
+    return s;
+  }
   Solution post = postsolve(model, pr, red);
   const std::string note = "presolve removed " + std::to_string(pr.removed_rows) + " rows, " +
                            std::to_string(pr.removed_cols) + " cols";
