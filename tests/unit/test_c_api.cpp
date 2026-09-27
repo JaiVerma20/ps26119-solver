@@ -121,3 +121,35 @@ TEST(CApi, WarmStartFromOptimum) {
   EXPECT_LE(warm.iterations, cold.iterations);
   EXPECT_NEAR(warm.objective, 36, 1e-6);
 }
+
+TEST(CApi, SolveLpExReturnsCertificates) {
+  // x + y <= 1, x + y >= 3, x, y >= 0: infeasible; the Farkas vector is (-1, 1) up to scale.
+  const double inf = HUGE_VAL;
+  const double c[2] = {1, 1}, cl[2] = {0, 0}, cu[2] = {inf, inf}, rl[2] = {-inf, 3}, ru[2] = {1, inf};
+  const int cs[3] = {0, 2, 4}, ri[4] = {0, 1, 0, 1};
+  const double v[4] = {1, 1, 1, 1};
+  ps26119_options opt;
+  ps26119_default_options(&opt);
+  opt.algorithm = PS26119_ALG_SIMPLEX;
+  ps26119_result res;
+  double ray[2] = {NAN, NAN}, pray[2] = {NAN, NAN};
+  ASSERT_EQ(ps26119_solve_lp_ex(2, 2, 1, 0.0, c, cl, cu, rl, ru, cs, ri, v, &opt, &res, nullptr, nullptr, nullptr,
+                                ray, pray),
+            PS26119_INFEASIBLE);
+  EXPECT_EQ(res.check, 1) << res.message;
+  EXPECT_LT(ray[0], 0);
+  EXPECT_GT(ray[1], 0);
+  EXPECT_NEAR(ray[0], -ray[1], 1e-12 * std::fabs(ray[1]));
+  EXPECT_TRUE(std::isnan(pray[0]));  // no primal ray for an Infeasible verdict
+  // min -x, x - y <= 0: unbounded along a ray with d_x > 0, starting from a feasible x
+  const double c2[2] = {-1, 0}, rl2[1] = {-inf}, ru2[1] = {0};
+  const int cs2[3] = {0, 1, 2}, ri2[2] = {0, 0};
+  const double v2[2] = {1, -1};
+  double x[2] = {NAN, NAN};
+  ASSERT_EQ(ps26119_solve_lp_ex(1, 2, 1, 0.0, c2, cl, cu, rl2, ru2, cs2, ri2, v2, &opt, &res, x, nullptr, nullptr,
+                                nullptr, pray),
+            PS26119_UNBOUNDED);
+  EXPECT_EQ(res.check, 1) << res.message;
+  EXPECT_GT(pray[0], 0);
+  EXPECT_FALSE(std::isnan(x[0]));
+}

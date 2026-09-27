@@ -87,6 +87,15 @@ int ps26119_solve_lp(int num_rows, int num_cols, int sense, double obj_offset, c
                      const double* col_lower, const double* col_upper, const double* row_lower,
                      const double* row_upper, const int* col_start, const int* row_index, const double* value,
                      const ps26119_options* opt, ps26119_result* result, double* x, double* y, double* z) {
+  return ps26119_solve_lp_ex(num_rows, num_cols, sense, obj_offset, c, col_lower, col_upper, row_lower, row_upper,
+                             col_start, row_index, value, opt, result, x, y, z, nullptr, nullptr);
+}
+
+int ps26119_solve_lp_ex(int num_rows, int num_cols, int sense, double obj_offset, const double* c,
+                        const double* col_lower, const double* col_upper, const double* row_lower,
+                        const double* row_upper, const int* col_start, const int* row_index, const double* value,
+                        const ps26119_options* opt, ps26119_result* result, double* x, double* y, double* z,
+                        double* dual_ray, double* primal_ray) {
   if (!result) return PS26119_INVALID_ARGUMENT;
   clear(result);
   auto invalid = [&](const char* why) {
@@ -125,6 +134,10 @@ int ps26119_solve_lp(int num_rows, int num_cols, int sense, double obj_offset, c
     if (x && s.x.size() == static_cast<std::size_t>(num_cols)) std::memcpy(x, s.x.data(), sizeof(double) * num_cols);
     if (y && s.y.size() == static_cast<std::size_t>(num_rows)) std::memcpy(y, s.y.data(), sizeof(double) * num_rows);
     if (z && s.z.size() == static_cast<std::size_t>(num_cols)) std::memcpy(z, s.z.data(), sizeof(double) * num_cols);
+    if (dual_ray && s.dual_ray.size() == static_cast<std::size_t>(num_rows))
+      std::memcpy(dual_ray, s.dual_ray.data(), sizeof(double) * num_rows);
+    if (primal_ray && s.primal_ray.size() == static_cast<std::size_t>(num_cols))
+      std::memcpy(primal_ray, s.primal_ray.data(), sizeof(double) * num_cols);
     return result->status;
   } catch (const std::exception& e) {
     result->status = PS26119_NUMERICAL_ERROR;

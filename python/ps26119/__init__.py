@@ -62,6 +62,8 @@ def _load():
     lib.ps26119_solve_lp.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_double, D, D, D, D, D, I, I, D,
                                      ctypes.POINTER(_Options), ctypes.POINTER(_Result), D, D, D]
     lib.ps26119_solve_lp.restype = ctypes.c_int
+    lib.ps26119_solve_lp_ex.argtypes = lib.ps26119_solve_lp.argtypes + [D, D]
+    lib.ps26119_solve_lp_ex.restype = ctypes.c_int
     lib.ps26119_default_options.argtypes = [ctypes.POINTER(_Options)]
     lib.ps26119_solve_mps.argtypes = [ctypes.c_char_p, ctypes.POINTER(_Options), ctypes.POINTER(_Result), ctypes.c_char_p]
     lib.ps26119_solve_mps.restype = ctypes.c_int
@@ -97,10 +99,12 @@ class Result:
     seconds: float
     engine: str
     message: str
-    check: str = ""  # "PASS" / "FAIL" / "" (in-process verification of an Optimal LP answer)
+    check: str = ""  # "PASS" / "FAIL" / "": in-process verification of an Optimal answer or a certificate
     x: np.ndarray = field(repr=False, default=None)
     y: np.ndarray = field(repr=False, default=None)
     z: np.ndarray = field(repr=False, default=None)
+    dual_ray: np.ndarray = field(repr=False, default=None)    # Farkas row multipliers (Infeasible)
+    primal_ray: np.ndarray = field(repr=False, default=None)  # ray from x (Unbounded)
 
 
 def _csc(A, m, n):
@@ -156,15 +160,18 @@ def solve_lp(c, A, row_lower, row_upper, col_lower=None, col_upper=None, sense=1
     opt.warm_x = _ptr(wx)
     opt.warm_y = _ptr(wy)
     res = _Result()
-    x, y, z = np.empty(n), np.empty(m), np.empty(n)
-    st = lib.ps26119_solve_lp(m, n, int(sense), float(offset), _ptr(c), _ptr(cl), _ptr(cu), _ptr(rl), _ptr(ru),
-                              _ptr(cs, ctypes.c_int), _ptr(ri, ctypes.c_int), _ptr(v), ctypes.byref(opt),
-                              ctypes.byref(res), _ptr(x), _ptr(y), _ptr(z))
+    x, y, z = np.full(n, np.nan), np.empty(m), np.empty(n)
+    dr, pr = np.full(m, np.nan), np.full(n, np.nan)  # NaN = not written (no certificate)
+    st = lib.ps26119_solve_lp_ex(m, n, int(sense), float(offset), _ptr(c), _ptr(cl), _ptr(cu), _ptr(rl), _ptr(ru),
+                                 _ptr(cs, ctypes.c_int), _ptr(ri, ctypes.c_int), _ptr(v), ctypes.byref(opt),
+                                 ctypes.byref(res), _ptr(x), _ptr(y), _ptr(z), _ptr(dr), _ptr(pr))
     have = st in (OPTIMAL, ITERATION_LIMIT, TIME_LIMIT)
+    ray_d = dr if st == INFEASIBLE and m > 0 and not np.isnan(dr).any() else None
+    ray_p = pr if st == UNBOUNDED and n > 0 and not np.isnan(pr).any() else None
     return Result(st, _STATUS[st] if 0 <= st < len(_STATUS) else str(st), res.objective, res.dual_objective,
                   res.primal_residual, res.dual_residual, res.gap, res.certified_bound, res.iterations, res.seconds,
-                  res.engine.decode(), res.message.decode(), _CHECK[res.check], x if have else None,
-                  y if have else None, z if have else None)
+                  res.engine.decode(), res.message.decode(), _CHECK[res.check], x if have or ray_p is not None else None,
+                  y if have else None, z if have else None, ray_d, ray_p)
 
 
 _CHECK = {1: "PASS", 0: "FAIL", -1: ""}

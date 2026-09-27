@@ -40,6 +40,18 @@ class Binding(unittest.TestCase):
         bad = ps26119.solve_lp([1], [[1]], [0], [1], col_lower=[INF], col_upper=[INF])
         self.assertEqual(bad.status, ps26119.INVALID_ARGUMENT)
         self.assertIn("invalid model", bad.message)
+        # certificates (simplex): Farkas multipliers for Infeasible, a ray + point for Unbounded
+        r = ps26119.solve_lp([1, 1], [[1, 1], [1, 1]], [-INF, 3], [1, INF], algorithm="simplex")
+        self.assertEqual((r.status, r.check), (ps26119.INFEASIBLE, "PASS"))
+        self.assertEqual(r.dual_ray.shape, (2,))
+        self.assertLessEqual(r.dual_ray[0], 0)  # multiplier on the <= row
+        self.assertGreater(r.dual_ray[0] * 1 + r.dual_ray[1] * 3, 0)  # L0(r) (the column terms cancel)
+        u = ps26119.solve_lp([-1, 0], [[1, -1]], [-INF], [0], algorithm="simplex")  # x <= y, both >= 0
+        self.assertEqual((u.status, u.check), (ps26119.UNBOUNDED, "PASS"))
+        self.assertEqual(u.primal_ray.shape, (2,))
+        self.assertIsNotNone(u.x)
+        self.assertLess(-u.primal_ray[0], 0)  # c·d < 0
+        self.assertIsNone(ps26119.solve_lp([1, 1], [[1, 1], [1, 1]], [-INF, 3], [1, INF], algorithm="oracle").dual_ray)
         # crossed bounds: valid data, infeasible model (docs/DECISIONS.md #27)
         crossed = ps26119.solve_lp([1], [[1]], [0], [1], col_lower=[5], col_upper=[1])
         self.assertEqual(crossed.status, ps26119.INFEASIBLE)
