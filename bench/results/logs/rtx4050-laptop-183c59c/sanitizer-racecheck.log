@@ -1,0 +1,34 @@
+========= COMPUTE-SANITIZER
+Running main() from /home/vatsshivanshu/ps26119-build-gpu/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = Gpu.*
+[==========] Running 4 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 4 tests from Gpu
+[ RUN      ] Gpu.BackendOpsMatchCpu
+[       OK ] Gpu.BackendOpsMatchCpu (4805 ms)
+[ RUN      ] Gpu.EnginesMatchCpuOnSmallNetlib
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:112: Failure
+Expected equality of these values:
+  gpu.status
+    Which is: 4-byte object <04-00 00-00>
+  Status::Optimal
+    Which is: 4-byte object <00-00 00-00>
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:101: kb2 pdlp fp64
+
+[  FAILED  ] Gpu.EnginesMatchCpuOnSmallNetlib (291612 ms)
+[ RUN      ] Gpu.LongRowKernelMatchesCpu
+[       OK ] Gpu.LongRowKernelMatchesCpu (31652 ms)
+[ RUN      ] Gpu.CertifiedVerdictsAndDeterminism
+[       OK ] Gpu.CertifiedVerdictsAndDeterminism (252143 ms)
+[----------] 4 tests from Gpu (580221 ms total)
+
+[----------] Global test environment tear-down
+[==========] 4 tests from 1 test suite ran. (580226 ms total)
+[  PASSED  ] 3 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] Gpu.EnginesMatchCpuOnSmallNetlib
+
+ 1 FAILED TEST
+========= Target application returned an error
+========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
