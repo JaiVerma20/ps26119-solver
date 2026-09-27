@@ -3,9 +3,18 @@ name: cpu-ci
 # CPU only. GitHub has no NVIDIA runners for this project, so GPU verification is a
 # separate, recorded step on real hardware (scripts/gpu_check.sh, docs/GPU_VERIFICATION.md).
 
+# Minutes matter (private repository; macOS minutes are billed 10×): a pull request is tested
+# once, by its pull_request run (which reports the required checks); pushes are tested only on
+# main. A newer push to the same PR cancels the run it supersedes. Manual runs: Actions tab.
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: cpu-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-test:
