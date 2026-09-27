@@ -6,18 +6,19 @@ Status words: **VERIFIED** (tested + benchmarked with a committed CSV), **IMPLEM
 
 ## GPU
 - GPU evidence comes from **one consumer laptop GPU** (RTX 4050 Laptop 6 GB, WSL2, commit
-  `82d376c`, `docs/EVIDENCE.md` §3). Correctness: 40/40 small-Netlib GPU solves verified, fp64 GPU
-  iteration counts equal to the CPU's on every scaling model where both finished. The 1e6-row
-  runs match the known optimum (≤ 1.4e-11) but `verify.py` is skipped at that size.
-- **The CPU baseline in that run is ONE thread.** The multi-core baseline was not measured (the
-  harness now runs 1 thread and all cores; next GPU run). Quote ratios only as "vs one CPU thread".
-- **The GPU is slower on small models**: refinery T=12 (588 rows) 0.02×, 1e4-row random ≈ 0.9–1.0×;
-  it wins from ~1e5 rows (3–4× vs one thread) and on the hourly refinery year (2.6–3.1×).
-- **compute-sanitizer has not run**: under WSL2 (WDDM) it cannot attach ("Device not supported").
-  The kernels are not memcheck/racecheck-verified; needs native Linux (university server).
-- No data-centre GPU (A100/H100) result, so no claim about fp64-rate cards or mixed-precision gain
-  there. On the laptop card mixed precision gave no consistent gain over fp64 to 1e-8 (0.75×–1.14×
-  of the fp64 time; it sometimes needs more iterations).
+  `183c59c`, `docs/EVIDENCE.md` §3), compared with the same laptop's CPU at 1 thread and 12 threads.
+  Speed-ups are quoted against the fastest CPU configuration: refinery year 3.0×, 1e5 rows 3.0×,
+  1e6 rows 4.2×; about even at 1.8e4 rows (refinery T=365, 1.1×).
+- **The GPU is slower on small models**: 1e4-row random 0.8×, refinery T=12 (588 rows) 0.02×
+  (kernel launch and transfer overhead dominates).
+- compute-sanitizer (memcheck 0 errors, racecheck 0 hazards) ran on the `Gpu.*` unit tests only,
+  under WSL2 with the NVIDIA debugger interface enabled; under the sanitizer's slowdown
+  `Gpu.EnginesMatchCpuOnSmallNetlib` stopped at its 120 s test limit on its first model, so its
+  remaining Netlib cases were not sanitizer-checked (the test passes without the sanitizer).
+- The 1e6-row runs match the known optimum (≤ 1.4e-11) and pass the in-process gate, but
+  `verify.py` is skipped at that size.
+- No data-centre GPU (A100/H100) result, so no claim about fp64-rate cards. On the laptop card
+  mixed precision gives little over fp64 (≤ ~10%, sometimes slower: more iterations).
 - Batched scenarios have no GPU SpMM kernel yet.
 
 ## LP engines

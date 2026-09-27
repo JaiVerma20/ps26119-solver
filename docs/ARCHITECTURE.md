@@ -98,9 +98,10 @@ the first-order code uses `la::Csr<T>`; neither is a second model representation
 `src/gpu/cuda_backend.cu` implements it (own CSR SpMV kernels, fused update + projection,
 deterministic fixed-grid reductions). The CPU backend implements the same math, so the Mac
 unit-tests the algorithm and the GPU machines test the kernels (`docs/GPU_VERIFICATION.md`).
-The CUDA backend has been compiled by nvcc and passes its correctness tests on an NVIDIA laptop
-GPU (2026-09-27); its first speed numbers are against ONE CPU thread only (`docs/EVIDENCE.md`
-§3); the all-core comparison and compute-sanitizer on native Linux are pending (`NEXT_STEPS.md`).
+The CUDA backend passes all correctness tests on an NVIDIA laptop GPU (RTX 4050, commit `183c59c`),
+follows the CPU's fp64 iteration counts exactly, is compute-sanitizer clean (memcheck, racecheck on
+the `Gpu.*` tests) and is 3.0–4.2× faster than the fastest CPU configuration of that laptop on
+the refinery year and 1e5–1e6-row LPs, slower on small models (`docs/EVIDENCE.md` §3).
 
 ## Threads
 
