@@ -167,6 +167,16 @@ class Cli(unittest.TestCase):
             self.assertEqual(code, 3, (name, out[-300:]))
             self.assertIn("read error (warm start)", out, name)
 
+    def test_bogus_lpm_sizes_fail_fast_without_huge_allocations(self):
+        # "NNZ 99999999999" used to allocate gigabytes and get the process killed (exit 137)
+        src = open(os.path.join(DATA, "netlib_small", "afiro.lpm")).read()
+        for old, new in (("NNZ 83", "NNZ 99999999999"), ("NNZ 83", "NNZ 2000000000"), ("ROWS 27", "ROWS 2000000000"),
+                         ("COLS 32", "COLS 2000000000"), ("ROWS 27", "ROWS -3")):
+            bad = os.path.join(self.tmp, "bad.lpm")
+            open(bad, "w").write(src.replace(old + "\n", new + "\n", 1))
+            code, out = run("info", bad)
+            self.assertEqual(code, 3, (new, out[-200:]))
+
     def test_gpu_request_is_never_served_silently_by_the_cpu(self):
         # auto + --gpu must pick r2hpdhg (the only GPU engine). On a build without CUDA this is
         # a clear NotSolved (exit 5), never a CPU simplex answer presented as a GPU run.
