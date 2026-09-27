@@ -25,16 +25,18 @@ The code merges two independently written codebases — Jai's ps26119 (first-ord
 GPU backend, MILP, evidence system) and Shivanshu Vats's gpuopt (MPS reader, sparse LU,
 simplex, checker) — with both histories preserved: `docs/FINAL_INTEGRATION_REPORT.md`.
 
-## Results (CPU rows: MacBook Air M4; every number from `docs/EVIDENCE.md`)
+## Results (every number from `docs/EVIDENCE.md`; CPU rows: one run of `scripts/reproduce.sh` at commit `f440782`, MacBook Air M4)
 
-| Benchmark | Result | Source CSV |
+| Benchmark | Result | Source CSV (`bench/results/`) |
 |---|---|---|
-| Netlib, all 93 LPs, 60 s each, `--algorithm auto` | **93/93** solved, verified by `tools/verify.py`, equal to HiGHS to 1e-6 (auto threshold chosen on this set) | `bench/results/netlib-full-auto-fp64-macbook-air-m4-{d824f82,eb90bbf}.csv` |
-| Netlib, simplex alone / r²HPDHG alone | 92/93 / 85/93 | `netlib-full-simplex-…-eb90bbf.csv`, `netlib-full-r2hpdhg-…-d824f82.csv` |
-| Certified infeasibility: 93 Netlib LPs + an objective cut 1e-4 below the optimum, 60 s | simplex **91/93**, r²HPDHG **70/93** certified (Farkas certificate passes the in-process gate AND `tools/verify.py`; 127 of them proved in exact rational arithmetic); the rest are time limits, never a wrong verdict | `infeasible-cut-{simplex,r2hpdhg}-macbook-air-m4-279fad6.csv` |
-| Small MIPLIB 3 (branch-and-bound, 300 s) | **12/14** proven optimal, verified, equal to HiGHS (was 10/14 before pseudocost branching + diving); pk1 and bell5 at the limit (gaps 12% and 0.02%) | `miplib3-macbook-air-m4-b04f2d8.csv` (before: `…-eb90bbf.csv`) |
-| Refinery planning LP, hourly year (429k rows, 1.5M nnz), r²HPDHG to 1e-8 | 19.2 s (1 thread) / 14.7 s (10 threads, mixed); equal to the known optimum, verified | `scale-macbook-air-m4-d824f82.csv` |
-| GPU (CUDA backend), one RTX 4050 **Laptop** GPU, r²HPDHG to 1e-8 | 40/40 small-Netlib GPU solves verified; vs **one** CPU thread (Core 5 210H, WSL2): refinery hourly year 9.6 s vs 29.4 s (3.1×), 1e5-row random 2.8 s vs 12.0 s (4.3×); 1e6 rows: GPU Optimal in 113 s (known optimum matched to 1.4e-11; verify.py skipped at this size), 1-thread CPU hit the 600 s limit; **GPU slower on small models** (refinery T=12: 0.02×). Multi-core CPU baseline NOT measured; compute-sanitizer did not run (WSL2) | `scale-rtx4050-laptop-82d376c.csv`, `netlib-small-gpu-82d376c.csv` |
+| Netlib, all 93 LPs, 60 s each, `--algorithm auto` | **93/93** solved, verified by `tools/verify.py`, equal to HiGHS to 1e-6 (the auto threshold was chosen on this set) | `netlib-full-auto-fp64-macbook-air-m4-f440782.csv` |
+| Netlib, simplex alone / r²HPDHG alone | 92/93 / 83/93 | `netlib-full-{simplex,r2hpdhg}-fp64-macbook-air-m4-f440782.csv` |
+| Certified infeasibility: 93 Netlib LPs + an objective cut 1e-4 below the optimum, 60 s | simplex **91/93**, r²HPDHG **70/93** certified (Farkas certificate passes the in-process gate AND `tools/verify.py`; 127 proved in exact rational arithmetic); the rest are time limits, never a wrong verdict | `infeasible-cut-{simplex,r2hpdhg}-macbook-air-m4-f440782.csv` |
+| Small MIPLIB 3 (branch-and-bound, 300 s) | **12/14** proven optimal, verified, equal to HiGHS; pk1 and bell5 at the limit | `miplib3-macbook-air-m4-f440782.csv` |
+| Refinery planning LP, hourly year (429k rows, 1.5M nnz), r²HPDHG to 1e-8 | **15.2 s** (1 thread) / **11 s** (all 10 cores, mixed); equal to the known optimum (1.2e-13), verified | `scale-macbook-air-m4-f440782.csv` |
+| Random LP, 1M rows, 6M nnz, r²HPDHG to 1e-8 | 570 s (1 thread) / 380 s (all cores); known optimum matched to 1.2e-11 (verify.py skipped at this size) | `scale-macbook-air-m4-f440782.csv` |
+| What-if re-solves on the refinery year (warm start) | 0.25–0.69× the cold iterations; the cold "price" solve hit its 600 s limit, the warm ones finished | `warm-start-macbook-air-m4-f440782.csv` |
+| GPU (CUDA backend), one RTX 4050 **Laptop** GPU, r²HPDHG to 1e-8 | 40/40 small-Netlib GPU solves verified; vs **one** CPU thread (Core 5 210H, WSL2): refinery year 3.1×, 1e5-row random 4.3×; **GPU slower on small models**. Multi-core CPU baseline and compute-sanitizer pending (`NEXT_STEPS.md`) | `scale-rtx4050-laptop-82d376c.csv`, `netlib-small-gpu-82d376c.csv` |
 
 Limitations: `docs/LIMITATIONS.md`.
 

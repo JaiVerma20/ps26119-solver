@@ -439,11 +439,13 @@ def main():
 
     doc += ["", "## 4b. Warm-started re-solves (what-if scenarios on the refinery LP)", ""]
     warms = [p for p in paths if os.path.basename(p).startswith("warm-start-")]
-    for p in warms:
+    newest = latest(warms, "warm-start-") if warms else None
+    for p in [newest] if newest else []:  # the newest run (older ones are listed under "Files used")
         rows = load(p)
         r0 = rows[0]
         doc += [f"Source: `{p}` — `{r0['machine']}` ({r0['cpu']}), commit `{r0['git_hash']}`. Each scenario solved "
-                "cold and warm-started from the base-case solution, both to 1e-8, both verified.", ""]
+                "cold and warm-started from the base-case solution, to 1e-8; the verify column is "
+                "cold/warm/warm+ω (a cold TimeLimit shows as FAIL).", ""]
         body = []
         for inst in dict.fromkeys(r["instance"] for r in rows):
             for scen in dict.fromkeys(r["scenario"] for r in rows if r["instance"] == inst):
