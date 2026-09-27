@@ -12,9 +12,14 @@ One library, several engines, one verification system:
 - **Exact oracles** — a dense double-double simplex and an independent dense tableau simplex.
 
 Nothing from any other solver is inside (`scripts/check_no_solver_linked.sh` runs in CI; see
-`docs/PROVENANCE.md`). Every Optimal LP answer is re-checked in-process on the original model
-before it is reported, carries a rounding-proof bound on the optimum, and every benchmark
-answer is additionally checked by an external verifier with an independent MPS reader.
+`docs/PROVENANCE.md`). Every answer is verified before it is reported:
+- **Optimal** LP answers are re-checked in-process on the original model (primal, dual, gap)
+  and carry a rounding-proof bound on the optimum;
+- **Infeasible / Unbounded** verdicts carry a certificate (Farkas multipliers / a feasible
+  point plus a ray) that is checked on the original model — rigorously with directed rounding
+  where possible; a verdict whose certificate fails becomes `NumericalError`, never a claim;
+- every benchmark answer is checked again by `tools/verify.py`, an external verifier with an
+  independent MPS reader (exact rational arithmetic for Farkas certificates where possible).
 
 The code merges two independently written codebases — Jai's ps26119 (first-order engines,
 GPU backend, MILP, evidence system) and Shivanshu Vats's gpuopt (MPS reader, sparse LU,
@@ -63,7 +68,13 @@ r = ps26119.solve_mps("data/netlib_small/afiro.mps", algorithm="simplex", out="a
 print(r.status_name, r.objective, r.check)
 r = ps26119.solve_lp([3, 5], [[1, 0], [0, 2], [3, 2]], [float("-inf")]*3, [4, 12, 18], sense=-1)
 ```
-C: `include/ps26119/ps26119.h` (`ps26119_solve_lp`, `ps26119_solve_mps`), library `build/libps26119.{dylib,so}`.
+C: `include/ps26119/ps26119.h` (`ps26119_solve_lp`, `ps26119_solve_lp_ex` with certificates,
+`ps26119_solve_mps`; no exceptions cross the API, invalid arguments return
+`PS26119_INVALID_ARGUMENT` with a message), library `build/libps26119.{dylib,so}`. `solve()` is
+safe to call from several threads at once.
+
+Reproduce all CPU evidence from one commit: `PS26119_MACHINE=<name> scripts/reproduce.sh`
+(stages and timings in the script header), then `python3 bench/make_evidence.py`.
 
 ## Documentation
 
