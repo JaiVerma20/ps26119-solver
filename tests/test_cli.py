@@ -158,6 +158,7 @@ class Cli(unittest.TestCase):
             "garbage": text.replace(first, " ".join([idx, x0 + "xyz"] + fields[2:]), 1),  # not a number
             "negcount": text.replace(text[cols:].split("\n")[0], "COLUMNS -5", 1),
             "hugecount": text.replace(text[cols:].split("\n")[0], "COLUMNS 99999999999", 1),
+            "bigcount": text.replace(text[cols:].split("\n")[0], "COLUMNS 999999999", 1),  # no huge allocation
         }
         for name, body in cases.items():
             bad = os.path.join(self.tmp, name + ".sol")

@@ -33,15 +33,19 @@ bool read_solution(const std::string& path, Solution& sol, std::string& error) {
     n = static_cast<int>(v);
     return true;
   };
+  // Vectors grow only as lines are actually read (a bogus count cannot trigger a huge allocation).
   auto read_block = [&](int count, std::vector<double>& a, std::vector<double>& b) -> bool {
-    a.resize(count);
-    b.resize(count);
+    a.clear();
+    b.clear();
     for (int k = 0; k < count; ++k) {
       if (!std::getline(in, line)) return false;
       std::istringstream ls(line);
       int idx;
       std::string va, vb;
-      if (!(ls >> idx >> va >> vb) || idx != k || !number(va, a[k]) || !number(vb, b[k])) return false;
+      double x = 0, y = 0;
+      if (!(ls >> idx >> va >> vb) || idx != k || !number(va, x) || !number(vb, y)) return false;
+      a.push_back(x);
+      b.push_back(y);
     }
     return true;
   };
@@ -79,15 +83,17 @@ bool read_solution(const std::string& path, Solution& sol, std::string& error) {
         error = "malformed " + key + " count '" + rest + "'";
         return false;
       }
-      v.assign(count, 0.0);
+      v.clear();
       for (int k = 0; k < count; ++k) {
         std::istringstream rl;
         int idx = -1;
         std::string val;
-        if (!std::getline(in, line) || !(rl.str(line), rl >> idx >> val) || idx != k || !number(val, v[k])) {
+        double x = 0;
+        if (!std::getline(in, line) || !(rl.str(line), rl >> idx >> val) || idx != k || !number(val, x)) {
           error = "malformed " + key + " block";
           return false;
         }
+        v.push_back(x);
       }
     } else if (key == "COLUMNS" || key == "ROWS") {
       int count = 0;
