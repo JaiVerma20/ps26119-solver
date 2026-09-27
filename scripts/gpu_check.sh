@@ -88,6 +88,9 @@ fi
 
 echo "=== done."
 [ "$TESTS_OK" = 1 ] && echo "TESTS: all passed" || echo "TESTS: FAILURES — see $LOGDIR/ctest.log (send the whole $LOGDIR folder)"
+echo "=== provenance / integrity check of this run's evidence (bench/validate_results.py)"
+$PY bench/validate_results.py "$LOGDIR" $(ls -1 bench/results/*-"${HASH}"*.csv 2>/dev/null) || \
+  echo "VALIDATOR: problems listed above (a sanitizer that could not attach is reported as NOT RUN)"
 echo "New result files:"
 ls -1t bench/results/*.csv bench/results/*.png 2>/dev/null | head -10
 echo "Commit them:  git add bench/results && git commit -m \"bench: ${PS26119_MACHINE} @ ${HASH}\""
