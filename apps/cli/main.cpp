@@ -276,11 +276,13 @@ int cmd_solve(int argc, char** argv) {
     std::printf("check      %s\n", sol.check.empty() ? "NOT CERTIFIED (no certificate)"
                                                      : (sol.check + "  (" + (sol.status == Status::Infeasible ? "Farkas" : "ray") +
                                                         " certificate verified on the original model)").c_str());
+  } else if (!sol.check.empty() && sol.engine.rfind("branch-and-bound", 0) == 0) {
+    std::printf("check      %s  (in-process, original model: bounds, rows, integrality of the point)\n", sol.check.c_str());
   } else if (!sol.check.empty()) {
     std::printf("check      %s  (in-process, original model: primal %.1e  dual %.1e  gap %.1e)\n", sol.check.c_str(),
                 sol.check_primal, sol.check_dual, sol.check_gap);
   }
-  if (sol.certified_bound == sol.certified_bound) {
+  if (sol.certified_bound == sol.certified_bound && !claim) {  // a bound on the optimum: not for Infeasible/Unbounded
     if (std::isfinite(sol.certified_bound))
       std::printf("certified  %s %.12g  (rounding-proof %s bound from y)\n", model.sense > 0 ? "optimum >=" : "optimum <=",
                   sol.certified_bound, model.sense > 0 ? "lower" : "upper");
