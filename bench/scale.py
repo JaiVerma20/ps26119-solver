@@ -30,7 +30,7 @@ from lpm import read_solution  # noqa: E402
 from machine_info import machine_info  # noqa: E402
 
 GEN = os.path.join(HERE, "generated")
-FIELDS = ["git_hash", "machine", "cpu", "gpu", "driver", "cuda", "date", "instance", "family", "rows", "cols", "nnz",
+FIELDS = ["git_hash", "machine", "cpu", "cpu_cores", "gpu", "driver", "cuda", "date", "instance", "family", "rows", "cols", "nnz",
           "engine", "backend", "threads", "precision", "tolerance", "status", "iterations", "seconds", "setup_seconds",
           "ms_per_iteration", "iterations_to_1e-4", "seconds_to_1e-4", "seconds_to_1e-8", "objective",
           "known_optimum", "rel_err_known", "verify", "verify_primal_rel", "verify_dual_rel", "verify_gap_rel",
@@ -61,7 +61,8 @@ def run(binary, path, engine, precision, gpu, time_limit, tmp, verify_max_nnz, t
     p = subprocess.run(cmd, capture_output=True, text=True)
     row = {"instance": info["name"], "family": "refinery" if "refinery" in info["generator"] else "random",
            "rows": info["rows"], "cols": info["cols"], "nnz": info["nnz"], "engine": engine,
-           "backend": "gpu" if gpu else "cpu", "threads": threads if not gpu else "", "precision": precision,
+           "backend": "gpu" if gpu else "cpu",
+           "threads": (threads if threads > 0 else (os.cpu_count() or 0)) if not gpu else "", "precision": precision,
            "tolerance": "1e-8",
            "known_optimum": repr(info["optimum"])}
     if not os.path.exists(sol):
@@ -131,16 +132,22 @@ def plot(rows, png):
         print("matplotlib not available: no PNG")
         return
     fig, axes = plt.subplots(1, 3, figsize=(16, 4.8))
-    for r in rows:  # a CPU thread count is part of the configuration
-        if r.get("threads") not in (None, "", "1") and r["backend"] == "cpu":
-            r["backend"] = f"cpu{r['threads']}t"
-    configs = sorted({(r["engine"], r["backend"], r["precision"]) for r in rows})
+
+    # A CPU thread count is part of the configuration label. NEVER write it into the rows: the
+    # GPU-vs-CPU summary runs after plotting and pairs rows by backend == "cpu" (the old code
+    # rewrote backend to "cpu1t" when threads was the integer 1, which emptied that summary in
+    # the first GPU run, 82d376c).
+    def backend_label(r):
+        th = str(r.get("threads", "") or "")
+        return f"cpu{th}t" if r["backend"] == "cpu" and th not in ("", "1") else r["backend"]
+
+    configs = sorted({(r["engine"], backend_label(r), r["precision"]) for r in rows})
     # one fixed colour per configuration so every panel matches the legend
     palette = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     color = {cfg: palette[i % len(palette)] for i, cfg in enumerate(configs)}
     for fam, marker, ls in (("random", "o", "-"), ("refinery", "s", "--")):
         for cfg in configs:
-            pts = [r for r in rows if (r["engine"], r["backend"], r["precision"]) == cfg and r["family"] == fam]
+            pts = [r for r in rows if (r["engine"], backend_label(r), r["precision"]) == cfg and r["family"] == fam]
             if not pts:
                 continue
             pts.sort(key=lambda r: int(r["nnz"]))
@@ -219,30 +226,17 @@ def main():
     print(f"csv -> {out}")
     plot(rows, os.path.splitext(out)[0] + ".png")
 
-    if a.gpu:  # honest GPU vs CPU summary (same engine and precision)
-        print("\nGPU vs CPU (wall time to 1e-4 / 1e-8; >1 = GPU faster):")
-        for r in rows:
-            if r["backend"] != "gpu":
-                continue
-            c = next((x for x in rows if x["backend"] == "cpu" and x["instance"] == r["instance"]
-                      and x["engine"] == r["engine"] and x["precision"] == r["precision"]), None)
-            if not c:
-                continue
-            def ratio(k):
-                try:
-                    return f"{float(c[k]) / float(r[k]):6.2f}x"
-                except (ValueError, KeyError, ZeroDivisionError):
-                    return "   n/a"
-            verdict = []
-            for k in ("seconds_to_1e-4", "seconds_to_1e-8"):
-                try:
-                    if float(r[k]) > float(c[k]):
-                        verdict.append(f"GPU LOSES at {k[-4:]}")
-                except (ValueError, KeyError):
-                    pass
-            print(f"  {r['instance']:22s} {r['engine']:8s} {r['precision']:5s} 1e-4 {ratio('seconds_to_1e-4')}  "
-                  f"1e-8 {ratio('seconds_to_1e-8')}  {' '.join(verdict)}")
-
+    if a.gpu:  # honest GPU vs CPU summary: bench/gpu_compare.py defines the pairing
+        import gpu_compare
+        print("\nGPU vs CPU (CPU seconds / GPU seconds; < 1 = GPU slower). Baselines: 1 CPU thread and the"
+              " fastest CPU configuration measured here:")
+        for p in gpu_compare.pairs(rows):
+            g, b = p["gpu"], p["best"]
+            best_thr = f"{b.get('threads')} thr" if b else "none"
+            print(f"  {g['instance']:22s} {g['engine']:8s} {g['precision']:5s} "
+                  f"vs 1 thread: 1e-4 {gpu_compare.fmt_ratio(p['vs1_1e-4']):>7s} 1e-8 {gpu_compare.fmt_ratio(p['vs1_1e-8']):>7s} | "
+                  f"vs best CPU ({best_thr}): 1e-4 {gpu_compare.fmt_ratio(p['vsbest_1e-4']):>7s} "
+                  f"1e-8 {gpu_compare.fmt_ratio(p['vsbest_1e-8']):>7s}  {gpu_compare.status_note(p)}")
 
 if __name__ == "__main__":
     main()

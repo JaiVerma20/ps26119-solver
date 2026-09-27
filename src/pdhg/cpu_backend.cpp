@@ -9,6 +9,7 @@
 #include <cmath>
 #include <type_traits>
 #include <algorithm>
+#include <exception>
 
 #include "pdhg/backend.h"
 
@@ -292,7 +293,16 @@ KktStats kkt_on_original(const ScaledProblem& sp, const std::vector<double>& x, 
 std::unique_ptr<Backend> make_backend(bool use_gpu, std::string& error) {
   if (!use_gpu) return make_cpu_backend();
 #if defined(PS26119_HAVE_CUDA)
-  return make_cuda_backend();
+  // No usable device (no driver, no GPU visible — e.g. inside a container or WSL without the
+  // driver bridge): report it like a build without CUDA (engine → NotSolved with the reason),
+  // not as a numerical failure. Out-of-memory is not caught here: it arrives as std::bad_alloc
+  // from setup() and solve() reports NotSolved "out of memory".
+  try {
+    return make_cuda_backend();
+  } catch (const std::exception& e) {
+    error = std::string("CUDA backend unavailable: ") + e.what();
+    return nullptr;
+  }
 #else
   error = "this build has no CUDA backend (configure with -DPS26119_ENABLE_CUDA=ON on a GPU machine)";
   return nullptr;

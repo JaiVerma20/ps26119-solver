@@ -53,4 +53,13 @@ PresolveResult presolve(const Model& model);
 // objective). Status and statistics are copied; the caller re-checks optimality.
 Solution postsolve(const Model& original, const PresolveResult& r, const Solution& reduced_solution);
 
+// Maps a Farkas vector of `r.reduced` (row multipliers proving it infeasible) to the original
+// rows. Kept rows keep their multiplier; fixed and empty columns need nothing (their terms are
+// identical in both models). A column bound created by a removed singleton row i (a·x_j) is
+// moved onto that row, newest singleton first: if λ_j = −(Aᵀr)_j points at that bound,
+// r_i = λ_j / a, which zeroes the column's term and contributes λ_j·(bound) through the row —
+// the same value as in the reduced L₀. The caller checks the result on the original model.
+std::vector<double> postsolve_farkas(const Model& original, const PresolveResult& r,
+                                     const std::vector<double>& reduced_ray);
+
 }  // namespace ps26119

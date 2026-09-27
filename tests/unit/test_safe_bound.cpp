@@ -114,3 +114,27 @@ TEST(SafeBound, InfiniteBoundsAreReportedNotFaked) {
   EXPECT_EQ(bad.unbounded_col_terms, 1);
   EXPECT_EQ(bad.bound, -kInf);
 }
+
+// Exact reduced costs (expansion arithmetic): an exactly cancelling z_j on a FREE column
+// contributes 0, not −inf (before, any column with terms got a nonzero error interval), and a
+// cancellation that plain doubles get wrong is handled exactly. The final sum is still
+// rounded outward, so the bound is ≤ the true value 0 but within 1e-20 of it.
+TEST(SafeBound, ExactCancellationOnFreeColumns) {
+  // min 0·x + 0·y s.t. x + y = 1 (row 0), x + y = 1 (row 1); x, y free; y = (0.5, -0.5):
+  // z = -(0.5 - 0.5) = 0 exactly -> bound = 0.5·1 + (-0.5)·1 = 0.
+  Model m = test::make_model({0, 0}, {{1, 1}, {1, 1}}, {1, 1}, {1, 1}, {-kInf, -kInf}, {kInf, kInf});
+  SafeBound b = certified_dual_bound(m, {0.5, -0.5});
+  ASSERT_TRUE(b.finite);
+  EXPECT_LE(b.bound, 0.0);  // valid: the final sum is rounded outward
+  EXPECT_GT(b.bound, -1e-20);  // and tight
+  // Coefficients 1e16 and 1: z = 1 - (1e16·1 + 1·1 - 1e16·1) = 0 exactly with y = (1, 1, -1),
+  // although the naive left-to-right double sum 1e16 + 1 - 1e16 gives 0 for the inner part.
+  Model big = test::make_model({1}, {{1e16}, {1}, {1e16}}, {0, 0, 0}, {0, 0, 0}, {-kInf}, {kInf});
+  b = certified_dual_bound(big, {1, 1, -1});
+  ASSERT_TRUE(b.finite);  // free column, z exactly 0
+  EXPECT_LE(b.bound, 0.0);
+  EXPECT_GT(b.bound, -1e-20);
+  // A z that is NOT zero on a free column must still give −inf (never a fake finite bound).
+  b = certified_dual_bound(m, {0.5, -0.4999999999999999});
+  EXPECT_FALSE(b.finite);
+}

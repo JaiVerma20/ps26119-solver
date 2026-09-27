@@ -71,6 +71,7 @@ def machine_info(binary: str | None = None) -> dict:
         "git_hash": git_hash(binary),
         "machine": os.environ.get("PS26119_MACHINE", f"{platform.system()}-{platform.machine()}"),
         "cpu": cpu_name(),
+        "cpu_cores": os.cpu_count() or "",
         "gpu": g["gpu"],
         "driver": g["driver"],
         "cuda": g["cuda"],

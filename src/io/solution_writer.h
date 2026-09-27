@@ -6,6 +6,8 @@
 //   <j> <x_j> <z_j> <name>   %.17g, so values round-trip exactly
 //   ROWS <m>
 //   <i> <activity_i> <y_i> <name>
+//   DUAL_RAY <m> | PRIMAL_RAY <n>      optional certificates (Infeasible / Unbounded),
+//   <index> <value>                    one line per entry (core/certificates.h)
 //   END
 //
 // Duals follow the convention in include/ps26119/solution.h (z = c − Aᵀy, HiGHS signs).

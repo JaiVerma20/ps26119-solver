@@ -57,8 +57,9 @@ typedef struct {
   double seconds;
   char engine[16];
   char message[160];
-  int check;              /* in-process verification of an Optimal LP answer on the original model:
-                             1 PASS, 0 FAIL, -1 not applicable (see Solution::check) */
+  int check;              /* in-process verification on the original model of an Optimal LP answer,
+                             or of the certificate of an Infeasible / Unbounded verdict:
+                             1 PASS, 0 FAIL, -1 not applicable / not certified (Solution::check) */
 } ps26119_result;
 
 /* Library version string, e.g. "0.1.0". */
@@ -75,6 +76,16 @@ int ps26119_solve_lp(int num_rows, int num_cols, int sense, double obj_offset, c
                      const double* row_upper, const int* col_start, const int* row_index,
                      const double* value, const ps26119_options* opt, ps26119_result* result,
                      double* x, double* y, double* z);
+
+/* As ps26119_solve_lp, plus the certificates (both may be NULL): for an Infeasible verdict
+ * dual_ray (num_rows) receives the Farkas row multipliers r, for an Unbounded verdict
+ * primal_ray (num_cols) receives the ray d (x then holds the feasible point it starts from).
+ * They are written only when the engine returned one; result->check says whether it passed. */
+int ps26119_solve_lp_ex(int num_rows, int num_cols, int sense, double obj_offset, const double* c,
+                        const double* col_lower, const double* col_upper, const double* row_lower,
+                        const double* row_upper, const int* col_start, const int* row_index,
+                        const double* value, const ps26119_options* opt, ps26119_result* result,
+                        double* x, double* y, double* z, double* dual_ray, double* primal_ray);
 
 /* Reads an MPS file (free or fixed format) and solves it. When solution_path is non-NULL the
  * solution file (the format tools/verify.py checks) is written there. Read errors return

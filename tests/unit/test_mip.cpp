@@ -5,6 +5,7 @@
 #include <random>
 #include <algorithm>
 
+#include "io/lpm_reader.h"
 #include "mip/branch_and_bound.h"
 #include "model_builder.h"
 #include "ps26119/solve.h"
@@ -199,4 +200,33 @@ TEST(Mip, PresolveRoundsIntegerBoundsInward) {
   Model inf = make_model({1}, {{4}}, {1}, {3}, {0}, {1});  // 0.25 ≤ x ≤ 0.75
   inf.is_integer = {1};
   EXPECT_EQ(solve(inf).status, Status::Infeasible);
+}
+
+TEST(Mip, PseudocostBranchingSolvesGt2WithinANodeBudget) {
+  // MIPLIB 3 gt2 (29 x 188, all integer). With most-fractional branching it was not solved in
+  // 190k nodes / 60 s; pseudocost branching proves the optimum 21166 (HiGHS) in a few thousand.
+  Model m;
+  ASSERT_TRUE(io::read_lpm(std::string(PS26119_SOURCE_DIR) + "/data/mip_small/gt2.lpm", m).ok);
+  Options o;
+  o.iteration_limit = 20000;  // node limit for branch-and-bound
+  const Solution s = solve(m, o);
+  ASSERT_EQ(s.status, Status::Optimal) << s.message;
+  EXPECT_NEAR(s.objective, 21166.0, 1e-6 * 21166.0);
+  EXPECT_LT(s.iterations, 20000);
+}
+
+TEST(Mip, DivingFindsAnIncumbentWhereRoundingFails) {
+  // max x1 + x2 + x3, 2(x1 + x2 + x3) <= 5, x binary. Root LP: two ones and a 0.5; rounding it
+  // gives (1,1,1), infeasible. The dive fixes the integral columns, tries x3 = 1 (infeasible),
+  // flips to x3 = 0 and finds the optimum 2 — within a budget of ONE branch-and-bound node.
+  Model m = make_model({1, 1, 1}, {{2, 2, 2}}, {-kInf}, {5}, {0, 0, 0}, {1, 1, 1});
+  m.sense = -1;
+  m.is_integer = {1, 1, 1};
+  Options o;
+  o.iteration_limit = 1;
+  o.presolve = false;
+  const Solution s = solve(m, o);
+  ASSERT_EQ(s.x.size(), 3u) << to_string(s.status) << ": " << s.message;
+  EXPECT_NEAR(s.objective, 2.0, 1e-9);
+  EXPECT_NE(s.message.find("dives"), std::string::npos) << s.message;
 }

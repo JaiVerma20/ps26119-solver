@@ -47,6 +47,7 @@ set(PS26119_SOURCES
   src/oracle/dense_simplex.cpp
   src/oracle/dense_tableau.cpp
   src/core/solution_checker.cpp
+  src/core/certificates.cpp
   src/la/csr.cpp
   src/la/csc.cpp
   src/la/sparse_lu.cpp

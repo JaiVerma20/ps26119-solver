@@ -23,10 +23,12 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <limits>
 #include <cstdio>
 #include <random>
 #include <string>
 
+#include "core/certificates.h"
 #include "core/solution_checker.h"
 #include "la/sparse_lu.h"
 #include "simplex/simplex_scaling.h"
@@ -90,6 +92,11 @@ class PrimalSimplex {
   // ----------------------------------------------------------- results
   double internal_objective() const;
   Solution finish(Status status, const std::string& note);
+  void attach_certificate(Solution& res);
+  std::vector<double> farkas_ray(bool& passed) const;  // ρ = R y (either sign that passes)
+  std::vector<double> original_point() const;
+  enum class Certificate { kNone, kFarkas, kRay } certificate_ = Certificate::kNone;
+  int unbounded_q_ = -1, unbounded_dir_ = 0;
   double elapsed() const {
     return std::chrono::duration<double>(std::chrono::steady_clock::now() - start_).count();
   }
@@ -506,7 +513,22 @@ Solution PrimalSimplex::run() {
         refactor();
         continue;
       }
-      if (phase1) return finish(Status::Infeasible, "phase 1 cannot reduce the infeasibility");
+      if (phase1) {
+        certificate_ = Certificate::kFarkas;  // y_ holds the phase-1 duals of this basis
+        // Phase 1 stops when no reduced cost is attractive beyond dtol_, so reduced costs of
+        // columns with an infinite bound may still have the wrong sign by up to dtol_; on
+        // ill-conditioned models (d2q06c + objective cut) that leaves the Farkas certificate
+        // outside kVerifyRay. As for optimality below: tighten and keep pivoting, then give up
+        // honestly (the gate reports an uncertified verdict as NumericalError).
+        bool passed = false;
+        farkas_ray(passed);
+        if (!passed && tightenings_ < 4) {
+          dtol_ = std::max(dtol_ * 0.1, 1e-12);
+          ++tightenings_;
+          continue;
+        }
+        return finish(Status::Infeasible, "phase 1 cannot reduce the infeasibility");
+      }
       if (perturbed_) {  // optimal for the perturbed costs: clean up with the true ones
         cost_ = cost_orig_;
         perturbed_ = false;
@@ -559,6 +581,9 @@ Solution PrimalSimplex::run() {
         continue;
       }
       if (phase1) return finish(Status::NumericalError, "unbounded direction in phase 1");
+      unbounded_q_ = q;
+      unbounded_dir_ = dir;
+      certificate_ = Certificate::kRay;  // alpha_ = B⁻¹ a_q of the unbounded direction
       return finish(Status::Unbounded, "");
     }
 
@@ -610,8 +635,61 @@ Solution PrimalSimplex::finish(Status status, const std::string& note) {
     for (int j = 0; j < n_; ++j) res.z[j] = lp_.obj[j] - res.z[j];
     res.objective = lp_.objective_value(res.x);
   }
+  if (status == Status::Infeasible || status == Status::Unbounded) {
+    attach_certificate(res);
+    res.objective = res.dual_objective = std::numeric_limits<double>::quiet_NaN();
+  }
   res.seconds = elapsed();
   return res;
+}
+
+// Current point in original units: nonbasic variables exactly on their original bounds.
+std::vector<double> PrimalSimplex::original_point() const {
+  std::vector<double> x(n_);
+  for (int j = 0; j < n_; ++j) {
+    if (status_[j] == VarStatus::kAtLower) x[j] = lp_.col_lower[j];
+    else if (status_[j] == VarStatus::kAtUpper) x[j] = lp_.col_upper[j];
+    else x[j] = x_[j] * scale_.col[j];
+  }
+  return x;
+}
+
+// Certificates for Infeasible / Unbounded (core/certificates.h), in original units.
+//   Farkas: with y the phase-1 duals (Bᵀy = c_B, c_B = ±1 on the violated basics), ρ = R y
+//     satisfies L₀(ρ) = Σ infeasibilities > 0 (derivation in docs/DECISIONS.md #31). The sign
+//     convention of y is not re-derived here: the candidate that passes the check is kept.
+//   Ray: the entering direction dz_q = dir, dz_B = −dir·α, unscaled column by column, with the
+//     current (phase-2, feasible) point as x.
+std::vector<double> PrimalSimplex::farkas_ray(bool& passed) const {
+  std::vector<double> rho(m_);
+  for (int i = 0; i < m_; ++i) rho[i] = scale_.row[i] * y_[i];
+  passed = check_infeasibility_certificate(lp_, rho).passed;
+  if (!passed) {
+    std::vector<double> neg(rho);
+    for (double& v : neg) v = -v;
+    if (check_infeasibility_certificate(lp_, neg).passed) {
+      rho.swap(neg);
+      passed = true;
+    }
+  }
+  return rho;
+}
+
+void PrimalSimplex::attach_certificate(Solution& res) {
+  if (certificate_ == Certificate::kFarkas && static_cast<int>(y_.size()) == m_) {
+    bool passed = false;
+    res.dual_ray = farkas_ray(passed);
+  } else if (certificate_ == Certificate::kRay && unbounded_q_ >= 0 && static_cast<int>(alpha_.size()) == m_) {
+    std::vector<double> d(n_, 0.0);
+    if (unbounded_q_ < n_) d[unbounded_q_] = unbounded_dir_ * scale_.col[unbounded_q_];
+    for (int i = 0; i < m_; ++i) {
+      const int v = basis_[i];
+      if (v < n_) d[v] = -unbounded_dir_ * alpha_[i] * scale_.col[v];
+    }
+    res.primal_ray = std::move(d);
+    res.x = original_point();
+    res.row_activity = lp_.row_activity(res.x);
+  }
 }
 
 }  // namespace

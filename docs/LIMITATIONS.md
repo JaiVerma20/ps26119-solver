@@ -5,10 +5,19 @@ Status words: **VERIFIED** (tested + benchmarked with a committed CSV), **IMPLEM
 `docs/EVIDENCE.md` (generated from committed CSVs only).
 
 ## GPU
-- The CUDA backend (`src/gpu/cuda_backend.cu`) is **compiled and correctness-tested on NVIDIA
-  hardware** (teammate's laptop, WSL2, 2026-09-27: all GPU end-to-end tests pass — GPU answers equal
-  CPU answers on 10 Netlib LPs × 2 engines × fp64/mixed). **No GPU benchmark CSV exists yet, so no
-  GPU speed claim is made.** `scripts/gpu_check.sh` produces the CSVs; `docs/GPU_VERIFICATION.md`.
+- GPU evidence comes from **one consumer laptop GPU** (RTX 4050 Laptop 6 GB, WSL2, commit
+  `82d376c`, `docs/EVIDENCE.md` §3). Correctness: 40/40 small-Netlib GPU solves verified, fp64 GPU
+  iteration counts equal to the CPU's on every scaling model where both finished. The 1e6-row
+  runs match the known optimum (≤ 1.4e-11) but `verify.py` is skipped at that size.
+- **The CPU baseline in that run is ONE thread.** The multi-core baseline was not measured (the
+  harness now runs 1 thread and all cores; next GPU run). Quote ratios only as "vs one CPU thread".
+- **The GPU is slower on small models**: refinery T=12 (588 rows) 0.02×, 1e4-row random ≈ 0.9–1.0×;
+  it wins from ~1e5 rows (3–4× vs one thread) and on the hourly refinery year (2.6–3.1×).
+- **compute-sanitizer has not run**: under WSL2 (WDDM) it cannot attach ("Device not supported").
+  The kernels are not memcheck/racecheck-verified; needs native Linux (university server).
+- No data-centre GPU (A100/H100) result, so no claim about fp64-rate cards or mixed-precision gain
+  there. On the laptop card mixed precision gave no consistent gain over fp64 to 1e-8 (0.75×–1.14×
+  of the fp64 time; it sometimes needs more iterations).
 - Batched scenarios have no GPU SpMM kernel yet.
 
 ## LP engines
@@ -16,11 +25,13 @@ Status words: **VERIFIED** (tested + benchmarked with a committed CSV), **IMPLEM
   iteration, product-form updates, no hypersparse FTRAN/BTRAN, no Forrest–Tomlin: fine up to
   a few thousand rows, slow beyond ~10⁴ rows (refinery T=365 and rand-10000 in EVIDENCE §2c);
   dfl001 (6,071 rows) is not solved within 60 s. No basis input/output → **no warm start**, no
-  ranging. No infeasibility (Farkas) or unboundedness (ray) certificate is returned; those
-  statuses rest on a fresh-factorization re-check.
+  ranging. Infeasible / Unbounded verdicts carry a Farkas vector / ray that the gate checks on
+  the original model (DECISIONS #31); a verdict whose certificate fails becomes NumericalError.
+  Certificates on free columns are often only tolerance-checked (not rounding-proof).
 - **r²HPDHG / PDLP** (VERIFIED on CPU): first-order accuracy (relative KKT 1e-8, per-row
   checks), not a vertex; **no crossover** yet. Degenerate / badly scaled Netlib models
-  (pilot*, greenbea/b, d2q06c, fit2d) hit the 60 s limit.
+  (pilot*, greenbea/b, d2q06c, fit2d) hit the 60 s limit. Infeasibility detection on "barely"
+  infeasible LPs is much slower than the simplex (EVIDENCE §4e).
 - **Auto** picks by a tuned size rule (rows·nnz ≤ 2·10⁸ → simplex); the full-Netlib `auto`
   result is in-sample for that threshold.
 - A verified answer at the default 1e-6 verifier tolerances bounds the objective error only
@@ -32,9 +43,8 @@ Status words: **VERIFIED** (tested + benchmarked with a committed CSV), **IMPLEM
 
 ## MILP (EXPERIMENTAL / prototype)
 - Branch-and-bound with cold-started sparse simplex node LPs, certified-bound pruning,
-  most-fractional branching, one rounding heuristic. **No cuts, no strong/pseudocost
-  branching, no primal heuristics beyond rounding, no node warm start.** Small MIPLIB 3
-  models only; bell3a/bell5 find no incumbent within the limit.
+  pseudocost branching (most fractional until there is history), rounding and fractional
+  diving heuristics. **No cuts, no strong/reliability branching, no node warm start.** Small MIPLIB 3 models only (EVIDENCE §4d for which are solved).
 - Single-threaded tree.
 
 ## Input / output

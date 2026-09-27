@@ -188,32 +188,38 @@ def scale_section(path):
 
 
 def gpu_vs_cpu(paths):
+    """GPU vs CPU tables; the pairing rules live in bench/gpu_compare.py."""
+    import gpu_compare
     out = []
     for p in paths:
         rows = load(p)
-        gpu_rows = [r for r in rows if r.get("backend") == "gpu"]
-        if not gpu_rows:
+        prs = gpu_compare.pairs(rows)
+        if not prs:
             continue
-        out.append(f"Source: `{p}` — GPU `{rows[0]['gpu']}` (driver {rows[0]['driver']}, CUDA {rows[0]['cuda']}), "
-                   f"commit `{rows[0]['git_hash']}`.\n")
+        g0 = prs[0]["gpu"]
+        out.append(f"Source: `{p}` — GPU `{g0.get('gpu')}` (driver {g0.get('driver')}, CUDA {g0.get('cuda')}), CPU "
+                   f"`{g0.get('cpu')}` ({(g0.get('cpu_cores') + ' cores') if g0.get('cpu_cores') else 'core count not recorded'}), machine `{g0.get('machine')}`, commit "
+                   f"`{g0.get('git_hash')}`. CPU and GPU rows come from the same run.\n")
         body = []
-        for g in gpu_rows:
-            c = next((x for x in rows if x.get("backend") == "cpu" and x["instance"] == g["instance"]
-                      and x["engine"] == g["engine"] and x["precision"] == g["precision"]), None)
-            if not c:
-                continue
-
-            def sp(k):
-                try:
-                    return f"{float(c[k]) / float(g[k]):.2f}×"
-                except (ValueError, KeyError, ZeroDivisionError):
-                    return "–"
-            body.append([g["instance"], g["engine"], g["precision"], fnum(c.get("seconds_to_1e-4")),
-                         fnum(g.get("seconds_to_1e-4")), sp("seconds_to_1e-4"), fnum(c.get("seconds_to_1e-8")),
-                         fnum(g.get("seconds_to_1e-8")), sp("seconds_to_1e-8")])
-        out.append(table(["instance", "engine", "prec", "CPU s→1e-4", "GPU s→1e-4", "speed-up", "CPU s→1e-8",
-                          "GPU s→1e-8", "speed-up"], body))
-        out.append("\nSpeed-up < 1× means the GPU is slower (reported, not hidden).\n")
+        for q in prs:
+            g, c1, b = q["gpu"], q["cpu1"], q["best"]
+            body.append([g["instance"], g["engine"], g["precision"], g.get("status"),
+                         fnum(g.get("seconds_to_1e-4")), fnum(g.get("seconds_to_1e-8")),
+                         fnum(c1.get("seconds_to_1e-8")) if c1 else "–", gpu_compare.fmt_ratio(q["vs1_1e-8"]),
+                         (f"{fnum(b.get('seconds_to_1e-8'))} ({b.get('threads')} thr)" if b else "–"),
+                         gpu_compare.fmt_ratio(q["vsbest_1e-4"]), gpu_compare.fmt_ratio(q["vsbest_1e-8"]),
+                         gpu_compare.status_note(q) or "–"])
+        out.append(table(["instance", "engine", "prec", "GPU status", "GPU s→1e-4", "GPU s→1e-8",
+                          "CPU 1 thr s→1e-8", "ratio vs 1 thr", "best CPU s→1e-8", "ratio vs best 1e-4",
+                          "ratio vs best 1e-8", "not comparable because"], body))
+        out.append("\nRatio = CPU seconds / GPU seconds: < 1× means the GPU is slower (reported, not hidden). "
+                   "Only Optimal, verified runs are compared; the headline number is the ratio against the "
+                   "FASTEST CPU configuration, not against one core.\n")
+        threads = {str(r.get("threads", "1") or "1") for r in rows if r.get("backend") == "cpu"}
+        if threads <= {"1"}:
+            out.append("**Caveat: this run has only 1-thread CPU rows** — the multi-core CPU baseline was NOT "
+                       "measured, so here \"best CPU\" is the single-thread run and every ratio above is against ONE "
+                       "core. These numbers must not be quoted as GPU-vs-CPU speed-ups without that qualifier.\n")
     return "\n".join(out)
 
 
@@ -319,8 +325,12 @@ def main():
 
     doc += ["", "## 3. CPU vs GPU", ""]
     if gpu_scales or net_gpu:
-        g = gpu_vs_cpu(gpu_scales + ([net_gpu] if net_gpu else []))
+        g = gpu_vs_cpu(gpu_scales)
         doc.append(g or "_GPU CSVs present but contain no matched CPU/GPU pairs._")
+        if net_gpu:
+            doc += ["", f"Small Netlib on the GPU (`{net_gpu}`) is a correctness check only (§1, \"Same set on GPU\"): "
+                    "those models have ≤ 180 columns, so wall time is dominated by CUDA start-up and transfers and no "
+                    "speed comparison is made from it."]
         for p in gpu_scales:
             doc += ["", scale_section(p)]
     else:
@@ -402,8 +412,13 @@ def main():
         solved = [r for r in rows if r["status"] == "Optimal" and r["verify"] == "PASS"]
         node = ("dense double-double simplex as node solver" if r0["git_hash"] == "0935157" else
                 "sparse primal simplex as node solver, pruning by certified dual bounds (DECISIONS #28)")
+        def has(commit):  # is `commit` an ancestor of the CSV's commit?
+            return subprocess.run(["git", "merge-base", "--is-ancestor", commit, r0["git_hash"].replace("-dirty", "")],
+                                  cwd=ROOT, capture_output=True).returncode == 0
+        rule = ("pseudocost branching, rounding + fractional diving heuristics (DECISIONS #32)"
+                if has("98a62d2") else "most-fractional branching, rounding heuristic")
         doc += [f"Source: `{p}` — `{r0['machine']}`, commit `{r0['git_hash']}`, time limit per model in the CSV. "
-                f"Prototype: {node}, depth-first then best-bound, most-fractional branching, no cuts. "
+                f"Prototype: {node}, depth-first then best-bound, {rule}, no cuts. "
                 f"**{len(solved)} of {len(rows)}** solved to proven optimality within the limit, each verified "
                 "(feasibility + integrality) and equal to the HiGHS optimum.", "",
                 table(["instance", "rows", "cols", "int", "status", "objective", "HiGHS", "gap", "s", "verify"],
@@ -412,10 +427,51 @@ def main():
     else:
         doc.append("_No committed MIPLIB CSV yet._")
 
+    doc += ["", "## 4e. Certified infeasibility: Netlib LPs + an objective cut", ""]
+    cuts = sorted((p for p in paths if os.path.basename(p).startswith("infeasible-cut-")),
+                  key=lambda p: (load(p)[0]["engine"], commit_date(p)))
+    if cuts:
+        doc += ["Each Netlib LP with a known optimum f* gets one extra row cᵀx ≤ f* − offset − δ (≥ for max), "
+                "δ = 1e-4 (1 + |f*|): infeasible by LP duality, and the Farkas certificate is essentially the "
+                "optimal dual (`bench/netlib_infeasible_cut.py`). **Certified** = status Infeasible + in-process "
+                "gate PASS + `tools/verify.py` PASS with its own reader. *Exact rational* = verify.py proved "
+                "L₀(r) > 0 in rational arithmetic; *rounding-proof* = the C++ gate's directed-rounding bound "
+                "proved it; otherwise the documented tolerance test (violation ≤ 1e-8·L₀) passed.", ""]
+        body = []
+        for p in cuts:
+            rows = load(p)
+            cert = [r for r in rows if r["status"] == "Infeasible" and r["check"] == "PASS" and r["verify"] == "PASS"]
+            exact = sum("exact rational" in r["certificate"] for r in cert)
+            proof = (sum(r["gate_certificate"] == "rounding-proof" for r in cert) if "gate_certificate" in rows[0]
+                     else "not recorded")  # older CSVs: the (truncated) message may miss it
+            other = [f"{r['instance']} ({r['status']})" for r in rows if r not in cert]
+            body.append([rows[0]["engine"], f"`{rows[0]['git_hash']}`", f"**{len(cert)}/{len(rows)}**", exact, proof,
+                         fnum(sum(float(r["seconds"] or 0) for r in cert)), rows[0]["time_limit"],
+                         ", ".join(other) or "–", f"`{os.path.basename(p)}`"])
+        agree = [(sum((r["gate_certificate"] == "rounding-proof") == ("exact rational" in r["certificate"]) for r in c), len(c))
+                 for c in ([r for r in load(p) if r["status"] == "Infeasible" and r["check"] == "PASS" and r["verify"] == "PASS"]
+                           for p in cuts if "gate_certificate" in load(p)[0])]
+        doc += [table(["engine", "commit", "certified", "exact rational (verify.py)", "rounding-proof (gate)",
+                       "total s (certified)", "limit s", "not certified", "source"], body), "",
+                "Rows of the same engine are in commit order, so a later row shows the effect of the changes "
+                "in between (docs/DECISIONS.md #31)."]
+        if agree:
+            doc += ["", f"The two independent rigour checks — the C++ gate's directed-rounding bound and verify.py's "
+                    f"exact rational arithmetic (different code, different reader) — agree on which certificates are "
+                    f"rigorous for {sum(a for a, _ in agree)} of {sum(n for _, n in agree)} certified rows (CSVs with "
+                    "a `gate_certificate` column)."]
+    else:
+        doc.append("_No committed infeasibility CSV yet._")
+
     doc += ["", "## 5. What we do NOT do yet (honest list)", "",
-            "- **No GPU number is claimed** unless a GPU CSV appears in §3. The CUDA backend is compiled "
-            "and correctness-tested on an NVIDIA laptop GPU (2026-09-27: GPU answers equal CPU answers on the "
-            "small Netlib set), but no GPU benchmark CSV has been committed yet.",
+            ("- **GPU evidence is one consumer laptop GPU** (§3: " + ", ".join(sorted({load(p)[0].get("gpu", "?")
+             for p in gpu_scales})) + "). CPU baselines in that run are single-thread only (multi-core "
+             "baseline not measured); on small models the GPU is slower than the CPU (ratios < 1× in §3); "
+             "compute-sanitizer could not run under WSL2, so the kernels have NOT been memcheck/racecheck-clean "
+             "verified; no data-centre GPU (A100/H100) result yet."
+             if gpu_scales else
+             "- **No GPU number is claimed** unless a GPU CSV appears in §3. The CUDA backend is compiled "
+             "and correctness-tested on an NVIDIA laptop GPU, but no GPU benchmark CSV has been committed yet."),
             "- **No crossover** from a first-order solution to a vertex, and **no simplex warm start / dual "
             "simplex** yet (the integrated primal simplex starts from the slack basis every time). First-order "
             "solutions are accurate to the stated tolerance but are not vertices.",
@@ -424,7 +480,7 @@ def main():
             "- Presolve is basic (empty rows, fixed/empty columns, singleton rows) — no doubleton/dominated-column "
             "reductions.",
             "- **MILP is a prototype** (§4d): branch-and-bound with cold-started sparse simplex node LPs, "
-            "most-fractional branching, a rounding heuristic, **no cuts**, no strong branching. **No QP** yet.",
+            "pseudocost branching, rounding + diving heuristics, **no cuts**, no strong branching, no node warm start. **No QP** yet.",
             "- **Generated instances**: the refinery LP has refinery structure, but its prices and inequality "
             "right-hand sides come from the KKT construction (synthetic), not from plant data; random LPs of this "
             "kind are friendly to first-order methods. Mittelmann large models are the next evidence step.",

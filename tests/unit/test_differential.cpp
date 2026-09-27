@@ -76,6 +76,9 @@ randlp::RandomLp random_real_lp(std::mt19937& rng, int max_rows, int max_cols, d
 
 struct Tally {
   int optimal = 0, infeasible = 0, unbounded = 0, mismatches = 0, pdhg_limits = 0;
+  // Infeasible / Unbounded verdicts of the simplex and r2hpdhg and how many carried a
+  // certificate that passed the gate (core/certificates.h).
+  int claims_simplex = 0, certified_simplex = 0, claims_pdhg = 0, certified_pdhg = 0;
 };
 
 void run(const char* label, int trials, unsigned seed, bool real, int max_rows, int max_cols, double density) {
@@ -131,13 +134,27 @@ void run(const char* label, int trials, unsigned seed, bool real, int max_rows, 
       ++t.mismatches;
       ADD_FAILURE() << label << " trial " << trial << ": all-boxed model reported Unbounded";
     }
+    for (const Solution* e : {&sx, &sxp}) {
+      if (e->status == Status::Infeasible || e->status == Status::Unbounded) {
+        ++t.claims_simplex;
+        if (e->check == "PASS") ++t.certified_simplex;
+      }
+    }
+    if (pd.status == Status::Infeasible || pd.status == Status::Unbounded) {
+      ++t.claims_pdhg;
+      if (pd.check == "PASS") ++t.certified_pdhg;
+    }
     if (dd.status == Status::Optimal) ++t.optimal;
     if (dd.status == Status::Infeasible) ++t.infeasible;
     if (dd.status == Status::Unbounded) ++t.unbounded;
   }
   std::printf("  %-34s %d LPs: %d optimal, %d infeasible, %d unbounded, %d mismatches, %d PDHG limits\n", label,
               trials, t.optimal, t.infeasible, t.unbounded, t.mismatches, t.pdhg_limits);
+  std::printf("  %-34s certified infeasible/unbounded verdicts: simplex %d/%d, r2hpdhg %d/%d\n", "", t.certified_simplex,
+              t.claims_simplex, t.certified_pdhg, t.claims_pdhg);
   EXPECT_EQ(t.mismatches, 0);
+  EXPECT_EQ(t.certified_simplex, t.claims_simplex);  // every Infeasible / Unbounded verdict is certified
+  EXPECT_EQ(t.certified_pdhg, t.claims_pdhg);
   EXPECT_GT(t.optimal, trials / 5);                // a meaningful mix of outcomes
   EXPECT_LE(t.pdhg_limits, t.optimal / 50 + 1);    // first-order limits must stay rare on these sizes
 }

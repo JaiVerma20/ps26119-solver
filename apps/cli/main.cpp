@@ -231,9 +231,15 @@ int cmd_solve(int argc, char** argv) {
   std::printf("engine     %s (%s)\n", sol.engine.c_str(), sol.precision.c_str());
   std::printf("objective  %.12g\n", sol.objective);
   std::printf("residuals  primal %.2e  dual %.2e  gap %.2e\n", sol.primal_residual, sol.dual_residual, sol.gap);
-  if (!sol.check.empty())
+  const bool claim = sol.status == Status::Infeasible || sol.status == Status::Unbounded;
+  if (claim) {
+    std::printf("check      %s\n", sol.check.empty() ? "NOT CERTIFIED (no certificate)"
+                                                     : (sol.check + "  (" + (sol.status == Status::Infeasible ? "Farkas" : "ray") +
+                                                        " certificate verified on the original model)").c_str());
+  } else if (!sol.check.empty()) {
     std::printf("check      %s  (in-process, original model: primal %.1e  dual %.1e  gap %.1e)\n", sol.check.c_str(),
                 sol.check_primal, sol.check_dual, sol.check_gap);
+  }
   if (sol.certified_bound == sol.certified_bound)
     std::printf("certified  %s %.12g  (rounding-proof %s bound from y)\n", model.sense > 0 ? "optimum >=" : "optimum <=",
                 sol.certified_bound, model.sense > 0 ? "lower" : "upper");

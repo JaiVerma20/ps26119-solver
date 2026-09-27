@@ -3,7 +3,10 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <cstdio>
+#include <random>
 
+#include "core/certificates.h"
 #include "core/presolve.h"
 #include "io/lpm_reader.h"
 #include "kkt_check.h"
@@ -90,5 +93,127 @@ TEST(Presolve, SmallNetlibSameOptimumAndOriginalKkt) {
       EXPECT_LE(k.dual, 1e-6);
       EXPECT_LE(k.gap, 1e-6);
     }
+  }
+}
+
+TEST(Presolve, FollowUpSolvesShareTheCallersBudget) {
+  // x_i + x_{i+1} >= 2 (cyclic, i < 10) and sum x_i + z <= 7 with z fixed at 2: infeasible (the
+  // pair rows need sum x >= 10), not visible to presolve's row tests, and phase 1 needs several
+  // pivots. Presolve removes z (Reduced), the reduced solve finds infeasibility and the original
+  // is re-solved for a certificate. That re-solve must get only the iterations the reduced solve
+  // left: the TOTAL never exceeds the caller's limit (it used to be up to twice the limit).
+  const int k = 10;
+  std::vector<std::vector<double>> rows(k + 1, std::vector<double>(k + 1, 0.0));
+  std::vector<double> rl(k + 1, 2.0), ru(k + 1, kInf);
+  for (int i = 0; i < k; ++i) rows[i][i] = rows[i][(i + 1) % k] = 1.0;
+  for (int j = 0; j <= k; ++j) rows[k][j] = 1.0;
+  rl[k] = -kInf;
+  ru[k] = 7.0;
+  std::vector<double> c(k + 1, 1.0), cl(k + 1, 0.0), cu(k + 1, kInf);
+  c[k] = 0.0;
+  cl[k] = cu[k] = 2.0;
+  const Model m = make_model(c, rows, rl, ru, cl, cu);
+  ASSERT_EQ(presolve(m).outcome, PresolveResult::Outcome::Reduced);
+  bool saw_limit = false, saw_certified = false;
+  for (std::int64_t n = 0; n <= 40; ++n) {
+    Options o;
+    o.algorithm = Algorithm::Simplex;
+    o.iteration_limit = n;
+    const Solution s = solve(m, o);
+    EXPECT_LE(s.iterations, n) << "limit " << n << ": " << s.message;
+    ASSERT_TRUE(s.status == Status::Infeasible || s.status == Status::IterationLimit) << to_string(s.status);
+    if (s.status == Status::Infeasible) {
+      EXPECT_EQ(s.check, "PASS") << s.message;
+      saw_certified = true;
+    } else {
+      saw_limit = true;
+    }
+  }
+  EXPECT_TRUE(saw_limit);
+  EXPECT_TRUE(saw_certified);
+}
+
+TEST(Presolve, FarkasPostsolveMovesSingletonBoundsOntoTheirRows) {
+  // r0: x <= 1 (singleton row -> bound x <= 1), r1: x + y + w >= 5 with y in [0, 1] and w fixed
+  // at 2. Presolve removes r0 and w; the reduced model x, y in [0, 1], x + y >= 3 is infeasible
+  // with r = 1, whose λ_x = -1 points at the bound that r0 created.
+  const Model m = make_model({0, 0, 0}, {{1, 0, 0}, {1, 1, 1}}, {-kInf, 5}, {1, kInf}, {0, 0, 2}, {kInf, 1, 2});
+  const PresolveResult pr = presolve(m);
+  ASSERT_EQ(pr.outcome, PresolveResult::Outcome::Reduced);
+  ASSERT_EQ(pr.reduced.num_rows, 1);
+  const std::vector<double> ray = postsolve_farkas(m, pr, {1.0});  // reduced: r = 1 on x + y >= 3
+  ASSERT_EQ(ray.size(), 2u);
+  EXPECT_DOUBLE_EQ(ray[1], 1.0);
+  EXPECT_DOUBLE_EQ(ray[0], -1.0);  // λ_x = -1 pointed at the bound x <= 1 created by r0
+  const CertificateCheck c = check_infeasibility_certificate(m, ray);
+  EXPECT_TRUE(c.passed) << c.detail;
+  EXPECT_TRUE(c.rigorous) << c.detail;
+  // end to end: no re-solve of the original, certificate verified there
+  Options o;
+  o.algorithm = Algorithm::Simplex;
+  const Solution s = solve(m, o);
+  EXPECT_EQ(s.status, Status::Infeasible);
+  EXPECT_EQ(s.check, "PASS") << s.message;
+  EXPECT_NE(s.message.find("postsolved to the original rows"), std::string::npos) << s.message;
+}
+
+TEST(Presolve, FarkasPostsolveKeepsEveryReducedCertificateValid) {
+  // Random infeasible LPs with singleton rows and fixed columns: whenever the reduced model's
+  // Farkas vector passes on the REDUCED model, its postsolved image must pass on the ORIGINAL.
+  std::mt19937 rng(5);
+  std::uniform_real_distribution<double> U(-1.0, 1.0);
+  int checked = 0;
+  for (int trial = 0; trial < 600; ++trial) {
+    const int m = 3 + trial % 4, n = 3 + (trial / 4) % 4;
+    std::vector<std::vector<double>> rows(m, std::vector<double>(n, 0.0));
+    std::vector<double> rl(m), ru(m), cl(n), cu(n);
+    for (int i = 0; i < m; ++i) {
+      if (i < 2) {  // singleton rows
+        rows[i][rng() % n] = std::round(U(rng) * 16) / 4 + (rng() % 2 ? 0.5 : -0.5);
+      } else {
+        for (double& v : rows[i]) v = (rng() % 3 == 0) ? 0.0 : std::round(U(rng) * 16) / 4;
+      }
+      const int kind = rng() % 3;
+      const double b = std::round(U(rng) * 12) / 4;
+      rl[i] = kind == 1 ? -kInf : b;
+      ru[i] = kind == 0 ? kInf : kind == 1 ? b : b + 1;
+    }
+    for (int j = 0; j < n; ++j) {
+      const int kind = rng() % 4;
+      cl[j] = kind == 2 ? -kInf : 0.0;
+      cu[j] = kind == 0 ? 2.0 : kind == 3 ? 0.0 : kInf;  // kind 3: fixed at 0
+    }
+    const Model model = make_model(std::vector<double>(n, 0.0), rows, rl, ru, cl, cu);
+    const PresolveResult pr = presolve(model);
+    if (pr.outcome != PresolveResult::Outcome::Reduced) continue;
+    Options o;
+    o.algorithm = Algorithm::Simplex;
+    o.presolve = false;
+    const Solution red = solve(pr.reduced, o);
+    if (red.status != Status::Infeasible || red.check != "PASS") continue;
+    ++checked;
+    const CertificateCheck c = check_infeasibility_certificate(model, postsolve_farkas(model, pr, red.dual_ray));
+    EXPECT_TRUE(c.passed) << "trial " << trial << ": " << c.detail;
+  }
+  EXPECT_GE(checked, 30);
+  std::printf("reduced certificates postsolved and re-checked: %d\n", checked);
+}
+
+TEST(Presolve, UnboundedRayAndPointArePostsolved) {
+  // min -x - y with r0: y <= 3 (singleton -> bound), r1: x - y + w >= 0, w fixed at 1: unbounded
+  // along x. Presolve removes r0 and w; the reduced ray and point are mapped back and verified
+  // on the original model without re-solving it.
+  const Model m = make_model({-1, -1, 0}, {{0, 1, 0}, {1, -1, 1}}, {-kInf, 0}, {3, kInf}, {0, 0, 1}, {kInf, kInf, 1});
+  ASSERT_EQ(presolve(m).outcome, PresolveResult::Outcome::Reduced);
+  for (Algorithm a : {Algorithm::Simplex, Algorithm::R2hpdhg}) {
+    SCOPED_TRACE(to_string(a));
+    Options o;
+    o.algorithm = a;
+    const Solution s = solve(m, o);
+    ASSERT_EQ(s.status, Status::Unbounded) << s.message;
+    EXPECT_EQ(s.check, "PASS") << s.message;
+    ASSERT_EQ(s.primal_ray.size(), 3u);
+    EXPECT_EQ(s.primal_ray[2], 0.0);  // the fixed column does not move
+    EXPECT_NE(s.message.find("ray and point postsolved"), std::string::npos) << s.message;
   }
 }

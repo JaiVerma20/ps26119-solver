@@ -119,3 +119,28 @@ TEST(SolutionFile, WriteReadRoundTrip) {
   EXPECT_DOUBLE_EQ(r.objective, 1.75);
   std::remove(path.c_str());
 }
+
+TEST(SolutionFile, CertificatesRoundTrip) {
+  Model m = test::make_model({1, 2}, {{1, 1}}, {1}, {kInf}, {0, 0}, {kInf, kInf});
+  Solution s;
+  s.status = Status::Infeasible;
+  s.dual_ray = {-1.0 / 3.0};
+  s.engine = "test";
+  const std::string path = testing::TempDir() + "cert.sol";
+  std::string err;
+  ASSERT_TRUE(io::write_solution(path, m, s, err)) << err;
+  Solution r;
+  ASSERT_TRUE(io::read_solution(path, r, err)) << err;
+  EXPECT_EQ(r.status, Status::Infeasible);
+  EXPECT_EQ(r.dual_ray, s.dual_ray);
+  EXPECT_TRUE(r.primal_ray.empty());
+  s.status = Status::Unbounded;
+  s.dual_ray.clear();
+  s.x = {0.5, 0.5};
+  s.primal_ray = {1e-300, -2.5};
+  ASSERT_TRUE(io::write_solution(path, m, s, err)) << err;
+  ASSERT_TRUE(io::read_solution(path, r, err)) << err;
+  EXPECT_EQ(r.primal_ray, s.primal_ray);
+  EXPECT_EQ(r.x, s.x);
+  std::remove(path.c_str());
+}

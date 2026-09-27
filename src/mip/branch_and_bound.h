@@ -14,7 +14,9 @@
 //   * prune a node if its LP is infeasible or its bound ≥ incumbent − gap tolerance;
 //   * if the LP solution is integral (|x_j − round(x_j)| ≤ kMipIntegrality for integer j),
 //     it is a new incumbent (x_j rounded exactly for integer j, re-checked for feasibility);
-//   * else branch on the most fractional integer column: x_j ≤ ⌊v⌋ and x_j ≥ ⌈v⌉;
+//   * else branch on the fractional integer column with the best pseudocost product score
+//     (learned per column and direction; most fractional while there is no history):
+//     x_j ≤ ⌊v⌋ and x_j ≥ ⌈v⌉;
 //   * node order: depth-first until the first incumbent, then best-bound;
 //   * a simple rounding heuristic at every node tries to produce incumbents early.
 // Status: Optimal when (incumbent − best bound) ≤ max(abs, rel·|incumbent|) with the

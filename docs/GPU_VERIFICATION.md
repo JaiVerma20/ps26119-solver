@@ -8,7 +8,8 @@ verified on NVIDIA hardware by the GPU machines.
 | Date | Machine | What ran | Result |
 |---|---|---|---|
 | 2026-09-27 | teammate's NVIDIA laptop, WSL2 Ubuntu (commit `82d376c`) | full `ctest` of a CUDA build | **A1–A3 pass** (nvcc build, link). 167/168 tests pass: **C1 pass** (`Gpu.EnginesMatchCpuOnSmallNetlib`: PDLP + r²HPDHG × fp64 + mixed × 10 Netlib LPs, all Optimal, equal to CPU within 1e-6, verifier-grade KKT), **B2 pass** (`Gpu.LongRowKernelMatchesCpu`), **B1/B3–B5 vectors pass** (fp64 1e-12, fp32 1e-4). `Gpu.BackendOpsMatchCpu` failed only on its mixed-precision KKT comparisons (≤ 1.6e-6 relative, compared at an fp64 tolerance of 1e-9) — a test bug, fixed by a precision-aware tolerance. |
-| pending | same | `scripts/gpu_check.sh` (compute-sanitizer, GPU CSVs: small Netlib, scaling, refinery) | needed before any GPU speed claim (D1–D6), plus C2–C4 |
+| 2026-09-27 | same (commit `82d376c`, PR #5) | full `scripts/gpu_check.sh` | GPU CSVs committed: small Netlib 40/40 verified (C3); scaling + refinery **D1–D4 measured against ONE CPU thread only** (`docs/EVIDENCE.md` §3); GPU loses below ~1e4 rows (D4). **compute-sanitizer did not run**: WSL2 cannot attach ("Failed to initialize WDDM debugger interface" / "Device not supported") — kernels NOT sanitizer-verified. D5, D6 open. |
+| pending | native Linux GPU (university server) | `scripts/gpu_check.sh` on the current `main` (1-thread + all-core CPU baseline) | compute-sanitizer memcheck/racecheck; multi-core baseline; data-centre fp64 (D5) |
 
 Command: `PS26119_MACHINE=<name> scripts/gpu_check.sh` (add `QUICK=1` for the first try).
 
@@ -35,6 +36,10 @@ The script puts its Python tools (cmake, ninja, highspy, numpy, scipy, matplotli
 private venv `.venv-gpu/` (Ubuntu refuses `pip install --user`), keeps going after test
 failures to collect every log, and runs `compute-sanitizer` (memcheck + racecheck) on the GPU
 tests when the toolkit provides it; its logs go to `bench/results/logs/`.
+
+Before a GPU run, `tools/check_cuda_syntax.sh` type-checks `src/gpu/*.cu` on any machine with
+clang (host and device passes, stub header in `tools/cuda_stub/`; CI runs it). It catches compile
+errors early but proves nothing about nvcc or the hardware.
 
 ## A. Build (step "configure + build" in gpu_check.sh)
 | # | Check | Why it can fail | Pass criterion |
@@ -72,7 +77,7 @@ fp64 and mixed): 20 reflected-Halpern steps, then primal/dual steps, axpby, dot,
 | D3 | refinery LP T = 12 / 365 / 8760 on GPU (hourly year: 429k rows, 517k cols) | same |
 | D4 | the crossover size where the GPU starts to win (expected: GPU LOSES on small models — must be reported) | GPU-vs-CPU summary printed by `scale.py` |
 | D5 | mixed precision gain on a consumer card (fp64 is 1/32–1/64 rate on GeForce) vs a datacentre card | laptop vs university CSVs |
-| D6 | GPU memory headroom for 1e6 rows (fp64 + fp32 copies of Ã, Ãᵀ, original A) | `nvidia-smi` during the run; OOM → NotSolved "out of memory" (never a crash) |
+| D6 | GPU memory headroom for 1e6 rows (fp64 + fp32 copies of Ã, Ãᵀ, original A) | `nvidia-smi` during the run; OOM → NotSolved "out of memory" (never a crash): `cudaErrorMemoryAllocation` is turned into `std::bad_alloc` (since 2026-09-27); try a model larger than the card's memory and check the status line |
 
 ## E. Known design limits to look at once real numbers exist
 - Kernel launch overhead: ~6 launches per iteration, no CUDA Graphs yet (cuPDLPx uses

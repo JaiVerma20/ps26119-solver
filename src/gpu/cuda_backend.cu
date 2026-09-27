@@ -27,6 +27,7 @@
 #include <cmath>
 #include <cstdint>
 #include <memory>
+#include <new>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -69,8 +70,16 @@ class DevBuf {
 
   void alloc(std::size_t n) {
     release();
+    if (n) {
+      const cudaError_t e = cudaMalloc(&p_, n * sizeof(T));
+      if (e == cudaErrorMemoryAllocation) {
+        (void)cudaGetLastError();  // clear it (not sticky): the caller gets a clean NotSolved
+        p_ = nullptr;
+        throw std::bad_alloc();  // solve() reports NotSolved "out of memory", not NumericalError
+      }
+      PS_CUDA_CHECK(e);
+    }
     n_ = n;
-    if (n) PS_CUDA_CHECK(cudaMalloc(&p_, n * sizeof(T)));
   }
   void upload(const T* h, std::size_t n) {
     if (n != n_) alloc(n);

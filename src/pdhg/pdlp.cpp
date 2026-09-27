@@ -80,7 +80,16 @@ Solution solve_pdlp(const Model& model, const EngineOptions& opt) {
       b.axpby(1.0, x, -1.0, xn);  // xn ← x − xn   (xn is overwritten next step anyway)
       b.axpby(1.0, y, -1.0, yn);
       std::string why;
-      const Status st = ctx.check_infeasibility(xn, yn, kc, why);
+      Status st = ctx.check_infeasibility(xn, yn, kc, why);
+      if (st == Status::NotSolved && inner >= K && (it / K) % 4 == 0) {
+        // Second candidate, as in r2hpdhg.cpp: the drift z − z0 since the restart anchor.
+        b.copy(xn, x);
+        b.axpby(-1.0, x0, 1.0, xn);
+        b.copy(yn, y);
+        b.axpby(-1.0, y0, 1.0, yn);
+        st = ctx.check_infeasibility(xn, yn, kc, why);
+        if (st != Status::NotSolved) why += " (drift since the restart anchor)";
+      }
       if (st != Status::NotSolved) return ctx.finish(st, x, y, it, why);
     }
 

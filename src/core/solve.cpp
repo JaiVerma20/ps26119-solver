@@ -7,10 +7,12 @@
 #include <cmath>
 #include <cstdio>
 #include <exception>
+#include <limits>
 #include <new>
 
 #include "ps26119/solve.h"
 
+#include "core/certificates.h"
 #include "core/gate.h"
 #include "core/presolve.h"
 #include "core/safe_bound.h"
@@ -90,7 +92,32 @@ namespace core {
 // verifier-grade accuracy are demoted to NumericalError when the check fails. MILP answers
 // are verified by the branch-and-bound / presolve safety net instead (integrality, rows).
 void gate(const Model& model, const Options& options, Solution& s) {
-  if (s.status != Status::Optimal || treat_as_mip(model, options)) return;
+  if (treat_as_mip(model, options)) return;
+  if (s.status == Status::Infeasible || s.status == Status::Unbounded) {
+    // Claims other than Optimal are verified too (core/certificates.h).
+    s.objective = s.dual_objective = std::numeric_limits<double>::quiet_NaN();
+    auto note = [&](const std::string& t) { s.message += std::string(s.message.empty() ? "" : "; ") + t; };
+    if (s.status == Status::Infeasible && !model.crossed_bounds().empty()) {
+      s.check = "PASS";  // the certificate is the crossing itself, re-derived from the model
+      return;
+    }
+    const CertificateCheck c = s.status == Status::Infeasible
+                                   ? check_infeasibility_certificate(model, s.dual_ray)
+                                   : check_unboundedness_certificate(model, s.x, s.primal_ray);
+    if (!c.present) {
+      s.check.clear();
+      note("not certified (the engine returned no certificate)");
+    } else if (c.passed) {
+      s.check = "PASS";
+      note(c.detail);
+    } else {
+      s.check = "FAIL";
+      note(std::string(to_string(s.status)) + " withdrawn, " + c.detail);
+      s.status = Status::NumericalError;
+    }
+    return;
+  }
+  if (s.status != Status::Optimal) return;
   if (static_cast<int>(s.x.size()) != model.num_cols || static_cast<int>(s.y.size()) != model.num_rows) {
     s.status = Status::NumericalError;
     s.message += std::string(s.message.empty() ? "" : "; ") + "engine reported Optimal without primal and dual vectors";
@@ -172,6 +199,34 @@ Solution solve_impl(const Model& model, const Options& options) {
     // reduced objective (without offsets) = original − Σ c_j x_fixed; shift back, min form
     inner.kkt_obj_shift = model.sense * (pr.reduced.obj_offset - model.obj_offset);
   }
+  const bool lp_model = !(has_integers(model) && !options.relax_integrality);
+  // Certificates must be in the ORIGINAL model's space (the gate checks them there), and a
+  // presolve infeasibility verdict carries none: for an LP, re-derive Infeasible / Unbounded
+  // by solving the original directly (rare, so the extra cost is small; it also cross-checks
+  // presolve's own verdict).
+  // Every follow-up solve (original-space re-solve, polish, fallback) gets only what is LEFT of
+  // the caller's time and iteration budgets, so --time-limit / --iteration-limit bound the whole
+  // call, not each internal solve.
+  auto elapsed = [&] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(); };
+  auto budget = [&](Options o, std::int64_t used_iterations) {
+    o.time_limit = std::max(0.0, options.time_limit - elapsed());
+    o.iteration_limit = std::max<std::int64_t>(0, options.iteration_limit - used_iterations);
+    return o;
+  };
+  auto on_original = [&](const Solution& why, const std::string& what) {
+    Options direct = budget(options, why.iterations);
+    direct.presolve = false;
+    Solution d = solve_direct(model, direct);
+    d.iterations += why.iterations;
+    d.seconds = elapsed();
+    d.message += std::string(d.message.empty() ? "" : "; ") + "presolve: " + what +
+                 "; re-solved the original model for an original-space certificate";
+    return d;
+  };
+  if (pr.outcome == PresolveResult::Outcome::Infeasible && lp_model) {
+    Solution none;
+    return on_original(none, "reduction found infeasibility (" + pr.message + ")");
+  }
   if (pr.outcome == PresolveResult::Outcome::Infeasible) {
     Solution s;
     s.status = Status::Infeasible;
@@ -194,8 +249,53 @@ Solution solve_impl(const Model& model, const Options& options) {
     red.status = Status::Optimal;
     red.engine = "presolve";
   } else {
-    red = solve_direct(pr.reduced, inner);
+    red = solve_direct(pr.reduced, budget(inner, 0));
   }
+  if (lp_model && red.status == Status::Infeasible && static_cast<int>(red.dual_ray.size()) == pr.reduced.num_rows) {
+    // Cheaper than a re-solve: map the reduced model's Farkas vector to the original rows
+    // (postsolve_farkas: exact for presolve's reductions) and check it on the ORIGINAL model;
+    // only if that fails is the original re-solved.
+    std::vector<double> r = postsolve_farkas(model, pr, red.dual_ray);
+    if (!r.empty() && check_infeasibility_certificate(model, r).passed) {
+      Solution s = red;
+      s.x.clear();
+      s.y.clear();
+      s.z.clear();
+      s.row_activity.clear();
+      s.dual_ray = std::move(r);
+      s.message += std::string(s.message.empty() ? "" : "; ") + "presolve removed " +
+                   std::to_string(pr.removed_rows) + " rows, " + std::to_string(pr.removed_cols) +
+                   " cols; reduced-model Farkas certificate postsolved to the original rows";
+      s.model_fingerprint = model.fingerprint_hex();
+      s.seconds = elapsed();
+      return s;
+    }
+  }
+  if (lp_model && red.status == Status::Unbounded && static_cast<int>(red.primal_ray.size()) == pr.reduced.num_cols &&
+      static_cast<int>(red.x.size()) == pr.reduced.num_cols) {
+    // Same for a primal ray: fixed columns get d = 0, kept columns keep d_j (a bound that a
+    // removed singleton row created is a reduced column bound, which the ray already respects,
+    // so the row stays satisfied along it); the point is the ordinary primal postsolve.
+    std::vector<double> d(model.num_cols, 0.0);
+    for (int j = 0; j < pr.reduced.num_cols; ++j) d[pr.col_map[j]] = red.primal_ray[j];
+    Solution s = postsolve(model, pr, red);
+    if (check_unboundedness_certificate(model, s.x, d).passed) {
+      s.status = Status::Unbounded;
+      s.primal_ray = std::move(d);
+      s.dual_ray.clear();
+      s.y.clear();
+      s.z.clear();
+      s.objective = s.dual_objective = std::numeric_limits<double>::quiet_NaN();
+      s.message += std::string(s.message.empty() ? "" : "; ") + "presolve removed " +
+                   std::to_string(pr.removed_rows) + " rows, " + std::to_string(pr.removed_cols) +
+                   " cols; reduced-model ray and point postsolved to the original model";
+      s.model_fingerprint = model.fingerprint_hex();
+      s.seconds = elapsed();
+      return s;
+    }
+  }
+  if (lp_model && (red.status == Status::Infeasible || red.status == Status::Unbounded))
+    return on_original(red, std::string("reduced model ") + to_string(red.status));
   Solution post = postsolve(model, pr, red);
   const std::string note = "presolve removed " + std::to_string(pr.removed_rows) + " rows, " +
                            std::to_string(pr.removed_cols) + " cols";
@@ -237,7 +337,7 @@ Solution solve_impl(const Model& model, const Options& options) {
     tight.tolerance = std::max(options.tolerance * 1e-2, 1e-13);
     tight.warm_x = red.x;
     tight.warm_y = red.y;
-    const Solution red2 = solve_direct(pr.reduced, tight);
+    const Solution red2 = solve_direct(pr.reduced, budget(tight, red.iterations));
     Solution post2 = postsolve(model, pr, red2);
     post2.iterations += red.iterations;
     if (post2.status == Status::Optimal && passes(post2)) {
@@ -246,7 +346,7 @@ Solution solve_impl(const Model& model, const Options& options) {
       post2.message = note + "; reduced model re-solved to " + buf + " to pass on the original";
       post = post2;
     } else {
-      Solution cold = solve_direct(model, inner);
+      Solution cold = solve_direct(model, budget(inner, red.iterations + red2.iterations));
       cold.iterations += red.iterations + red2.iterations;
       cold.message += std::string(cold.message.empty() ? "" : "; ") + note +
                       "; postsolved point missed the tolerance, fell back to solving the original";
@@ -256,7 +356,7 @@ Solution solve_impl(const Model& model, const Options& options) {
              !check_solution(model, post.x, post.y).passed()) {
     // Exact engine: a postsolved vertex that fails on the original model is not trusted;
     // solve the original without presolve instead (never worse than no presolve).
-    Solution cold = solve_direct(model, inner);
+    Solution cold = solve_direct(model, budget(inner, red.iterations));
     cold.iterations += red.iterations;
     cold.message += std::string(cold.message.empty() ? "" : "; ") + note +
                     "; postsolved point failed the check on the original, solved the original instead";

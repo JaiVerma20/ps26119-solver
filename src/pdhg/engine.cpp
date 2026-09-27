@@ -2,6 +2,7 @@
 #include "pdhg/engine.h"
 
 #include <cmath>
+#include <limits>
 #include <cstdio>
 #include <string>
 #include <algorithm>
@@ -110,6 +111,7 @@ RayTest ray_test(const ScaledProblem& sp, const std::vector<double>& dxs, const 
     t.dual_ray_violation = viol / scale;
     t.primal_infeasible = t.dual_ray_objective > 0 &&
                           t.dual_ray_violation <= tol::kFirstOrderInfeasible * t.dual_ray_objective;
+    t.dual_ray = r;
   }
   // ---- primal ray (certifies dual infeasibility)
   std::vector<double> d(sp.n), ad(sp.m);
@@ -134,6 +136,7 @@ RayTest ray_test(const ScaledProblem& sp, const std::vector<double>& dxs, const 
     t.primal_ray_violation = viol / scale;
     t.dual_infeasible = t.primal_ray_objective < 0 &&
                         t.primal_ray_violation <= tol::kFirstOrderInfeasible * -t.primal_ray_objective;
+    t.primal_ray = d;
   }
   return t;
 }
@@ -142,13 +145,17 @@ Status EngineContext::check_infeasibility(int dx, int dy, const KktStats& curren
   std::vector<double> dxs, dys;
   backend_->download(dx, dxs);
   backend_->download(dy, dys);
-  const RayTest t = ray_test(sp_, dxs, dys);
+  RayTest t = ray_test(sp_, dxs, dys);
   if (t.primal_infeasible) {
+    dual_ray_ = std::move(t.dual_ray);
     message = "primal infeasible: dual ray certificate (objective " + std::to_string(t.dual_ray_objective) +
               ", violation " + std::to_string(t.dual_ray_violation) + ")";
     return Status::Infeasible;
   }
-  if (t.dual_infeasible && current.rel_primal() <= tol::kVerifyPrimal) {
+  // Unbounded needs a primal-feasible point, judged per row like the verifier (and like an
+  // Optimal answer): the L2-relative test alone let a row be violated by 1.04e-6.
+  if (t.dual_infeasible && current.rel_primal() <= tol::kVerifyPrimal && current.primal_max_rel <= tol::kVerifyPrimal) {
+    primal_ray_ = std::move(t.primal_ray);
     message = "unbounded: primal ray certificate (cᵀd " + std::to_string(t.primal_ray_objective) +
               ", violation " + std::to_string(t.primal_ray_violation) + ") at a primal-feasible iterate";
     return Status::Unbounded;
@@ -271,6 +278,11 @@ Solution EngineContext::finish(Status status, int xs, int ys, std::int64_t itera
   sol.seconds = elapsed();
   sol.setup_seconds = setup_seconds_;
   sol.primal_weight = primal_weight_;
+  if (status == Status::Infeasible) sol.dual_ray = dual_ray_;
+  if (status == Status::Unbounded) sol.primal_ray = primal_ray_;
+  if (status == Status::Infeasible || status == Status::Unbounded) {
+    sol.objective = sol.dual_objective = std::numeric_limits<double>::quiet_NaN();  // no optimum exists
+  }
   return sol;
 }
 

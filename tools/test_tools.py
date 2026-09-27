@@ -145,6 +145,115 @@ class VerifierTests(unittest.TestCase):
         self.assertEqual(rep["verdict"], "FAIL")
 
 
+class CertificateVerifier(unittest.TestCase):
+    """Infeasible / Unbounded certificates (verify.verify_certificate): exact proofs pass,
+    and — soundness — no certificate is ever accepted for a model that is actually feasible."""
+
+    def _model(self, c, rows, rl, ru, cl, cu, sense=1):
+        m = lpm.PyModel()
+        m.num_rows, m.num_cols, m.sense = len(rows), len(c), sense
+        m.obj, m.col_lower, m.col_upper = list(map(float, c)), list(map(float, cl)), list(map(float, cu))
+        m.row_lower, m.row_upper = list(map(float, rl)), list(map(float, ru))
+        m.col_start, m.row_index, m.value = [0], [], []
+        for j in range(len(c)):
+            for i, row in enumerate(rows):
+                if row[j] != 0:
+                    m.row_index.append(i)
+                    m.value.append(float(row[j]))
+            m.col_start.append(len(m.value))
+        return m
+
+    def _check(self, m, status, dual_ray=None, x=None, ray=None):
+        s = lpm.PySolution()
+        s.header["status"] = status
+        s.dual_ray = dual_ray or []
+        s.x = x or []
+        s.primal_ray = ray or []
+        rep = {"status": status}
+        return verify.verify_certificate(m, s, verify.load_tolerances(), rep)
+
+    def test_exact_farkas_needs_implied_bounds(self):
+        # x + y <= 1 and x + y >= 3 with x, y >= 0 (no upper bounds): exactly r = (-1, 1).
+        inf = float("inf")
+        m = self._model([0, 0], [[1, 1], [1, 1]], [-inf, 3], [1, inf], [0, 0], [inf, inf])
+        rep = self._check(m, "Infeasible", dual_ray=[-1.0, 1.0])
+        self.assertEqual(rep["verdict"], "PASS")
+        self.assertIn("exact rational", rep["certificate"])
+        # r = (-1, 1 + 1e-16): -A^T r = -1e-16 on both columns points at their infinite upper
+        # bounds; the exact test must use the implied bounds x, y <= 1 (from row 0) to prove it.
+        rep = self._check(m, "Infeasible", dual_ray=[-1.0, 1.0 + 2.220446049250313e-16])
+        self.assertEqual(rep["verdict"], "PASS")
+        self.assertIn("implied column bounds", rep["certificate"])
+        self.assertEqual(self._check(m, "Infeasible", dual_ray=[1.0, -1.0])["verdict"], "FAIL")
+        self.assertEqual(self._check(m, "Infeasible")["verdict"], "FAIL")  # no certificate
+
+    def test_implied_bounds_valid_dyadic_and_fast(self):
+        # Chain 3 x_{k+1} - x_k <= 0, x_0 in [0, 1], x_k >= 0: the tight bounds are 3^-k. Exact
+        # propagation without rounding grows denominators 3^k per pass; the stored bounds must be
+        # doubles (power-of-two denominators), valid (>= 3^-k) and at most slightly looser.
+        from fractions import Fraction
+        import time
+        inf, n = float("inf"), 40
+        rows = [[(3 if j == k + 1 else -1 if j == k else 0) for j in range(n)] for k in range(n - 1)]
+        m = self._model([0] * n, rows, [-inf] * (n - 1), [0] * (n - 1), [0] * n, [1] + [inf] * (n - 1))
+        t = time.time()
+        lo, up = verify._implied_bounds(m)
+        self.assertLess(time.time() - t, 5.0)
+        for k in range(1, 21):  # 20 passes reach at least x_20
+            self.assertIsNotNone(up[k])
+            self.assertGreaterEqual(up[k], Fraction(1, 3 ** k))
+            self.assertLessEqual(float(up[k]), (1 + 1e-6) / 3 ** k)
+            d = up[k].denominator
+            self.assertEqual(d & (d - 1), 0, "bound is not a double")
+        # validity on random feasible models: a known feasible x0 satisfies every implied bound
+        import random
+        rng = random.Random(11)
+        for _ in range(200):
+            mr, nc = rng.randint(1, 5), rng.randint(1, 5)
+            x0 = [rng.uniform(-3, 3) for _ in range(nc)]
+            rws = [[rng.choice([0, rng.uniform(-4, 4)]) for _ in range(nc)] for _ in range(mr)]
+            ax = [sum(r[j] * x0[j] for j in range(nc)) for r in rws]
+            rl = [a - rng.choice([1e-9, 1, inf]) for a in ax]
+            ru = [a + rng.choice([1e-9, 1, inf]) for a in ax]
+            cl = [x - rng.choice([0.5, inf]) for x in x0]
+            cu = [x + rng.choice([0.5, inf]) for x in x0]
+            mm = self._model([0] * nc, rws, rl, ru, cl, cu)
+            lo2, up2 = verify._implied_bounds(mm)
+            for j in range(nc):
+                if lo2[j] is not None:
+                    self.assertLessEqual(lo2[j], Fraction(x0[j]))
+                if up2[j] is not None:
+                    self.assertGreaterEqual(up2[j], Fraction(x0[j]))
+
+    def test_soundness_no_certificate_for_feasible_models(self):
+        import random
+        rng = random.Random(3)
+        inf = float("inf")
+        accepted = 0
+        for _ in range(300):
+            mr, n = rng.randint(1, 4), rng.randint(1, 4)
+            x0 = [rng.uniform(-2, 2) for _ in range(n)]
+            rows = [[rng.choice([0, rng.randint(-3, 3)]) for _ in range(n)] for _ in range(mr)]
+            ax = [sum(r[j] * x0[j] for j in range(n)) for r in rows]
+            rl = [a - rng.choice([0, 1, inf]) for a in ax]
+            ru = [a + rng.choice([0, 1, inf]) for a in ax]
+            cl = [v - rng.choice([0.5, inf]) for v in x0]
+            cu = [v + rng.choice([0.5, inf]) for v in x0]
+            m = self._model([rng.randint(-2, 2) for _ in range(n)], rows, rl, ru, cl, cu)
+            r = [rng.uniform(-5, 5) for _ in range(mr)]
+            if self._check(m, "Infeasible", dual_ray=r)["verdict"] == "PASS":
+                accepted += 1
+        self.assertEqual(accepted, 0)  # a feasible model has no Farkas certificate
+
+    def test_unbounded_ray(self):
+        inf = float("inf")
+        m = self._model([-1, 0], [[1, -1]], [-inf], [1], [0, 0], [inf, inf])
+        self.assertEqual(self._check(m, "Unbounded", x=[0, 0], ray=[1, 1])["verdict"], "PASS")
+        self.assertEqual(self._check(m, "Unbounded", x=[2, 0], ray=[1, 1])["verdict"], "FAIL")  # infeasible point
+        self.assertEqual(self._check(m, "Unbounded", x=[0, 0], ray=[1, 0])["verdict"], "FAIL")  # leaves the cone
+        self.assertEqual(self._check(m, "Unbounded", x=[0, 0])["verdict"], "FAIL")
+
+
 class MilpVerifier(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()

@@ -9,6 +9,9 @@ generated from the committed CSVs by `bench/make_evidence.py`.
 | `bench/netlib_small.py` | 10 small Netlib LPs × {oracle, simplex, PDLP-style PDHG, r²HPDHG} × {fp64, mixed}; every solution checked by `tools/verify.py` and against the published optimum | `netlib-small-<hash>.csv` (`netlib-small-gpu-<hash>.csv` with `--gpu`) |
 | `bench/scale.py` | generated LPs with known optimum: random sparse (1e4–1e6 rows) and refinery (T = 12, 365, 8760); CPU vs GPU, fp64 vs mixed; iterations / wall time to 1e-4 and 1e-8, ms per iteration, setup time; optional HiGHS reference (`--highs`) | `scale-<machine>-<hash>.csv` + `.png` |
 | `bench/netlib_full.py` | all 93 Netlib LPs (`tools/fetch_netlib.py` first), any engine (`--engine simplex|r2hpdhg|pdlp|auto`), 60 s each, read from MPS by our reader, gated in-process (`check` column) and verified by `tools/verify.py`, vs HiGHS and published optima; `--set k=v --tag t` for ablations | `netlib-full-<engine>-<prec>[-tag]-<machine>-<hash>.csv` |
+| `bench/netlib_infeasible_cut.py` | provably infeasible LPs: each Netlib LP + one objective cut δ = 1e-4 (1 + \|f*\|) below its optimum; a verdict counts only if Infeasible + gate PASS + `tools/verify.py` PASS (exact rational Farkas test where possible); `gate_certificate` column = rounding-proof / tolerance | `infeasible-cut-<engine>-<machine>-<hash>.csv` |
+| `bench/netlib_infeasible.py` | the official Netlib infeasible collection (`tools/fetch_netlib_infeasible.py` first — download not yet run), same certification rule, HiGHS status as reference | `netlib-infeasible-<engine>-<machine>-<hash>.csv` |
+| `bench/validate_results.py` | provenance of committed evidence: hash in file name = hash column = a commit in history, GPU rows name GPU/driver/CUDA, no Optimal+FAIL; log folders: ctest 100%, sanitizer summaries (a sanitizer that could not attach = NOT RUN) (`--csv-only` in CI) | exit status |
 | `bench/miplib3.py` | small MIPLIB 3 through branch-and-bound; every Optimal verified (feasibility + integrality) and compared with HiGHS | `miplib3-<machine>-<hash>.csv` |
 | `bench/lu_netlib.py` | sparse LU on random simplex-style bases of every Netlib matrix (`ps26119 lu-bench`): backward error, fill, PFI update chains | printed table |
 | `tools/crosscheck_random_mps.py` | random LPs written as MPS: status + objective vs SciPy/HiGHS (also a CTest) | printed summary |
@@ -31,6 +34,18 @@ verification criteria (engine status Optimal → in-process gate → `tools/veri
 independent reader → agreement with HiGHS/published/known optimum), and the same CSV schema
 with provenance columns. A model counts as solved only if all of these hold. Time limits and
 failures stay in the tables. Numbers from different machines are never mixed in one claim.
+
+## GPU vs CPU (bench/gpu_compare.py)
+
+- CPU and GPU rows must come from the same CSV: same machine, same binary (commit), same instance,
+  engine and precision. `scripts/gpu_check.sh` measures the CPU on 1 thread and on all cores.
+- Each GPU run is compared with two labelled baselines: 1 CPU thread, and the **fastest** CPU
+  configuration measured in that run (by wall time to 1e-8). The headline ratio is the one against
+  the fastest CPU configuration — never against a single core only.
+- Ratio = CPU seconds / GPU seconds; < 1 means the GPU is slower and is reported as such.
+- Only runs that are Optimal and not verify=FAIL are compared; otherwise the table shows the
+  statuses instead of a ratio. GPU and CPU iteration counts differ slightly (reduction order), so
+  both wall time and iterations are in the CSV.
 
 ## Definitions
 - **Relative KKT** (first-order engines): see `src/pdhg/termination.h` — L2 primal residual
