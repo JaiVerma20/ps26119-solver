@@ -39,7 +39,9 @@ engines. The CLI, the C API and the Python binding are thin layers over `ps26119
                                    ▼
    core::gate() — every Optimal LP answer re-checked by core/solution_checker (teammate's
                   checker; verifier tolerances from tolerances.h); failure → NumericalError
-                  (first-order runs looser than 1e-6 keep Optimal at their tolerance, check=FAIL)
+                  (first-order runs looser than 1e-6 keep Optimal at their tolerance, check=FAIL);
+                  every Infeasible / Unbounded verdict's certificate (Farkas vector / point +
+                  ray, core/certificates) checked on the original model; failure → NumericalError
                                    ▼
             certified bound (core/safe_bound, Neumaier–Shcherbina, rounding-proof) from y
                                    ▼
@@ -82,9 +84,11 @@ the first-order code uses `la::Csr<T>`; neither is a second model representation
    units; first-order engines terminate on fp64 KKT of the original model plus per-row checks.
 2. Presolve safety net: postsolved answers re-checked on the original model; MILP answers
    re-checked for integrality and feasibility.
-3. `core::gate()`: in-process checker on every Optimal LP answer (all engines).
+3. `core::gate()`: in-process checker on every Optimal LP answer (all engines), and on the
+   certificate of every Infeasible / Unbounded verdict (DECISIONS #31, #33, #34).
 4. Certified bound: rounding-proof bound on the optimum from y.
-5. `tools/verify.py`: external, independent reader (highspy), used by every benchmark.
+5. `tools/verify.py`: external, independent reader (highspy), used by every benchmark;
+   Farkas certificates in exact rational arithmetic where the model allows.
 6. Differential tests: dd oracle vs tableau oracle vs simplex vs r²HPDHG on random LPs;
    random MPS files vs SciPy/HiGHS; reader vs `.lpm` bridge fingerprints.
 
@@ -94,10 +98,14 @@ the first-order code uses `la::Csr<T>`; neither is a second model representation
 `src/gpu/cuda_backend.cu` implements it (own CSR SpMV kernels, fused update + projection,
 deterministic fixed-grid reductions). The CPU backend implements the same math, so the Mac
 unit-tests the algorithm and the GPU machines test the kernels (`docs/GPU_VERIFICATION.md`).
-**The CUDA backend has been compiled by nvcc and passes its correctness tests on an NVIDIA GPU (2026-09-27); GPU speed is not yet measured (no GPU CSV).**
+The CUDA backend has been compiled by nvcc and passes its correctness tests on an NVIDIA laptop
+GPU (2026-09-27); its first speed numbers are against ONE CPU thread only (`docs/EVIDENCE.md`
+§3); the all-core comparison and compute-sanitizer on native Linux are pending (`NEXT_STEPS.md`).
 
 ## Threads
 
 `src/la/parallel.h`: a small deterministic pool (fixed chunking, fixed-order reductions) —
 bit-identical results for any thread count (TSan-clean; 1/2/4/8/10/all threads verified).
+Concurrent `solve()` calls from several threads are safe: pool jobs are serialised
+(`Concurrency.ParallelSolvesFromSeveralThreadsMatchSequentialResults`).
 The simplex and the MILP tree are single-threaded.
