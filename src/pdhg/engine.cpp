@@ -135,8 +135,8 @@ RayTest ray_test(const ScaledProblem& sp, const std::vector<double>& dxs, const 
   }
   if (dmax > 0) {
     sp.A_orig.multiply<double>(d.data(), ad.data());
-    double cd = 0, viol = 0;
-    for (int j = 0; j < sp.n; ++j) cd += M.sense * M.obj[j] * d[j];
+    double cd = 0, viol = 0, cmag = 0;
+    for (int j = 0; j < sp.n; ++j) cd += M.sense * M.obj[j] * d[j], cmag += std::fabs(M.obj[j] * d[j]);
     for (int i = 0; i < sp.m; ++i) {
       if (std::isfinite(M.row_lower[i])) viol = std::max(viol, -ad[i]);
       if (std::isfinite(M.row_upper[i])) viol = std::max(viol, ad[i]);
@@ -144,7 +144,10 @@ RayTest ray_test(const ScaledProblem& sp, const std::vector<double>& dxs, const 
     const double scale = std::max(dmax, viol);
     t.primal_ray_objective = cd / scale;
     t.primal_ray_violation = viol / scale;
-    t.dual_infeasible = t.primal_ray_objective < 0 &&
+    // cᵀd must be a meaningful fraction of Σ|c_j d_j| (mirror of the dual-ray test above): since
+    // the engine stops at the first valid ray, a rounding-noise cᵀd along a zero-cost recession
+    // direction of a BOUNDED LP would otherwise end the solve (the gate would then refuse it).
+    t.dual_infeasible = t.primal_ray_objective < 0 && -cd > tol::kFirstOrderInfeasible * cmag &&
                         t.primal_ray_violation <= tol::kFirstOrderInfeasible * -t.primal_ray_objective;
     t.primal_ray = d;
   }

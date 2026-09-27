@@ -11,6 +11,8 @@
 #include "core/certificates.h"
 #include "core/gate.h"
 #include "io/lpm_reader.h"
+#include "pdhg/engine.h"
+#include "pdhg/scaling.h"
 #include "model_builder.h"
 #include "ps26119/solve.h"
 
@@ -300,5 +302,30 @@ TEST(Certificates, ZeroMeasureFarkasVectorIsRejected) {
       EXPECT_EQ(s.status, Status::Optimal) << to_string(a) << " " << s.message;
       EXPECT_NEAR(s.objective, -6.0, 1e-6) << to_string(a);
     }
+  }
+}
+
+TEST(Certificates, EngineRayTestIgnoresRoundingNoise) {
+  // pdhg::ray_test must not accept a direction whose objective is rounding noise relative to
+  // its summands (the engines stop at the first accepted ray). Scaling off: vectors pass as is.
+  pdhg::ScalingOptions none;
+  none.geometric_mean_iterations = 0;
+  none.ruiz_iterations = 0;
+  none.pock_chambolle = false;
+  none.bound_objective_rescaling = false;
+  {  // primal side: c = (0.3, -0.1, -0.2), free columns, d = (1, 1, 1): cᵀd = -2.8e-17 exactly
+    const Model m = make_model({0.3, -0.1, -0.2}, {{1, 0, 0}}, {-kInf}, {kInf}, {-kInf, -kInf, -kInf}, {kInf, kInf, kInf});
+    const pdhg::ScaledProblem sp = pdhg::make_scaled_problem(m, none);
+    EXPECT_FALSE(pdhg::ray_test(sp, {1, 1, 1}, {0}).dual_infeasible);
+    EXPECT_TRUE(pdhg::ray_test(sp, {-1, 0, 0}, {0}).dual_infeasible);  // a real ray: cᵀd = -0.3
+  }
+  {  // dual side: seed 99 #2004 (feasible) with its zero-measure r; and a real Farkas vector
+    const Model m = make_model({-1, 0, 1, 1}, {{5, 0, -1, 0}, {0, 0, 0, -5}, {-2, 0, -5, 0}}, {49, -16, -26},
+                               {49, -15, kInf}, {4, 0, 1, 0}, {10, kInf, 2, 3});
+    const pdhg::ScaledProblem sp = pdhg::make_scaled_problem(m, none);
+    EXPECT_FALSE(pdhg::ray_test(sp, {0, 0, 0, 0}, {0.00093634084528417731, 0, 0}).primal_infeasible);
+    const Model inf = infeasible();  // ScaledProblem keeps a pointer to its model
+    const pdhg::ScaledProblem si = pdhg::make_scaled_problem(inf, none);
+    EXPECT_TRUE(pdhg::ray_test(si, {0, 0}, {-1, 1}).primal_infeasible);
   }
 }
