@@ -443,10 +443,18 @@ def main():
             body.append([rows[0]["engine"], f"`{rows[0]['git_hash']}`", f"**{len(cert)}/{len(rows)}**", exact, proof,
                          fnum(sum(float(r["seconds"] or 0) for r in cert)), rows[0]["time_limit"],
                          ", ".join(other) or "–", f"`{os.path.basename(p)}`"])
+        agree = [(sum((r["gate_certificate"] == "rounding-proof") == ("exact rational" in r["certificate"]) for r in c), len(c))
+                 for c in ([r for r in load(p) if r["status"] == "Infeasible" and r["check"] == "PASS" and r["verify"] == "PASS"]
+                           for p in cuts if "gate_certificate" in load(p)[0])]
         doc += [table(["engine", "commit", "certified", "exact rational (verify.py)", "rounding-proof (gate)",
                        "total s (certified)", "limit s", "not certified", "source"], body), "",
                 "Rows of the same engine are in commit order, so a later row shows the effect of the changes "
                 "in between (docs/DECISIONS.md #31)."]
+        if agree:
+            doc += ["", f"The two independent rigour checks — the C++ gate's directed-rounding bound and verify.py's "
+                    f"exact rational arithmetic (different code, different reader) — agree on which certificates are "
+                    f"rigorous for {sum(a for a, _ in agree)} of {sum(n for _, n in agree)} certified rows (CSVs with "
+                    "a `gate_certificate` column)."]
     else:
         doc.append("_No committed infeasibility CSV yet._")
 
