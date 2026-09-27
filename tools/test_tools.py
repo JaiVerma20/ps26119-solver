@@ -187,6 +187,24 @@ class CertificateVerifier(unittest.TestCase):
         self.assertEqual(self._check(m, "Infeasible", dual_ray=[1.0, -1.0])["verdict"], "FAIL")
         self.assertEqual(self._check(m, "Infeasible")["verdict"], "FAIL")  # no certificate
 
+    def test_zero_measure_farkas_vector_is_rejected(self):
+        # random MPS seed 99 #2004: feasible; r = (9.36e-4, 0, 0) has exact L0 = 0 (fp64: +2e-15)
+        inf = float("inf")
+        m = self._model([-1, 0, 1, 1], [[5, 0, -1, 0], [0, 0, 0, -5], [-2, 0, -5, 0]], [49, -16, -26], [49, -15, inf],
+                        [4, 0, 1, 0], [10, inf, 2, 3], sense=-1)
+        rep = self._check(m, "Infeasible", dual_ray=[0.00093634084528417731, 0.0, 0.0])
+        self.assertEqual(rep["verdict"], "FAIL")
+        # with the exact stage off, the tolerance test alone must reject it: fp64 L0 = +2e-15 is
+        # rounding noise relative to its summands (~0.09)
+        saved = verify.EXACT_MAX_NNZ
+        verify.EXACT_MAX_NNZ = 0
+        try:
+            rep2 = self._check(m, "Infeasible", dual_ray=[0.00093634084528417731, 0.0, 0.0])
+        finally:
+            verify.EXACT_MAX_NNZ = saved
+        self.assertEqual(rep2["verdict"], "FAIL")
+        self.assertIn("Farkas certificate fails: L0/s", " ".join(rep2["reasons"]))
+
     def test_implied_bounds_valid_dyadic_and_fast(self):
         # Chain 3 x_{k+1} - x_k <= 0, x_0 in [0, 1], x_k >= 0: the tight bounds are 3^-k. Exact
         # propagation without rounding grows denominators 3^k per pass; the stored bounds must be

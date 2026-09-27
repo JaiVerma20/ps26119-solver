@@ -208,3 +208,24 @@ Newest last. Each entry: what, why, evidence, how to undo.
     (`Mip.DivingFindsAnIncumbentWhereRoundingFails`). *Evidence*: `miplib3-macbook-air-m4-b04f2d8.csv`,
     300 s: 12/14 proven optimal and verified (was 10/14 at `eb90bbf`): gt2 0.7 s, bell3a 134 s;
     pk1 (incumbent 12, optimum 11) and bell5 (gap 0.02%) at the limit.
+
+33. **First-order Unbounded: stop at the first valid ray, find the feasible point separately.**
+    The engines required a primal-feasible *iterate* before claiming Unbounded, but on an
+    unbounded LP the iterate drifts along the ray: random 7x7 model (seed 2027 #1932) ran 100M
+    iterations with a valid ray from iteration ~2000. Now the engine stops at the first ray that
+    passes the ray test; if its iterate is not feasible, the dispatcher solves the zero-objective
+    model (never unbounded) with the same engine and the remaining budget: feasible → point + ray
+    go to the gate; infeasible → that certified Infeasible is the answer; limit → honest limit.
+    Random MPS cross-check vs HiGHS, 2000 models, seed 2027: r2hpdhg 1999 → 2000/2000, PDLP
+    1969 → 2000/2000 (`Certificates.FirstOrderUnboundedWithoutAFeasibleIterate`).
+
+34. **Soundness fix: a Farkas vector must prove more than rounding noise.** Random MPS cross-check
+    (seed 99, model 2004, 3x4, FEASIBLE, optimum −6): r²HPDHG and PDLP returned Infeasible and
+    the certificate passed the gate AND verify.py. r had L0 = 0 exactly (a zero-cost dual
+    direction; 49r − 50r + r), +2e-15 in fp64, no violation; the rigorous stage correctly gave
+    −8e-18, but the tolerance fallback accepted any L0 > 0. Now (gate, engine ray test, verify.py)
+    L0 must exceed 1e-8 × Σ|summands| (inside λ_j too), and verify.py never lets the tolerance
+    test override a conclusive exact L0 ≤ 0 (all terms finite, no implied bounds). Re-check of
+    the 23 objective-cut models whose certificates were tolerance-only: simplex 23/23, r²HPDHG
+    15/15 still certified (`Certificates.ZeroMeasureFarkasVectorIsRejected`,
+    `CertificateVerifier.test_zero_measure_farkas_vector_is_rejected`).

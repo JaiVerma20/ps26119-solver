@@ -353,37 +353,46 @@ def verify_certificate(m, s, tol: dict, rep: dict) -> dict:
             exact_ok = (not bad) and L0 > 0
             rep["farkas_exact_L0"] = None if bad else float(L0)
             rep["farkas_implied_bounds"] = implied
+        exact_refutes = (exact_ok is False and rep.get("farkas_exact_L0") is not None
+                         and not rep.get("farkas_implied_bounds") and rep["farkas_exact_L0"] <= 0)
         if exact_ok:
             rep["certificate"] = "Farkas, exact rational check" + (
                 f" (with {rep['farkas_implied_bounds']} implied column bounds)" if rep.get("farkas_implied_bounds") else "")
+        elif exact_refutes:
+            # Every term was finite and no implied bound was needed, so the exact L0 IS this
+            # certificate's value: <= 0 means it proves nothing, whatever fp64 rounding says
+            # (random MPS seed 99 #2004: exact L0 = 0, fp64 +2e-15 — a feasible LP "proved"
+            # infeasible by the old tolerance test).
+            reasons.append(f"Farkas certificate fails the exact test: L0 = {rep['farkas_exact_L0']:.3e} <= 0")
         else:
             rr = np.asarray(r, float)
             rmax = float(np.abs(rr).max(initial=0.0))
-            obj, viol = 0.0, 0.0
+            obj, viol, mag = 0.0, 0.0, 0.0  # mag: size of the summands (L0 must not be rounding noise)
             for i in range(mr):
                 if rr[i] > 0:
-                    if math.isfinite(m.row_lower[i]): obj += rr[i] * m.row_lower[i]
+                    if math.isfinite(m.row_lower[i]): obj += rr[i] * m.row_lower[i]; mag += abs(rr[i] * m.row_lower[i])
                     else: viol = max(viol, rr[i])
                 elif rr[i] < 0:
-                    if math.isfinite(m.row_upper[i]): obj += rr[i] * m.row_upper[i]
+                    if math.isfinite(m.row_upper[i]): obj += rr[i] * m.row_upper[i]; mag += abs(rr[i] * m.row_upper[i])
                     else: viol = max(viol, -rr[i])
             val = np.asarray(m.value, float)
             ridx = np.asarray(m.row_index, dtype=np.int64)
             cidx = np.repeat(np.arange(n), np.diff(np.asarray(m.col_start, dtype=np.int64)))
             lam = -np.bincount(cidx, weights=val * rr[ridx], minlength=n) if n else np.zeros(0)
+            lam_abs = np.bincount(cidx, weights=np.abs(val * rr[ridx]), minlength=n) if n else np.zeros(0)
             for j in range(n):
                 if lam[j] > 0:
-                    if math.isfinite(m.col_lower[j]): obj += lam[j] * m.col_lower[j]
+                    if math.isfinite(m.col_lower[j]): obj += lam[j] * m.col_lower[j]; mag += lam_abs[j] * abs(m.col_lower[j])
                     else: viol = max(viol, lam[j])
                 elif lam[j] < 0:
-                    if math.isfinite(m.col_upper[j]): obj += lam[j] * m.col_upper[j]
+                    if math.isfinite(m.col_upper[j]): obj += lam[j] * m.col_upper[j]; mag += lam_abs[j] * abs(m.col_upper[j])
                     else: viol = max(viol, -lam[j])
             scale = max(rmax, viol)
             L = obj / scale if scale > 0 else 0.0
             v = viol / scale if scale > 0 else 0.0
             rep["farkas_tolerance_L0"] = L
             rep["farkas_tolerance_violation"] = v
-            if math.isfinite(L) and L > 0 and v <= tol["kVerifyRay"] * L:
+            if math.isfinite(L) and L > 0 and obj > tol["kVerifyRay"] * mag and v <= tol["kVerifyRay"] * L:
                 rep["certificate"] = "Farkas, tolerance check (not exact)"
             else:
                 reasons.append(f"Farkas certificate fails: L0/s = {L:.3e}, violation/s = {v:.3e}")

@@ -8,8 +8,10 @@ Files used:
 - `bench/results/batch-T8760-macbook-air-m4-ea97521.csv` (committed 2026-09-25)
 - `bench/results/batch-macbook-air-m4-8fd5170.csv` (committed 2026-09-25)
 - `bench/results/batch-macbook-air-m4-ea97521.csv` (committed 2026-09-25)
+- `bench/results/infeasible-cut-r2hpdhg-macbook-air-m4-279fad6.csv` (committed 2026-09-27)
 - `bench/results/infeasible-cut-r2hpdhg-macbook-air-m4-b04f2d8.csv` (committed 2026-09-27)
 - `bench/results/infeasible-cut-r2hpdhg-macbook-air-m4-c935a78.csv` (committed 2026-09-27)
+- `bench/results/infeasible-cut-simplex-macbook-air-m4-279fad6.csv` (committed 2026-09-27)
 - `bench/results/infeasible-cut-simplex-macbook-air-m4-b04f2d8.csv` (committed 2026-09-27)
 - `bench/results/infeasible-cut-simplex-macbook-air-m4-c935a78.csv` (committed 2026-09-27)
 - `bench/results/miplib3-macbook-air-m4-0935157.csv` (committed 2026-09-25)
@@ -382,14 +384,16 @@ Each Netlib LP with a known optimum f* gets one extra row cᵀx ≤ f* − offse
 
 | engine | commit | certified | exact rational (verify.py) | rounding-proof (gate) | total s (certified) | limit s | not certified | source |
 |---|---|---|---|---|---|---|---|---|
+| r2hpdhg | `279fad6` | **70/93** | 55 | 55 | 384 | 60.0 | 80bau3b (TimeLimit), capri (TimeLimit), cycle (TimeLimit), d2q06c (TimeLimit), dfl001 (TimeLimit), finnis (TimeLimit), forplan (TimeLimit), greenbea (TimeLimit), greenbeb (TimeLimit), maros (TimeLimit), modszk1 (TimeLimit), nesm (TimeLimit), pilot.ja (TimeLimit), pilot (TimeLimit), pilot.we (TimeLimit), pilot4 (TimeLimit), pilot87 (TimeLimit), scrs8 (TimeLimit), scsd6 (TimeLimit), sierra (TimeLimit), tuff (TimeLimit), wood1p (TimeLimit), woodw (TimeLimit) | `infeasible-cut-r2hpdhg-macbook-air-m4-279fad6.csv` |
 | r2hpdhg | `b04f2d8` | **70/93** | 55 | 55 | 385 | 60.0 | 80bau3b (TimeLimit), capri (TimeLimit), cycle (TimeLimit), d2q06c (TimeLimit), dfl001 (TimeLimit), finnis (TimeLimit), forplan (TimeLimit), greenbea (TimeLimit), greenbeb (TimeLimit), maros (TimeLimit), modszk1 (TimeLimit), nesm (TimeLimit), pilot.ja (TimeLimit), pilot (TimeLimit), pilot.we (TimeLimit), pilot4 (TimeLimit), pilot87 (TimeLimit), scrs8 (TimeLimit), scsd6 (TimeLimit), sierra (TimeLimit), tuff (TimeLimit), wood1p (TimeLimit), woodw (TimeLimit) | `infeasible-cut-r2hpdhg-macbook-air-m4-b04f2d8.csv` |
 | r2hpdhg | `c935a78` | **26/93** | 23 | not recorded | 99.7 | 60.0 | 25fv47 (TimeLimit), 80bau3b (TimeLimit), adlittle (TimeLimit), bandm (TimeLimit), blend (TimeLimit), bnl1 (TimeLimit), bnl2 (TimeLimit), bore3d (TimeLimit), brandy (TimeLimit), capri (TimeLimit), cycle (TimeLimit), d2q06c (TimeLimit), d6cube (TimeLimit), dfl001 (TimeLimit), e226 (TimeLimit), etamacro (TimeLimit), fffff800 (TimeLimit), finnis (TimeLimit), forplan (TimeLimit), ganges (TimeLimit), greenbea (TimeLimit), greenbeb (TimeLimit), lotfi (TimeLimit), maros (TimeLimit), modszk1 (TimeLimit), nesm (TimeLimit), perold (TimeLimit), pilot.ja (TimeLimit), pilot (TimeLimit), pilot.we (TimeLimit), pilot4 (TimeLimit), pilot87 (TimeLimit), pilotnov (TimeLimit), sc105 (TimeLimit), sc205 (TimeLimit), sc50a (IterationLimit), sc50b (IterationLimit), scagr25 (TimeLimit), scfxm1 (TimeLimit), scfxm2 (TimeLimit), scfxm3 (TimeLimit), scorpion (TimeLimit), scrs8 (TimeLimit), scsd1 (TimeLimit), scsd6 (TimeLimit), scsd8 (TimeLimit), sctap1 (TimeLimit), sctap2 (TimeLimit), sctap3 (TimeLimit), share1b (TimeLimit), share2b (TimeLimit), ship04l (TimeLimit), ship04s (TimeLimit), ship08l (TimeLimit), ship08s (TimeLimit), ship12l (TimeLimit), ship12s (TimeLimit), sierra (TimeLimit), stair (TimeLimit), standata (TimeLimit), standmps (TimeLimit), stocfor1 (TimeLimit), stocfor2 (TimeLimit), tuff (TimeLimit), vtp.base (TimeLimit), wood1p (TimeLimit), woodw (TimeLimit) | `infeasible-cut-r2hpdhg-macbook-air-m4-c935a78.csv` |
+| simplex | `279fad6` | **91/93** | 72 | 72 | 122 | 60.0 | d6cube (TimeLimit), dfl001 (TimeLimit) | `infeasible-cut-simplex-macbook-air-m4-279fad6.csv` |
 | simplex | `b04f2d8` | **91/93** | 72 | 72 | 121 | 60.0 | d6cube (TimeLimit), dfl001 (TimeLimit) | `infeasible-cut-simplex-macbook-air-m4-b04f2d8.csv` |
 | simplex | `c935a78` | **87/93** | 70 | not recorded | 83.4 | 60.0 | d2q06c (NumericalError), d6cube (TimeLimit), dfl001 (TimeLimit), greenbeb (NumericalError), nesm (NumericalError), pilot87 (NumericalError) | `infeasible-cut-simplex-macbook-air-m4-c935a78.csv` |
 
 Rows of the same engine are in commit order, so a later row shows the effect of the changes in between (docs/DECISIONS.md #31).
 
-The two independent rigour checks — the C++ gate's directed-rounding bound and verify.py's exact rational arithmetic (different code, different reader) — agree on which certificates are rigorous for 161 of 161 certified rows (CSVs with a `gate_certificate` column).
+The two independent rigour checks — the C++ gate's directed-rounding bound and verify.py's exact rational arithmetic (different code, different reader) — agree on which certificates are rigorous for 322 of 322 certified rows (CSVs with a `gate_certificate` column).
 
 ## 5. What we do NOT do yet (honest list)
 

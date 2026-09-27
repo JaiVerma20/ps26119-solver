@@ -11,6 +11,8 @@
 #include "core/certificates.h"
 #include "core/gate.h"
 #include "io/lpm_reader.h"
+#include "pdhg/engine.h"
+#include "pdhg/scaling.h"
 #include "model_builder.h"
 #include "ps26119/solve.h"
 
@@ -235,5 +237,95 @@ TEST(Certificates, FirstOrderEnginesDetectBarelyInfeasibleNetlibCuts) {
                 static_cast<long long>(s.iterations));
   }
   EXPECT_GE(certified, 9) << to_string(engine);
+  }
+}
+
+TEST(Certificates, FirstOrderUnboundedWithoutAFeasibleIterate) {
+  // Random 7x7 LP (crosscheck_random_mps.py seed 2027, model 1932): unbounded, but the PDHG
+  // iterate drifts along the ray and never became primal-feasible to 1e-6 — 100M iterations
+  // without a verdict. Now: stop at the first valid ray, get a feasible point from a
+  // zero-objective solve, and let the gate check point + ray.
+  const Model m = [] {
+    Model x = make_model({5, -1, 4, -5, 0, 0, -5},
+                         {{0, 5, 0, 0, 0, 2, 0},
+                          {0, 5, -5, 0, 0, 0, -1},
+                          {0, 0, 0, -1, 0, 0, 5},
+                          {-3, 0, 0, 0, 0, -3, 4},
+                          {0, 4, -1, -5, 0, 0, 0},
+                          {4, 0, 0, 0, 0, -4, 4},
+                          {0, 0, 0, 0, -5, -2, 0}},
+                         {-kInf, -kInf, -15, -21, 24, -kInf, -kInf}, {31, 23, kInf, kInf, 24, -24, -9},
+                         {0, 4, 1, -kInf, 0, 1, -kInf}, {kInf, 9, kInf, 2, kInf, 4, kInf});
+    x.sense = -1;
+    return x;
+  }();
+  for (Algorithm a : {Algorithm::R2hpdhg, Algorithm::Pdlp}) {
+    for (bool presolve : {false, true}) {
+      Options o;
+      o.algorithm = a;
+      o.presolve = presolve;
+      o.iteration_limit = 200000;
+      const Solution s = solve(m, o);
+      EXPECT_EQ(s.status, Status::Unbounded) << to_string(a) << " " << s.message;
+      EXPECT_EQ(s.check, "PASS") << to_string(a) << " " << s.message;
+    }
+  }
+  // primal AND dual infeasible (x has an improving ray, but y <= -1 with y >= 0): the answer
+  // must be a certified Infeasible, whichever direction the engine finds first
+  const Model both = make_model({-1, 0}, {{0, 1}}, {-kInf}, {-1}, {0, 0}, {kInf, kInf});
+  for (Algorithm a : {Algorithm::R2hpdhg, Algorithm::Pdlp, Algorithm::Simplex}) {
+    Options o;
+    o.algorithm = a;
+    o.presolve = false;
+    const Solution s = solve(both, o);
+    EXPECT_EQ(s.status, Status::Infeasible) << to_string(a) << " " << s.message;
+    EXPECT_EQ(s.check, "PASS") << to_string(a) << " " << s.message;
+  }
+}
+
+TEST(Certificates, ZeroMeasureFarkasVectorIsRejected) {
+  // Random MPS seed 99, model 2004 (max -x0 + x2 + x3; 5 x0 - x2 = 49, x0 in [4, 10], x2 in [1, 2]
+  // ...): FEASIBLE (optimum -6). r = (9.36e-4, 0, 0) has L0 = 49r - 50r + r = 0 exactly, but
+  // +2e-15 in fp64 with no violation, and the tolerance test used to accept it — a wrong
+  // Infeasible that passed the gate. L0 must be a meaningful fraction of its summands.
+  Model m = make_model({-1, 0, 1, 1}, {{5, 0, -1, 0}, {0, 0, 0, -5}, {-2, 0, -5, 0}}, {49, -16, -26}, {49, -15, kInf},
+                       {4, 0, 1, 0}, {10, kInf, 2, 3});
+  m.sense = -1;
+  const CertificateCheck c = check_infeasibility_certificate(m, {0.00093634084528417731, 0, 0});
+  EXPECT_FALSE(c.passed) << c.detail;
+  for (Algorithm a : {Algorithm::R2hpdhg, Algorithm::Pdlp, Algorithm::Simplex}) {
+    for (bool presolve : {false, true}) {
+      Options o;
+      o.algorithm = a;
+      o.presolve = presolve;
+      const Solution s = solve(m, o);
+      EXPECT_EQ(s.status, Status::Optimal) << to_string(a) << " " << s.message;
+      EXPECT_NEAR(s.objective, -6.0, 1e-6) << to_string(a);
+    }
+  }
+}
+
+TEST(Certificates, EngineRayTestIgnoresRoundingNoise) {
+  // pdhg::ray_test must not accept a direction whose objective is rounding noise relative to
+  // its summands (the engines stop at the first accepted ray). Scaling off: vectors pass as is.
+  pdhg::ScalingOptions none;
+  none.geometric_mean_iterations = 0;
+  none.ruiz_iterations = 0;
+  none.pock_chambolle = false;
+  none.bound_objective_rescaling = false;
+  {  // primal side: c = (0.3, -0.1, -0.2), free columns, d = (1, 1, 1): cᵀd = -2.8e-17 exactly
+    const Model m = make_model({0.3, -0.1, -0.2}, {{1, 0, 0}}, {-kInf}, {kInf}, {-kInf, -kInf, -kInf}, {kInf, kInf, kInf});
+    const pdhg::ScaledProblem sp = pdhg::make_scaled_problem(m, none);
+    EXPECT_FALSE(pdhg::ray_test(sp, {1, 1, 1}, {0}).dual_infeasible);
+    EXPECT_TRUE(pdhg::ray_test(sp, {-1, 0, 0}, {0}).dual_infeasible);  // a real ray: cᵀd = -0.3
+  }
+  {  // dual side: seed 99 #2004 (feasible) with its zero-measure r; and a real Farkas vector
+    const Model m = make_model({-1, 0, 1, 1}, {{5, 0, -1, 0}, {0, 0, 0, -5}, {-2, 0, -5, 0}}, {49, -16, -26},
+                               {49, -15, kInf}, {4, 0, 1, 0}, {10, kInf, 2, 3});
+    const pdhg::ScaledProblem sp = pdhg::make_scaled_problem(m, none);
+    EXPECT_FALSE(pdhg::ray_test(sp, {0, 0, 0, 0}, {0.00093634084528417731, 0, 0}).primal_infeasible);
+    const Model inf = infeasible();  // ScaledProblem keeps a pointer to its model
+    const pdhg::ScaledProblem si = pdhg::make_scaled_problem(inf, none);
+    EXPECT_TRUE(pdhg::ray_test(si, {0, 0}, {-1, 1}).primal_infeasible);
   }
 }
