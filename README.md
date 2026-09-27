@@ -54,7 +54,7 @@ Useful options: `--tol 1e-8`, `--time-limit s`, `--threads 0` (all cores, identi
 `--precision mixed`, `--gpu` (CUDA builds), `--warm prev.sol`, `--no-presolve`.
 Many scenarios sharing one matrix: `build/ps26119 batch base.lpm s1.lpm s2.lpm --out-dir out/`.
 Models with integer columns go to branch-and-bound; a MILP is never answered by its LP relaxation.
-Exit codes: 0 optimal, 1 limit/infeasible/unbounded, 2 usage, 3 read error, 5 numerical.
+Exit codes: 0 optimal, 1 limit/infeasible/unbounded, 2 usage, 3 read error, 4 cannot write the output, 5 numerical / not solved.
 
 Python (ctypes over the C API):
 ```python

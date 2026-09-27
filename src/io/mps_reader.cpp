@@ -539,6 +539,9 @@ class Parser {
 
   // ------------------------------------------------------------------ finish
   MpsReadResult finish() {
+    // An empty file (or one with only comments / blank lines) used to read as a valid 0x0
+    // model and "solve" to Optimal.
+    if (section_ == Section::kNone) fail("no MPS section found (empty file or not an MPS file)");
     if (!seen_endata_) warnings_.push_back("file ended without ENDATA");
     if (!have_objective_) warnings_.push_back("no objective (N) row found; objective is zero");
     if (dropped_free_rows_ > 0) {

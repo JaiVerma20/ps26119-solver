@@ -156,7 +156,10 @@ Solution solve(const Model& model, const Options& options) {
   Options resolved = options;
   const double work = static_cast<double>(std::max(model.num_rows, 1)) * static_cast<double>(model.nnz());
   // Warm starts and first-order knobs only exist for the first-order engines: honour them.
-  bool first_order_request = !options.warm_x.empty() || !options.warm_y.empty() || options.warm_primal_weight > 0;
+  // --gpu too: only r2HPDHG runs on the GPU, so a GPU request must never be quietly served by
+  // the CPU simplex (it used to be, for small models).
+  bool first_order_request = options.use_gpu || !options.warm_x.empty() || !options.warm_y.empty() ||
+                             options.warm_primal_weight > 0;
   for (const auto& kv : options.engine_params)
     first_order_request = first_order_request || (kv.first.rfind("simplex_", 0) != 0 && kv.first.rfind("mip_", 0) != 0);
   resolved.algorithm = !first_order_request && work <= kAutoSimplexWork ? Algorithm::Simplex : Algorithm::R2hpdhg;

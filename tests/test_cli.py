@@ -88,6 +88,42 @@ class Cli(unittest.TestCase):
         self.assertEqual(run("solve", os.path.join(DATA, "netlib_small", "afiro.lpm"), "--bogus")[0], 2)
         self.assertEqual(run("frobnicate")[0], 2)
 
+    def test_hardened_inputs(self):
+        afiro = os.path.join(DATA, "netlib_small", "afiro.lpm")
+        # empty / comment-only MPS is a read error, not a 0x0 "Optimal" model
+        for text in ("", "* only a comment\n\n"):
+            empty = os.path.join(self.tmp, "empty.mps")
+            open(empty, "w").write(text)
+            code, out = run("solve", empty)
+            self.assertEqual(code, 3, out)
+            self.assertIn("no MPS section", out)
+        # numeric flags are validated completely (solve and batch)
+        for bad in (["--threads", "-2"], ["--threads", "1.5"], ["--time-limit", "inf"], ["--tol", "nan"],
+                    ["--set", "=3"], ["--set", "x"], ["--iteration-limit", "abc"]):
+            code, out = run("solve", afiro, *bad)
+            self.assertEqual(code, 2, (bad, out))
+        self.assertEqual(run("batch", afiro, afiro, "--tol", "abc")[0], 2)
+        self.assertEqual(run("batch", afiro, afiro, "--set", "noequals")[0], 2)
+        # an unwritable --out fails BEFORE solving, with exit 4
+        code, out = run("solve", afiro, "--out", os.path.join(self.tmp, "no", "such", "dir.sol"))
+        self.assertEqual(code, 4, out)
+        self.assertNotIn("status", out)
+        # the writability probe leaves no file behind when the solve then fails to read the model
+        probe = os.path.join(self.tmp, "probe.sol")
+        self.assertEqual(run("solve", os.path.join(self.tmp, "missing.lpm"), "--out", probe)[0], 3)
+        self.assertFalse(os.path.exists(probe))
+
+    def test_gpu_request_is_never_served_silently_by_the_cpu(self):
+        # auto + --gpu must pick r2hpdhg (the only GPU engine). On a build without CUDA this is
+        # a clear NotSolved (exit 5), never a CPU simplex answer presented as a GPU run.
+        code, out = run("solve", os.path.join(DATA, "netlib_small", "afiro.lpm"), "--gpu")
+        self.assertIn("auto: r2hpdhg", out)
+        if "no CUDA backend" in out:
+            self.assertEqual(code, 5, out)
+            self.assertIn("NotSolved", out)
+        else:  # CUDA build
+            self.assertEqual(code, 0, out)
+
     def test_warm_start_from_own_solution(self):
         lp = os.path.join(DATA, "netlib_small", "stocfor1.lpm")
         sol = os.path.join(self.tmp, "s.sol")
