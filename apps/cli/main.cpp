@@ -14,6 +14,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <exception>
+#include <new>
 #include <string>
 #include <utility>
 #include <vector>
@@ -256,6 +258,12 @@ int cmd_solve(int argc, char** argv) {
       std::fprintf(stderr, "read error (warm start): %s\n", err.c_str());
       return kExitReadError;
     }
+    for (const auto* v : {&prev.x, &prev.y})
+      for (double a : *v)
+        if (!std::isfinite(a)) {
+          std::fprintf(stderr, "read error (warm start): %s contains non-finite values\n", warm.c_str());
+          return kExitReadError;
+        }
     if (static_cast<int>(prev.x.size()) != model.num_cols || static_cast<int>(prev.y.size()) != model.num_rows) {
       std::fprintf(stderr, "warm start %s does not match the model's size\n", warm.c_str());
       return 2;
@@ -276,11 +284,13 @@ int cmd_solve(int argc, char** argv) {
     std::printf("check      %s\n", sol.check.empty() ? "NOT CERTIFIED (no certificate)"
                                                      : (sol.check + "  (" + (sol.status == Status::Infeasible ? "Farkas" : "ray") +
                                                         " certificate verified on the original model)").c_str());
+  } else if (!sol.check.empty() && sol.engine.rfind("branch-and-bound", 0) == 0) {
+    std::printf("check      %s  (in-process, original model: bounds, rows, integrality of the point)\n", sol.check.c_str());
   } else if (!sol.check.empty()) {
     std::printf("check      %s  (in-process, original model: primal %.1e  dual %.1e  gap %.1e)\n", sol.check.c_str(),
                 sol.check_primal, sol.check_dual, sol.check_gap);
   }
-  if (sol.certified_bound == sol.certified_bound) {
+  if (sol.certified_bound == sol.certified_bound && !claim) {  // a bound on the optimum: not for Infeasible/Unbounded
     if (std::isfinite(sol.certified_bound))
       std::printf("certified  %s %.12g  (rounding-proof %s bound from y)\n", model.sense > 0 ? "optimum >=" : "optimum <=",
                   sol.certified_bound, model.sense > 0 ? "lower" : "upper");
@@ -374,7 +384,22 @@ int cmd_batch(int argc, char** argv) {
 
 }  // namespace
 
+int run_cli(int argc, char** argv);
+
+// Last line of defence: an exception (e.g. out of memory while reading a huge file) ends the
+// program with a message and exit code 5, never with std::terminate.
 int main(int argc, char** argv) {
+  try {
+    return run_cli(argc, argv);
+  } catch (const std::bad_alloc&) {
+    std::fprintf(stderr, "fatal: out of memory\n");
+  } catch (const std::exception& e) {
+    std::fprintf(stderr, "fatal: %s\n", e.what());
+  }
+  return 5;
+}
+
+int run_cli(int argc, char** argv) {
   if (argc < 2) {
     usage(stderr);
     return 2;

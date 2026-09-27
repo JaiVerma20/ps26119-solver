@@ -82,6 +82,12 @@ class Binding(unittest.TestCase):
             r = ps26119.solve_lp([1], [[1]], [1], [INF], **kw)
             self.assertEqual(r.status, ps26119.INVALID_ARGUMENT, kw)
 
+    def test_unwritable_solution_file_fails_before_solving(self):
+        root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+        r = ps26119.solve_mps(os.path.join(root, "data", "netlib_small", "afiro.mps"), out="/nonexistent_dir/x.sol")
+        self.assertEqual(r.status, ps26119.INVALID_ARGUMENT)
+        self.assertIn("cannot write", r.message)
+
     def test_version(self):
         self.assertTrue(ps26119.version())
 

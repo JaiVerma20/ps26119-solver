@@ -136,17 +136,24 @@ TEST(Gate, FirstOrderKeepsItsLooserToleranceButRecordsTheFailure) {
   EXPECT_EQ(bad.check, "FAIL");
 }
 
-TEST(Gate, LeavesNonOptimalAndMilpAlone) {
+TEST(Gate, LeavesLpLimitsAloneAndChecksEveryMilpPoint) {
   const Model lp = mps("netlib_small/afiro.mps");
   Solution s;
   s.status = Status::TimeLimit;
   core::gate(lp, Options{}, s);
   EXPECT_EQ(s.status, Status::TimeLimit);
   EXPECT_TRUE(s.check.empty());
+  // MILP: the point is checked on the original model (bounds, rows, integrality) — it used to
+  // be left alone unless presolve had changed the model
   const Model mip = mps("hand/knapsack_mip.mps");
   const Solution ms = solve(mip);
   EXPECT_EQ(ms.status, Status::Optimal);
-  EXPECT_TRUE(ms.check.empty());
+  EXPECT_EQ(ms.check, "PASS");
+  Solution bad = ms;  // a fractional "optimum" is withdrawn
+  bad.x[0] = 0.5;
+  core::gate(mip, Options{}, bad);
+  EXPECT_EQ(bad.status, Status::NumericalError) << bad.message;
+  EXPECT_EQ(bad.check, "FAIL");
 }
 
 // Auto (DECISIONS #29): simplex for small models, r2hpdhg for large ones or when a first-order

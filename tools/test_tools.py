@@ -145,6 +145,31 @@ class VerifierTests(unittest.TestCase):
         self.assertEqual(rep["verdict"], "FAIL")
 
 
+class VerifierInputs(unittest.TestCase):
+    def test_malformed_solution_files_are_errors_not_tracebacks(self):
+        import random, subprocess, tempfile
+        here = os.path.dirname(os.path.abspath(__file__))
+        root = os.path.dirname(here)
+        model = os.path.join(root, "data", "netlib_small", "afiro.lpm")
+        good = ("PS26119-SOLUTION 1\nstatus Optimal\nobjective -464.75\nCOLUMNS 2\n0 1 0 a\n1 2 0 b\n"
+                "ROWS 1\n0 3 0 r\nEND\n")
+        cut = good.index("1 2 0 b")
+        cases = [good[:cut],                                    # file ends inside the COLUMNS block
+                 good.replace("COLUMNS 2", "COLUMNS 9")[: good.index("ROWS")],
+                 good.replace("0 1 0 a", "0 1"),                # too few fields
+                 good.replace("ROWS 1\n0 3 0 r\n", "ROWS 1\n")]  # ROWS block missing its line
+        rng = random.Random(1)
+        cases += [good[: rng.randint(0, len(good))] for _ in range(20)]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "s.sol")
+            for text in cases:
+                open(path, "w").write(text)
+                r = subprocess.run([sys.executable, os.path.join(here, "verify.py"), model, path],
+                                   capture_output=True, text=True)
+                self.assertNotIn("Traceback", r.stderr, r.stderr[-400:])
+                self.assertIn(r.returncode, (1, 2))
+
+
 class CertificateVerifier(unittest.TestCase):
     """Infeasible / Unbounded certificates (verify.verify_certificate): exact proofs pass,
     and — soundness — no certificate is ever accepted for a model that is actually feasible."""

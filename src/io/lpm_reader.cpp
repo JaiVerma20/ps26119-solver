@@ -4,6 +4,9 @@
 // structural checks in Model::validate() (the reader calls it and fails otherwise).
 #include "io/lpm_reader.h"
 
+#include <algorithm>
+#include <limits>
+
 #include <cerrno>
 #include <cmath>
 #include <cstdio>
@@ -101,21 +104,30 @@ LpmReadResult read_lpm_string(const std::string& text, Model& model) {
 
   long long rows = -1, cols = -1, nnz = -1;
   bool have_integer = false;
+  // Sections grow as values are actually read, with a bounded reserve: a bogus header count
+  // (e.g. NNZ 99999999999) used to allocate gigabytes up front and get the process killed.
+  constexpr long long kReserveCap = 1 << 22;
   auto read_doubles = [&](std::vector<double>& out, long long count) -> bool {
-    out.resize(static_cast<std::size_t>(count));
+    out.clear();
+    out.reserve(static_cast<std::size_t>(std::min(count, kReserveCap)));
     std::string_view t;
-    for (long long k = 0; k < count; ++k)
-      if (!sc.token(t) || !parse_double(t, out[k])) return false;
+    double x = 0;
+    for (long long k = 0; k < count; ++k) {
+      if (!sc.token(t) || !parse_double(t, x)) return false;
+      out.push_back(x);
+    }
     sc.finish_line();
     return true;
   };
   auto read_ints = [&](std::vector<int>& out, long long count) -> bool {
-    out.resize(static_cast<std::size_t>(count));
+    out.clear();
+    out.reserve(static_cast<std::size_t>(std::min(count, kReserveCap)));
     std::string_view t;
     long long v;
     for (long long k = 0; k < count; ++k) {
-      if (!sc.token(t) || !parse_int(t, v)) return false;
-      out[k] = static_cast<int>(v);
+      if (!sc.token(t) || !parse_int(t, v) || v < std::numeric_limits<int>::min() || v > std::numeric_limits<int>::max())
+        return false;
+      out.push_back(static_cast<int>(v));
     }
     sc.finish_line();
     return true;
@@ -145,7 +157,8 @@ LpmReadResult read_lpm_string(const std::string& text, Model& model) {
       else return fail("SENSE must be MIN or MAX");
     } else if (tag == "ROWS" || tag == "COLS" || tag == "NNZ") {
       long long v;
-      if (!parse_int(rest, v) || v < 0) return fail("bad size");
+      // the Model indexes with int (CSC col_start, row_index)
+      if (!parse_int(rest, v) || v < 0 || v > std::numeric_limits<int>::max()) return fail("bad size");
       (tag == "ROWS" ? rows : tag == "COLS" ? cols : nnz) = v;
     } else if (tag == "OFFSET") {
       if (!parse_double(rest, model.obj_offset)) return fail("bad OFFSET");
@@ -175,7 +188,7 @@ LpmReadResult read_lpm_string(const std::string& text, Model& model) {
     } else if (tag == "ROW_NAMES" || tag == "COL_NAMES") {
       auto& names = tag == "ROW_NAMES" ? model.row_names : model.col_names;
       const long long count = tag == "ROW_NAMES" ? rows : cols;
-      names.reserve(static_cast<std::size_t>(count));
+      names.reserve(static_cast<std::size_t>(std::min(count, kReserveCap)));
       for (long long k = 0; k < count; ++k) {
         if (!sc.line(ln)) return fail("unexpected end of names");
         names.emplace_back(ln);

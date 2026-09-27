@@ -194,3 +194,21 @@ TEST(CApi, InvalidOptionsAreRejectedNotIgnored) {
             PS26119_INVALID_ARGUMENT);
   EXPECT_EQ(ps26119_solve_mps(nullptr, nullptr, &res, nullptr), PS26119_INVALID_ARGUMENT);
 }
+
+TEST(CApi, NonFiniteWarmStartIsRejected) {
+  // an inf/NaN warm start used to reach the iteration and end as NumericalError
+  const double inf = HUGE_VAL;
+  const double c[1] = {1}, cl[1] = {0}, cu[1] = {inf}, rl[1] = {1}, ru[1] = {inf};
+  const int cs[2] = {0, 1}, ri[1] = {0};
+  const double v[1] = {1};
+  const double wx[1] = {NAN}, wy[1] = {0};
+  ps26119_options o;
+  ps26119_default_options(&o);
+  o.algorithm = PS26119_ALG_R2HPDHG;
+  o.warm_x = wx;
+  o.warm_y = wy;
+  ps26119_result res;
+  EXPECT_EQ(ps26119_solve_lp(1, 1, 1, 0.0, c, cl, cu, rl, ru, cs, ri, v, &o, &res, nullptr, nullptr, nullptr),
+            PS26119_NOT_SOLVED);
+  EXPECT_NE(std::string(res.message).find("non-finite"), std::string::npos) << res.message;
+}

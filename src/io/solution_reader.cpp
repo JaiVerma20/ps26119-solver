@@ -19,17 +19,33 @@ bool read_solution(const std::string& path, Solution& sol, std::string& error) {
     error = "not a ps26119 solution file";
     return false;
   }
+  // Numbers must parse completely (strtod also accepts inf/nan spellings); counts must be sane —
+  // a corrupted file used to reach vector::resize with a negative count via atoi.
+  auto number = [](const std::string& t, double& v) {
+    char* end = nullptr;
+    v = std::strtod(t.c_str(), &end);
+    return !t.empty() && end == t.c_str() + t.size();
+  };
+  auto count_of = [](const std::string& t, int& n) {
+    char* end = nullptr;
+    const long v = std::strtol(t.c_str(), &end, 10);
+    if (t.empty() || *end != '\0' || v < 0 || v > 1'000'000'000) return false;
+    n = static_cast<int>(v);
+    return true;
+  };
+  // Vectors grow only as lines are actually read (a bogus count cannot trigger a huge allocation).
   auto read_block = [&](int count, std::vector<double>& a, std::vector<double>& b) -> bool {
-    a.resize(count);
-    b.resize(count);
+    a.clear();
+    b.clear();
     for (int k = 0; k < count; ++k) {
       if (!std::getline(in, line)) return false;
       std::istringstream ls(line);
       int idx;
       std::string va, vb;
-      if (!(ls >> idx >> va >> vb) || idx != k) return false;
-      a[k] = std::strtod(va.c_str(), nullptr);  // strtod handles inf/nan spellings
-      b[k] = std::strtod(vb.c_str(), nullptr);
+      double x = 0, y = 0;
+      if (!(ls >> idx >> va >> vb) || idx != k || !number(va, x) || !number(vb, y)) return false;
+      a.push_back(x);
+      b.push_back(y);
     }
     return true;
   };
@@ -47,29 +63,44 @@ bool read_solution(const std::string& path, Solution& sol, std::string& error) {
         return false;
       }
     } else if (key == "objective") {
-      sol.objective = std::strtod(rest.c_str(), nullptr);
+      if (!number(rest, sol.objective)) {
+        error = "malformed objective '" + rest + "'";
+        return false;
+      }
     } else if (key == "model") {
       sol.model_fingerprint = rest;
     } else if (key == "primal_weight") {
-      sol.primal_weight = std::strtod(rest.c_str(), nullptr);
+      if (!number(rest, sol.primal_weight)) {
+        error = "malformed primal_weight '" + rest + "'";
+        return false;
+      }
     } else if (key == "engine") {
       sol.engine = rest;
     } else if (key == "DUAL_RAY" || key == "PRIMAL_RAY") {
       std::vector<double>& v = key == "DUAL_RAY" ? sol.dual_ray : sol.primal_ray;
-      const int count = std::atoi(rest.c_str());
-      v.assign(count, 0.0);
+      int count = 0;
+      if (!count_of(rest, count)) {
+        error = "malformed " + key + " count '" + rest + "'";
+        return false;
+      }
+      v.clear();
       for (int k = 0; k < count; ++k) {
         std::istringstream rl;
         int idx = -1;
         std::string val;
-        if (!std::getline(in, line) || !(rl.str(line), rl >> idx >> val) || idx != k) {
+        double x = 0;
+        if (!std::getline(in, line) || !(rl.str(line), rl >> idx >> val) || idx != k || !number(val, x)) {
           error = "malformed " + key + " block";
           return false;
         }
-        v[k] = std::strtod(val.c_str(), nullptr);
+        v.push_back(x);
       }
     } else if (key == "COLUMNS" || key == "ROWS") {
-      const int count = std::atoi(rest.c_str());
+      int count = 0;
+      if (!count_of(rest, count)) {
+        error = "malformed " + key + " count '" + rest + "'";
+        return false;
+      }
       const bool ok = key == "COLUMNS" ? read_block(count, sol.x, sol.z) : read_block(count, sol.row_activity, sol.y);
       if (!ok) {
         error = "malformed " + key + " block";

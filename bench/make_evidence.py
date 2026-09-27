@@ -18,6 +18,10 @@ ROOT = os.path.dirname(HERE)
 OUT = os.path.join(ROOT, "docs", "EVIDENCE.md")
 
 
+# tagged full-Netlib runs (e.g. -gm12-) are ablations, not the default configuration
+ABLATION_TAGS = ("gm12", "gm4", "gm0", "presolve", "nopresolve", "noscale", "dantzig")
+
+
 def committed_csvs():
     r = subprocess.run(["git", "ls-files", "bench/results/*.csv"], cwd=ROOT, capture_output=True, text=True)
     return sorted(p for p in r.stdout.split() if p)
@@ -154,6 +158,78 @@ def netlib_engine_comparison(fulls):
     return "\n".join(lines)
 
 
+def headline(paths, cpu_scales, gpu_scales):
+    """One table of the key numbers for slides, each computed from the newest committed CSV of
+    its kind with the same rules as the detailed sections below (and naming its source)."""
+    rows = []
+    src = lambda p: f"`{os.path.basename(p)}`"
+    net = latest([p for p in paths if "gpu" not in os.path.basename(p)], "netlib-small-")
+    if net:
+        r = load(net)
+        rows.append(["Small Netlib, every engine x fp64/mixed, independent verifier",
+                     f"{sum(x['verify'] == 'PASS' for x in r)}/{len(r)} verified", src(net)])
+    fulls = {}
+    for p in paths:
+        b = os.path.basename(p)
+        if b.startswith("netlib-full-") and not any(f"-{t}-" in b for t in ABLATION_TAGS):  # default runs only
+            fr = load(p)
+            if fr and fr[0].get("backend") != "gpu":
+                fulls.setdefault(fr[0]["engine"], []).append(p)
+    for eng in ("auto", "simplex", "r2hpdhg"):
+        if eng in fulls:
+            p = latest(fulls[eng], "netlib-full-")
+            fr = load(p)
+            ok = [x for x in fr if x["status"] == "Optimal" and x["verify"] == "PASS" and x["rel_err_highs"]
+                  and float(x["rel_err_highs"]) <= 1e-6]
+            rows.append([f"Netlib LP (all {len(fr)}), `{eng}`, 60 s each: solved, verified, = HiGHS to 1e-6",
+                         f"**{len(ok)}/{len(fr)}**", src(p)])
+    for eng in ("simplex", "r2hpdhg"):
+        c = latest([p for p in paths if os.path.basename(p).startswith(f"infeasible-cut-{eng}-")], "infeasible-cut-")
+        if c:
+            cr = load(c)
+            cert = [x for x in cr if x["status"] == "Infeasible" and x["check"] == "PASS" and x["verify"] == "PASS"]
+            exact = sum("exact rational" in x["certificate"] for x in cert)
+            rows.append([f"Infeasible LPs (Netlib + objective cut), `{eng}`: certified by gate AND verifier",
+                         f"**{len(cert)}/{len(cr)}** ({exact} in exact rational arithmetic)", src(c)])
+    mp = latest(paths, "miplib3-")
+    if mp:
+        mr = load(mp)
+        ok = [x for x in mr if x["status"] == "Optimal" and x["verify"] == "PASS"]
+        rows.append([f"Small MIPLIB 3, branch-and-bound, {mr[0].get('time_limit') or '300'} s: proven optimal, verified",
+                     f"**{len(ok)}/{len(mr)}**", src(mp)])
+    if cpu_scales:
+        p = latest(cpu_scales, "scale-")
+        sr = load(p)
+        for inst in ("refinery-T8760-s1", "rand-1000000-s1"):
+            opt = [x for x in sr if x["instance"] == inst and x["status"] == "Optimal" and x.get("seconds_to_1e-8")]
+            if not opt:
+                continue
+            one = [x for x in opt if str(x.get("threads", "1")) in ("1", "")]
+            best = min(opt, key=lambda x: float(x["seconds_to_1e-8"]))
+            b1 = min(one, key=lambda x: float(x["seconds_to_1e-8"])) if one else None
+            txt = (f"1 thread {fnum(b1['seconds_to_1e-8'])} s ({b1['precision']}); " if b1 else "") + \
+                  f"best {fnum(best['seconds_to_1e-8'])} s ({best.get('threads')} thr, {best['precision']}); " \
+                  f"error vs known optimum {best.get('rel_err_known') or '–'}, verify {best.get('verify') or '–'}"
+            rows.append([f"`{inst}` ({best['rows']} rows, {best['nnz']} nnz), r²HPDHG to 1e-8, CPU ({best.get('cpu')})",
+                         txt, src(p)])
+    for p in gpu_scales:
+        import gpu_compare
+        for q in gpu_compare.pairs(load(p)):
+            g = q["gpu"]
+            if g["instance"] == "refinery-T8760-s1" and q["vsbest_1e-8"] is not None:
+                only1 = str(q["best"].get("threads", "1")) in ("1", "")
+                rows.append([f"GPU `{g.get('gpu')}`, refinery year, {g['precision']}",
+                             f"{gpu_compare.fmt_ratio(q['vsbest_1e-8'])} vs "
+                             f"{'ONE CPU thread (multi-core not measured)' if only1 else 'the fastest CPU configuration'}",
+                             src(p)])
+    if not rows:
+        return ""
+    return "\n".join(["## Headline numbers", "",
+                      "For slides: each number is recomputed from the newest committed CSV of its kind, with the "
+                      "rules of the sections below; the source file (git hash in its name) is in the last column.", "",
+                      table(["claim", "result", "source"], rows)])
+
+
 def scale_section(path):
     rows = load(path)
     r0 = rows[0]
@@ -253,6 +329,9 @@ def main():
            "(CLAUDE.md §5.1). Every table names its source file; the git short hash is in each filename. "
            "Nothing here is a target or an estimate.", "",
            "Files used:", ""]
+    head = headline(paths, cpu_scales, gpu_scales)
+    if head:
+        doc[-2:-2] = [head, ""]
     doc += [f"- `{p}` (committed {commit_date(p)})" for p in paths]
     doc += ["", "## 1. Correctness on small Netlib (oracle, PDLP-style PDHG, r²HPDHG; fp64 and mixed)", ""]
     doc.append(netlib_section(net) if net else "_No committed small-Netlib CSV._")
@@ -261,9 +340,7 @@ def main():
 
     fulls_all = [p for p in paths if os.path.basename(p).startswith("netlib-full-")]
     # tagged runs (e.g. -gm12-) are ablations, not the default configuration
-    ablations = [p for p in fulls_all
-                 if any(f"-{t}-" in os.path.basename(p)
-                        for t in ("gm12", "gm4", "gm0", "presolve", "nopresolve", "noscale", "dantzig"))]
+    ablations = [p for p in fulls_all if any(f"-{t}-" in os.path.basename(p) for t in ABLATION_TAGS)]
     fulls = [p for p in fulls_all if p not in ablations]
     # latest run per configuration tag (engine-precision[-gpu]-machine)
     by_tag = {}
@@ -362,11 +439,13 @@ def main():
 
     doc += ["", "## 4b. Warm-started re-solves (what-if scenarios on the refinery LP)", ""]
     warms = [p for p in paths if os.path.basename(p).startswith("warm-start-")]
-    for p in warms:
+    newest = latest(warms, "warm-start-") if warms else None
+    for p in [newest] if newest else []:  # the newest run (older ones are listed under "Files used")
         rows = load(p)
         r0 = rows[0]
         doc += [f"Source: `{p}` — `{r0['machine']}` ({r0['cpu']}), commit `{r0['git_hash']}`. Each scenario solved "
-                "cold and warm-started from the base-case solution, both to 1e-8, both verified.", ""]
+                "cold and warm-started from the base-case solution, to 1e-8; the verify column is "
+                "cold/warm/warm+ω (a cold TimeLimit shows as FAIL).", ""]
         body = []
         for inst in dict.fromkeys(r["instance"] for r in rows):
             for scen in dict.fromkeys(r["scenario"] for r in rows if r["instance"] == inst):

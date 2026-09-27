@@ -40,12 +40,23 @@ Status words: **VERIFIED** (tested + benchmarked with a committed CSV), **IMPLEM
   (EVIDENCE §1b).
 - Presolve is basic (empty rows, fixed/empty columns, singleton rows, integer bound rounding).
 - No interior-point method, no QP, no MIQP/NLP.
+- Time limits: engines check the clock every iteration, but first-order setup (scaling; ~5 s
+  at 6M nonzeros on the M4) and the final verification are not interruptible, and the
+  certified bound's refinement may use up to 1.1 × limit + 1 s. File reading is not counted.
+- A first-order run with a tolerance looser than the verifier's (e.g. `--tol 1e-4`) reports
+  Optimal at that tolerance with `check FAIL` stated — by request, not verifier-grade.
 
 ## MILP (EXPERIMENTAL / prototype)
 - Branch-and-bound with cold-started sparse simplex node LPs, certified-bound pruning,
   pseudocost branching (most fractional until there is history), rounding and fractional
   diving heuristics. **No cuts, no strong/reliability branching, no node warm start.** Small MIPLIB 3 models only (EVIDENCE §4d for which are solved).
 - Single-threaded tree.
+- An **Infeasible** MILP verdict comes from an exhausted tree and carries no certificate
+  (LP-style Farkas proofs do not apply); an **Unbounded** MILP verdict carries an integer point
+  plus a ray, checked on the original model (DECISIONS: `Mip.UnboundedRelaxationIsDecidedNotAssumed`).
+- When a node's certified bound is −∞ (free continuous columns without implied bounds), pruning
+  falls back to the node LP objective; such prunes are counted in the message
+  ("N prunes by an uncertified LP bound").
 
 ## Input / output
 - MPS: no gzip, no QUADOBJ/QMATRIX (QP), SOS, semi-continuous bounds, indicator constraints

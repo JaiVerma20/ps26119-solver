@@ -260,3 +260,17 @@ TEST(Mip, UnboundedRelaxationIsDecidedNotAssumed) {
   const Solution si = solve(inf, o);
   EXPECT_EQ(si.status, Status::Infeasible) << si.message;
 }
+
+TEST(Mip, EveryReportedPointIsCheckedOnTheOriginalModel) {
+  // The MILP re-check (bounds, rows, integrality) used to run only when presolve changed the
+  // model; now the gate checks every MILP Optimal (and a limit's incumbent).
+  Model m = make_model({-12, -7, -9, -4, -11}, {{5, 3, 4, 2, 6}}, {-kInf}, {12}, {0, 0, 0, 0, 0}, {1, 1, 1, 1, 1});
+  m.is_integer = {1, 1, 1, 1, 1};
+  for (bool presolve : {false, true}) {
+    Options o;
+    o.presolve = presolve;
+    const Solution s = solve(m, o);
+    ASSERT_EQ(s.status, Status::Optimal) << s.message;
+    EXPECT_EQ(s.check, "PASS") << "presolve " << presolve;
+  }
+}

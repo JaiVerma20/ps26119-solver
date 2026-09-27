@@ -1,0 +1,19 @@
+git_hash,machine,cpu,gpu,driver,cuda,date,instance,rows,cols,nnz,scenario,backend,precision,start,status,iterations,seconds,objective,objective_change_vs_base,verify,iteration_ratio_warm_over_cold
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T365-s1,17885,21535,63134,price,cpu,fp64,cold,Optimal,13824,2.539433,846324.44599306921,+3.180e-03,PASS,1.000
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T365-s1,17885,21535,63134,price,cpu,fp64,warm,Optimal,11648,2.151531,846324.44593935565,+3.180e-03,PASS,0.843
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T365-s1,17885,21535,63134,price,cpu,fp64,warm+weight,Optimal,16512,3.007279,846324.44592649071,+3.180e-03,PASS,1.194
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T365-s1,17885,21535,63134,demand,cpu,fp64,cold,Optimal,1792,0.444555,869522.00760305673,+3.068e-02,PASS,1.000
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T365-s1,17885,21535,63134,demand,cpu,fp64,warm,Optimal,1984,0.477004,869522.0076276107,+3.068e-02,PASS,1.107
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T365-s1,17885,21535,63134,demand,cpu,fp64,warm+weight,Optimal,2240,0.523120,869522.00757535733,+3.068e-02,PASS,1.250
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T365-s1,17885,21535,63134,crude,cpu,fp64,cold,Optimal,2304,0.535330,834159.30016546929,-1.124e-02,PASS,1.000
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T365-s1,17885,21535,63134,crude,cpu,fp64,warm,Optimal,1344,0.367996,834159.30013195565,-1.124e-02,PASS,0.583
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T365-s1,17885,21535,63134,crude,cpu,fp64,warm+weight,Optimal,1344,0.367345,834159.30013196252,-1.124e-02,PASS,0.583
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T8760-s1,429240,516840,1515469,price,cpu,fp64,cold,TimeLimit,135381,600.758000,21234601.731491815,+3.596e-03,FAIL,1.000
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T8760-s1,429240,516840,1515469,price,cpu,fp64,warm,Optimal,46976,210.723885,21234601.736484736,+3.596e-03,PASS,0.347
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T8760-s1,429240,516840,1515469,price,cpu,fp64,warm+weight,Optimal,34368,160.384666,21234601.737215262,+3.596e-03,PASS,0.254
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T8760-s1,429240,516840,1515469,demand,cpu,fp64,cold,Optimal,3264,16.990662,21781825.724362079,+2.946e-02,PASS,1.000
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T8760-s1,429240,516840,1515469,demand,cpu,fp64,warm,Optimal,1600,9.588477,21781825.724342473,+2.946e-02,PASS,0.490
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T8760-s1,429240,516840,1515469,demand,cpu,fp64,warm+weight,Optimal,2240,12.734083,21781825.724299029,+2.946e-02,PASS,0.686
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T8760-s1,429240,516840,1515469,crude,cpu,fp64,cold,Optimal,3072,16.077637,20953695.421293274,-9.681e-03,PASS,1.000
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T8760-s1,429240,516840,1515469,crude,cpu,fp64,warm,Optimal,1408,8.884719,20953695.421271238,-9.681e-03,PASS,0.458
+f440782,macbook-air-m4,Apple M4,none,,,2026-09-27T14:20:52,refinery-T8760-s1,429240,516840,1515469,crude,cpu,fp64,warm+weight,Optimal,1472,9.030886,20953695.421222173,-9.681e-03,PASS,0.479

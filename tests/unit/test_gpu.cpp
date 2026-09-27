@@ -10,6 +10,7 @@
 
 #include "io/lpm_reader.h"
 #include "kkt_check.h"
+#include "model_builder.h"
 #include "pdhg/backend.h"
 #include "pdhg/scaling.h"
 #include "ps26119/solve.h"
@@ -184,4 +185,47 @@ TEST(Gpu, LongRowKernelMatchesCpu) {
   ASSERT_EQ(c.status, Status::Optimal) << c.message;
   ASSERT_EQ(gsol.status, Status::Optimal) << gsol.message;
   EXPECT_NEAR(gsol.objective, c.objective, 1e-6 * (1 + std::fabs(c.objective)));
+}
+
+// Certified verdicts and determinism on the GPU backend (the certificate, drift-based
+// infeasibility detection and the zero-objective feasibility solve all run through the backend
+// interface, so they must work on CUDA exactly as on the CPU — tests/unit/test_certificates.cpp).
+TEST(Gpu, CertifiedVerdictsAndDeterminism) {
+  const double inf = kInf;
+  const Model infeasible = test::make_model({1, 1}, {{1, 1}, {1, 1}}, {-inf, 3}, {1, inf}, {0, 0}, {inf, inf});
+  Model unbounded = test::make_model({5, -1, 4, -5, 0, 0, -5},
+                                     {{0, 5, 0, 0, 0, 2, 0},
+                                      {0, 5, -5, 0, 0, 0, -1},
+                                      {0, 0, 0, -1, 0, 0, 5},
+                                      {-3, 0, 0, 0, 0, -3, 4},
+                                      {0, 4, -1, -5, 0, 0, 0},
+                                      {4, 0, 0, 0, 0, -4, 4},
+                                      {0, 0, 0, 0, -5, -2, 0}},
+                                     {-inf, -inf, -15, -21, 24, -inf, -inf}, {31, 23, inf, inf, 24, -24, -9},
+                                     {0, 4, 1, -inf, 0, 1, -inf}, {inf, 9, inf, 2, inf, 4, inf});
+  unbounded.sense = -1;
+  for (Algorithm alg : {Algorithm::R2hpdhg, Algorithm::Pdlp}) {
+    for (Precision prec : {Precision::Fp64, Precision::Mixed}) {
+      SCOPED_TRACE(std::string(to_string(alg)) + " " + to_string(prec));
+      Options o;
+      o.algorithm = alg;
+      o.precision = prec;
+      o.use_gpu = true;
+      o.iteration_limit = 3'000'000;
+      const Solution si = solve(infeasible, o);
+      EXPECT_EQ(si.status, Status::Infeasible) << si.message;
+      EXPECT_EQ(si.check, "PASS") << si.message;
+      const Solution su = solve(unbounded, o);
+      EXPECT_EQ(su.status, Status::Unbounded) << su.message;
+      EXPECT_EQ(su.check, "PASS") << su.message;
+      // determinism: the same GPU solve twice gives the same iterations and bit-identical x
+      Model afiro;
+      ASSERT_TRUE(io::read_lpm(data("netlib_small/afiro.lpm"), afiro).ok);
+      const Solution a = solve(afiro, o), b = solve(afiro, o);
+      ASSERT_EQ(a.status, Status::Optimal) << a.message;
+      EXPECT_EQ(a.iterations, b.iterations);
+      ASSERT_EQ(a.x.size(), b.x.size());
+      EXPECT_EQ(max_rel_diff(a.x, b.x), 0.0);
+    }
+  }
 }

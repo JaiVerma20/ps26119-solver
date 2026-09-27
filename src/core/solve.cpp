@@ -90,6 +90,24 @@ Solution solve_impl(const Model& model, const Options& options);
 
 bool treat_as_mip(const Model& m, const Options& o) { return has_integers(m) && !o.relax_integrality; }
 
+// A MILP point on the ORIGINAL model: bounds, rows (relative kMipFeasibility) and integrality.
+bool mip_point_ok(const Model& model, const std::vector<double>& x) {
+  if (static_cast<int>(x.size()) != model.num_cols) return false;
+  auto in = [](double v, double lo, double up) {
+    return v >= lo - tol::kMipFeasibility * (1 + std::fabs(lo)) && v <= up + tol::kMipFeasibility * (1 + std::fabs(up));
+  };
+  for (int j = 0; j < model.num_cols; ++j) {
+    if (!in(x[j], model.col_lower[j], model.col_upper[j])) return false;
+    if (j < static_cast<int>(model.is_integer.size()) && model.is_integer[j] &&
+        std::fabs(x[j] - std::round(x[j])) > tol::kMipIntegrality)
+      return false;
+  }
+  const auto ax = model.row_activity(x);
+  for (int i = 0; i < model.num_rows; ++i)
+    if (!in(ax[i], model.row_lower[i], model.row_upper[i])) return false;
+  return true;
+}
+
 }  // namespace
 
 namespace core {
@@ -99,7 +117,21 @@ namespace core {
 // verifier-grade accuracy are demoted to NumericalError when the check fails. MILP answers
 // are verified by the branch-and-bound / presolve safety net instead (integrality, rows).
 void gate(const Model& model, const Options& options, Solution& s) {
-  if (treat_as_mip(model, options)) return;
+  if (treat_as_mip(model, options)) {
+    // MILP: the reported point (Optimal, or the incumbent of a limit status) is re-checked on
+    // the original model — bounds, rows, integrality — whichever path produced it (it used to
+    // be re-checked only after presolve). A failing Optimal is withdrawn.
+    if (!s.x.empty() && (s.status == Status::Optimal || s.status == Status::TimeLimit ||
+                         s.status == Status::IterationLimit)) {
+      const bool ok = mip_point_ok(model, s.x);
+      s.check = ok ? "PASS" : "FAIL";
+      if (!ok && s.status == Status::Optimal) {
+        s.status = Status::NumericalError;
+        s.message += std::string(s.message.empty() ? "" : "; ") + "Optimal withdrawn: the MILP point fails the check on the original model";
+      }
+    }
+    return;
+  }
   if (s.status == Status::Infeasible || s.status == Status::Unbounded) {
     // Claims other than Optimal are verified too (core/certificates.h).
     s.objective = s.dual_objective = std::numeric_limits<double>::quiet_NaN();
@@ -153,7 +185,32 @@ void gate(const Model& model, const Options& options, Solution& s) {
 }
 }  // namespace core
 
+namespace {
+Solution solve_unguarded(const Model& model, const Options& options);
+}  // namespace
+
+// Public entry point: no exception escapes (presolve, postsolve and the gate run outside the
+// engines' own try/catch). Out of memory -> NotSolved; anything else -> NumericalError.
 Solution solve(const Model& model, const Options& options) {
+  try {
+    return solve_unguarded(model, options);
+  } catch (const std::bad_alloc&) {
+    Solution s;
+    s.status = Status::NotSolved;
+    s.message = "out of memory";
+    s.model_fingerprint = model.fingerprint_hex();
+    return s;
+  } catch (const std::exception& e) {
+    Solution s;
+    s.status = Status::NumericalError;
+    s.message = std::string("internal error: ") + e.what();
+    s.model_fingerprint = model.fingerprint_hex();
+    return s;
+  }
+}
+
+namespace {
+Solution solve_unguarded(const Model& model, const Options& options) {
   if (options.algorithm != Algorithm::Auto) {
     Solution s = solve_impl(model, options);
     core::gate(model, options, s);
@@ -200,6 +257,7 @@ Solution solve(const Model& model, const Options& options) {
   }
   return s;
 }
+}  // namespace
 
 namespace {
 // Presolve wrapper: reduce, solve the reduced model, postsolve, and re-check optimality on the
@@ -210,7 +268,11 @@ Solution solve_impl(const Model& model, const Options& options) {
   // presolve work touches it (mapping a wrong-sized warm start would read out of bounds).
   const bool bad_warm = (!options.warm_x.empty() && static_cast<int>(options.warm_x.size()) != model.num_cols) ||
                         (!options.warm_y.empty() && static_cast<int>(options.warm_y.size()) != model.num_rows);
-  if (!options.presolve || bad_warm || !model.validate().empty()) return solve_direct(model, options);
+  auto finite = [](const std::vector<double>& v) {
+    return std::all_of(v.begin(), v.end(), [](double a) { return std::isfinite(a); });
+  };
+  const bool bad_warm_values = !finite(options.warm_x) || !finite(options.warm_y);  // rejected by solve_direct
+  if (!options.presolve || bad_warm || bad_warm_values || !model.validate().empty()) return solve_direct(model, options);
   if (auto why = model.crossed_bounds(); !why.empty()) return trivially_infeasible(model, options, why);
   const auto t0 = std::chrono::steady_clock::now();
   PresolveResult pr = presolve(model);
@@ -354,18 +416,7 @@ Solution solve_impl(const Model& model, const Options& options) {
   if (is_mip && (post.status == Status::Optimal || !post.x.empty())) {
     // Safety net: a MILP answer that went through presolve is re-verified on the ORIGINAL
     // model (bounds, rows, integrality). Never report a point that fails as Optimal.
-    bool ok = static_cast<int>(post.x.size()) == model.num_cols;
-    if (ok) {
-      const auto ax = model.row_activity(post.x);
-      auto in = [](double v, double lo, double up) {
-        return v >= lo - tol::kMipFeasibility * (1 + std::fabs(lo)) && v <= up + tol::kMipFeasibility * (1 + std::fabs(up));
-      };
-      for (int j = 0; ok && j < model.num_cols; ++j) {
-        ok = in(post.x[j], model.col_lower[j], model.col_upper[j]);
-        if (ok && model.is_integer[j]) ok = std::fabs(post.x[j] - std::round(post.x[j])) <= tol::kMipIntegrality;
-      }
-      for (int i = 0; ok && i < model.num_rows; ++i) ok = in(ax[i], model.row_lower[i], model.row_upper[i]);
-    }
+    const bool ok = mip_point_ok(model, post.x);
     if (!ok && post.status == Status::Optimal) {
       post.status = Status::NumericalError;
       post.message += "; postsolved MILP point failed the check on the original model";
@@ -432,6 +483,15 @@ Solution solve_direct(const Model& model, const Options& options, bool certify) 
       (!options.warm_y.empty() && static_cast<int>(options.warm_y.size()) != model.num_rows)) {
     sol.status = Status::NotSolved;
     sol.message = "warm start vectors have the wrong size";
+    return sol;
+  }
+  auto finite = [](const std::vector<double>& v) {
+    return std::all_of(v.begin(), v.end(), [](double a) { return std::isfinite(a); });
+  };
+  if (!finite(options.warm_x) || !finite(options.warm_y) ||
+      !(options.warm_primal_weight >= 0 && std::isfinite(options.warm_primal_weight))) {
+    sol.status = Status::NotSolved;  // an inf/NaN warm start used to poison the iteration
+    sol.message = "warm start contains non-finite values";
     return sol;
   }
   if (auto why = model.crossed_bounds(); !why.empty()) return trivially_infeasible(model, options, why);
