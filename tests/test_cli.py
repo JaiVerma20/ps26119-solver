@@ -113,6 +113,37 @@ class Cli(unittest.TestCase):
         self.assertEqual(run("solve", os.path.join(self.tmp, "missing.lpm"), "--out", probe)[0], 3)
         self.assertFalse(os.path.exists(probe))
 
+    def test_reader_fuzz_never_crashes(self):
+        # Mutated afiro (.lpm and .mps): truncations, corrupted bytes and tokens, deleted lines.
+        # Every run must end with a contract exit code; in the ASan/UBSan CI job a memory error
+        # would also show up as a sanitizer report on stderr.
+        import random
+        rng = random.Random(7)
+        for fmt in ("lpm", "mps"):
+            src = open(os.path.join(DATA, "netlib_small", "afiro." + fmt)).read()
+            path = os.path.join(self.tmp, "fuzz." + fmt)
+            for _ in range(60):
+                s, k = src, rng.randint(0, 3)
+                if k == 0:
+                    s = s[:rng.randint(0, len(s))]
+                elif k == 1:
+                    i = rng.randrange(len(s))
+                    s = s[:i] + rng.choice(["-", "1e999", "nan", "\x00", "x", "99999999999", " ", "\n", ""]) + s[i + 1:]
+                elif k == 2:
+                    toks = s.split(" ")
+                    toks[rng.randrange(len(toks))] = rng.choice(["-5", "1e308", "inf", "-inf", "abc", "0", "2147483648"])
+                    s = " ".join(toks)
+                else:
+                    lines = s.split("\n")
+                    del lines[rng.randrange(len(lines))]
+                    s = "\n".join(lines)
+                open(path, "w", errors="replace").write(s)
+                for args in (["info", path], ["solve", path, "--time-limit", "5"]):
+                    code, out = run(*args)
+                    self.assertIn(code, (0, 1, 3, 5), (args, out[-300:]))
+                    self.assertNotIn("Sanitizer", out, out[-600:])
+                    self.assertNotIn("runtime error", out, out[-600:])
+
     def test_gpu_request_is_never_served_silently_by_the_cpu(self):
         # auto + --gpu must pick r2hpdhg (the only GPU engine). On a build without CUDA this is
         # a clear NotSolved (exit 5), never a CPU simplex answer presented as a GPU run.
