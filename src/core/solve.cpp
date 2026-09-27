@@ -185,7 +185,32 @@ void gate(const Model& model, const Options& options, Solution& s) {
 }
 }  // namespace core
 
+namespace {
+Solution solve_unguarded(const Model& model, const Options& options);
+}  // namespace
+
+// Public entry point: no exception escapes (presolve, postsolve and the gate run outside the
+// engines' own try/catch). Out of memory -> NotSolved; anything else -> NumericalError.
 Solution solve(const Model& model, const Options& options) {
+  try {
+    return solve_unguarded(model, options);
+  } catch (const std::bad_alloc&) {
+    Solution s;
+    s.status = Status::NotSolved;
+    s.message = "out of memory";
+    s.model_fingerprint = model.fingerprint_hex();
+    return s;
+  } catch (const std::exception& e) {
+    Solution s;
+    s.status = Status::NumericalError;
+    s.message = std::string("internal error: ") + e.what();
+    s.model_fingerprint = model.fingerprint_hex();
+    return s;
+  }
+}
+
+namespace {
+Solution solve_unguarded(const Model& model, const Options& options) {
   if (options.algorithm != Algorithm::Auto) {
     Solution s = solve_impl(model, options);
     core::gate(model, options, s);
@@ -232,6 +257,7 @@ Solution solve(const Model& model, const Options& options) {
   }
   return s;
 }
+}  // namespace
 
 namespace {
 // Presolve wrapper: reduce, solve the reduced model, postsolve, and re-check optimality on the

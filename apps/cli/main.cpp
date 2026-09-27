@@ -14,6 +14,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <exception>
+#include <new>
 #include <string>
 #include <utility>
 #include <vector>
@@ -382,7 +384,22 @@ int cmd_batch(int argc, char** argv) {
 
 }  // namespace
 
+int run_cli(int argc, char** argv);
+
+// Last line of defence: an exception (e.g. out of memory while reading a huge file) ends the
+// program with a message and exit code 5, never with std::terminate.
 int main(int argc, char** argv) {
+  try {
+    return run_cli(argc, argv);
+  } catch (const std::bad_alloc&) {
+    std::fprintf(stderr, "fatal: out of memory\n");
+  } catch (const std::exception& e) {
+    std::fprintf(stderr, "fatal: %s\n", e.what());
+  }
+  return 5;
+}
+
+int run_cli(int argc, char** argv) {
   if (argc < 2) {
     usage(stderr);
     return 2;
