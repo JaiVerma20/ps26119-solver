@@ -15,10 +15,13 @@ hash-named CSV (`docs/EVIDENCE.md`); nothing here is a target presented as a res
    - `scale.py`'s GPU summary no longer comes out empty;
    - time limits are enforced per iteration and certificates are checked for every
      Infeasible/Unbounded verdict (the GPU path uses the same code);
-   - `--gpu` with `--algorithm auto` now always selects r²HPDHG (the GPU engine).
+   - `--gpu` with `--algorithm auto` now always selects r²HPDHG (the GPU engine);
+   - new CUDA-only test `Gpu.CertifiedVerdictsAndDeterminism`: certified Infeasible/Unbounded
+     on the GPU (r²HPDHG, PDLP x fp64/mixed) and two identical GPU solves must give identical
+     iterations and x. It could only be type-checked on the Mac — **if it fails, that is a real
+     finding** (e.g. a non-deterministic reduction or a backend op missing on CUDA): send the log.
+   `gpu_check.sh` now ends by running `bench/validate_results.py` on its own output.
    Open a PR with `bench/results/*.csv` + `bench/results/logs/<machine>-<hash>/` as before.
-   `python3 bench/validate_results.py bench/results` must pass (provenance, ctest 100%,
-   sanitizer summaries).
 2. **compute-sanitizer on native Linux** (memcheck + racecheck of the CUDA kernels). WSL2
    cannot attach ("Failed to initialize WDDM debugger interface" / "Device not supported").
    Options: a university GPU server, a native Linux boot, or NVIDIA's
