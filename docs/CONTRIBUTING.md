@@ -30,6 +30,8 @@ main  (protected: pull request + green CI; nobody pushes to it directly)
    Python tests — configure with `-DPython3_EXECUTABLE=<python with highspy, numpy, scipy>`).
 4. `git push -u origin feature/<person>/<topic>`; open a pull request to `main`.
 5. CI must be green (Ubuntu + macOS build/test, ASan/UBSan, TSan, no-foreign-solver check).
+   `scripts/ci_local.sh` runs the same jobs locally (before pushing, or when GitHub Actions is
+   unavailable — then paste its summary into the PR).
    GPU changes additionally need a `scripts/gpu_check.sh` log from real hardware in the PR.
 6. The other teammate reviews; merge with "squash and merge" (or "rebase and merge" to keep
    individual commits). Delete the branch.
