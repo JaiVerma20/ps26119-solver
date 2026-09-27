@@ -280,3 +280,25 @@ TEST(Certificates, FirstOrderUnboundedWithoutAFeasibleIterate) {
     EXPECT_EQ(s.check, "PASS") << to_string(a) << " " << s.message;
   }
 }
+
+TEST(Certificates, ZeroMeasureFarkasVectorIsRejected) {
+  // Random MPS seed 99, model 2004 (max -x0 + x2 + x3; 5 x0 - x2 = 49, x0 in [4, 10], x2 in [1, 2]
+  // ...): FEASIBLE (optimum -6). r = (9.36e-4, 0, 0) has L0 = 49r - 50r + r = 0 exactly, but
+  // +2e-15 in fp64 with no violation, and the tolerance test used to accept it — a wrong
+  // Infeasible that passed the gate. L0 must be a meaningful fraction of its summands.
+  Model m = make_model({-1, 0, 1, 1}, {{5, 0, -1, 0}, {0, 0, 0, -5}, {-2, 0, -5, 0}}, {49, -16, -26}, {49, -15, kInf},
+                       {4, 0, 1, 0}, {10, kInf, 2, 3});
+  m.sense = -1;
+  const CertificateCheck c = check_infeasibility_certificate(m, {0.00093634084528417731, 0, 0});
+  EXPECT_FALSE(c.passed) << c.detail;
+  for (Algorithm a : {Algorithm::R2hpdhg, Algorithm::Pdlp, Algorithm::Simplex}) {
+    for (bool presolve : {false, true}) {
+      Options o;
+      o.algorithm = a;
+      o.presolve = presolve;
+      const Solution s = solve(m, o);
+      EXPECT_EQ(s.status, Status::Optimal) << to_string(a) << " " << s.message;
+      EXPECT_NEAR(s.objective, -6.0, 1e-6) << to_string(a);
+    }
+  }
+}

@@ -94,22 +94,32 @@ RayTest ray_test(const ScaledProblem& sp, const std::vector<double>& dxs, const 
   }
   if (rmax > 0) {
     sp.At_orig.multiply<double>(r.data(), g.data());
-    double obj = 0, viol = 0;
-    for (int i = 0; i < sp.m; ++i) obj += r[i] > 0 ? M.row_lower[i] * r[i] : (r[i] < 0 ? M.row_upper[i] * r[i] : 0.0);
+    // `mag`: magnitude of the summands of the objective (|λ_j| bounded above by Σ|a_ij r_i|);
+    // the objective must be a meaningful fraction of it, not rounding noise (a zero-cost dual
+    // direction otherwise stopped the engine with a bogus "infeasible", see certificates.cpp).
+    std::vector<double> gabs(sp.n, 0.0);
+    for (int j = 0; j < sp.n; ++j)
+      for (int k = M.col_start[j]; k < M.col_start[j + 1]; ++k) gabs[j] += std::fabs(M.value[k] * r[M.row_index[k]]);
+    double obj = 0, viol = 0, mag = 0;
+    for (int i = 0; i < sp.m; ++i) {
+      const double term = r[i] > 0 ? M.row_lower[i] * r[i] : (r[i] < 0 ? M.row_upper[i] * r[i] : 0.0);
+      obj += term;
+      mag += std::fabs(term);
+    }
     for (int j = 0; j < sp.n; ++j) {
       const double lam = -g[j], lo = M.col_lower[j], up = M.col_upper[j];
       if (lam > 0) {
-        if (std::isfinite(lo)) obj += lo * lam;
+        if (std::isfinite(lo)) obj += lo * lam, mag += gabs[j] * std::fabs(lo);
         else viol = std::max(viol, lam);
       } else if (lam < 0) {
-        if (std::isfinite(up)) obj += up * lam;
+        if (std::isfinite(up)) obj += up * lam, mag += gabs[j] * std::fabs(up);
         else viol = std::max(viol, -lam);
       }
     }
     const double scale = std::max(rmax, viol);
     t.dual_ray_objective = obj / scale;
     t.dual_ray_violation = viol / scale;
-    t.primal_infeasible = t.dual_ray_objective > 0 &&
+    t.primal_infeasible = t.dual_ray_objective > 0 && obj > tol::kFirstOrderInfeasible * mag &&
                           t.dual_ray_violation <= tol::kFirstOrderInfeasible * t.dual_ray_objective;
     t.dual_ray = r;
   }

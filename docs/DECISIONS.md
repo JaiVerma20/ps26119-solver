@@ -218,3 +218,14 @@ Newest last. Each entry: what, why, evidence, how to undo.
     go to the gate; infeasible → that certified Infeasible is the answer; limit → honest limit.
     Random MPS cross-check vs HiGHS, 2000 models, seed 2027: r2hpdhg 1999 → 2000/2000, PDLP
     1969 → 2000/2000 (`Certificates.FirstOrderUnboundedWithoutAFeasibleIterate`).
+
+34. **Soundness fix: a Farkas vector must prove more than rounding noise.** Random MPS cross-check
+    (seed 99, model 2004, 3x4, FEASIBLE, optimum −6): r²HPDHG and PDLP returned Infeasible and
+    the certificate passed the gate AND verify.py. r had L0 = 0 exactly (a zero-cost dual
+    direction; 49r − 50r + r), +2e-15 in fp64, no violation; the rigorous stage correctly gave
+    −8e-18, but the tolerance fallback accepted any L0 > 0. Now (gate, engine ray test, verify.py)
+    L0 must exceed 1e-8 × Σ|summands| (inside λ_j too), and verify.py never lets the tolerance
+    test override a conclusive exact L0 ≤ 0 (all terms finite, no implied bounds). Re-check of
+    the 23 objective-cut models whose certificates were tolerance-only: simplex 23/23, r²HPDHG
+    15/15 still certified (`Certificates.ZeroMeasureFarkasVectorIsRejected`,
+    `CertificateVerifier.test_zero_measure_farkas_vector_is_rejected`).

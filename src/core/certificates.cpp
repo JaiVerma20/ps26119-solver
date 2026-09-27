@@ -40,37 +40,46 @@ CertificateCheck check_infeasibility_certificate(const Model& model, const std::
   }
   // Stage 2: tolerance test (fp64), same normalisation as the first-order engines.
   const int m = model.num_rows, n = model.num_cols;
-  double rmax = 0.0, obj = 0.0, viol = 0.0;
+  // `mag` = sum of the magnitudes L0 is formed from (inside λ_j too): L0 must be a meaningful
+  // fraction of it, not rounding noise. Without this, a zero-cost dual direction (L0 = 0 in
+  // exact arithmetic, +2e-15 in fp64, no violation) "proved" a FEASIBLE LP infeasible (random
+  // MPS seed 99, model 2004) — the rigorous stage had correctly said L0 = −8e-18.
+  double rmax = 0.0, obj = 0.0, viol = 0.0, mag = 0.0;
   for (int i = 0; i < m; ++i) {
     rmax = std::max(rmax, std::fabs(r[i]));
     if (r[i] > 0) {
-      if (std::isfinite(model.row_lower[i])) obj += r[i] * model.row_lower[i];
+      if (std::isfinite(model.row_lower[i])) obj += r[i] * model.row_lower[i], mag += std::fabs(r[i] * model.row_lower[i]);
       else viol = std::max(viol, r[i]);
     } else if (r[i] < 0) {
-      if (std::isfinite(model.row_upper[i])) obj += r[i] * model.row_upper[i];
+      if (std::isfinite(model.row_upper[i])) obj += r[i] * model.row_upper[i], mag += std::fabs(r[i] * model.row_upper[i]);
       else viol = std::max(viol, -r[i]);
     }
   }
-  std::vector<double> atr(n, 0.0);
+  std::vector<double> atr(n, 0.0), atr_abs(n, 0.0);
   for (int j = 0; j < n; ++j)
-    for (int k = model.col_start[j]; k < model.col_start[j + 1]; ++k) atr[j] += model.value[k] * r[model.row_index[k]];
+    for (int k = model.col_start[j]; k < model.col_start[j + 1]; ++k) {
+      atr[j] += model.value[k] * r[model.row_index[k]];
+      atr_abs[j] += std::fabs(model.value[k] * r[model.row_index[k]]);
+    }
   for (int j = 0; j < n; ++j) {
     const double lam = -atr[j];
     if (lam > 0) {
-      if (std::isfinite(model.col_lower[j])) obj += lam * model.col_lower[j];
+      if (std::isfinite(model.col_lower[j])) obj += lam * model.col_lower[j], mag += atr_abs[j] * std::fabs(model.col_lower[j]);
       else viol = std::max(viol, lam);
     } else if (lam < 0) {
-      if (std::isfinite(model.col_upper[j])) obj += lam * model.col_upper[j];
+      if (std::isfinite(model.col_upper[j])) obj += lam * model.col_upper[j], mag += atr_abs[j] * std::fabs(model.col_upper[j]);
       else viol = std::max(viol, -lam);
     }
   }
   const double scale = std::max(rmax, viol);
   c.measure = scale > 0 ? obj / scale : 0.0;
   c.violation = scale > 0 ? viol / scale : 0.0;
-  c.passed = std::isfinite(c.measure) && c.measure > 0 && c.violation <= tol::kVerifyRay * c.measure;
+  c.passed = std::isfinite(c.measure) && c.measure > 0 && obj > tol::kVerifyRay * mag &&
+             c.violation <= tol::kVerifyRay * c.measure;
   std::snprintf(buf, sizeof buf,
-                "Farkas certificate: rigorous L0(r) = %.3g; tolerance test L0/s = %.3g, violation/s = %.3g (%s)",
-                sb.bound, c.measure, c.violation,
+                "Farkas certificate: rigorous L0(r) = %.3g; tolerance test L0/s = %.3g, violation/s = %.3g, "
+                "L0/sum|terms| = %.3g (%s)",
+                sb.bound, c.measure, c.violation, mag > 0 ? obj / mag : 0.0,
                 c.passed ? "infeasibility shown within tolerance, not rounding-proof" : "FAIL");
   c.detail = buf;
   return c;
