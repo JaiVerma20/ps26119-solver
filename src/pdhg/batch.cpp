@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstdio>
 #include <limits>
+#include <string>
 
 #include "pdhg/backend.h"
 #include "pdhg/engine.h"
@@ -104,6 +105,25 @@ struct ScenarioData {  // original space, original sense
   std::vector<double> c, cl, cu, rl, ru;
 };
 
+// The fingerprint of the model each scenario actually solves: the base matrix with the
+// scenario's objective and bounds (an empty vector keeps the base's). Every solution file must
+// name its own model — verify.py and users compare this hash with the file they hold. One
+// working copy of the base is reused, so memory is one extra model, not K.
+std::vector<std::string> scenario_fingerprints(const Model& base, const std::vector<Scenario>& scenarios) {
+  std::vector<std::string> out;
+  out.reserve(scenarios.size());
+  Model w = base;
+  for (const auto& s : scenarios) {
+    w.obj = s.obj.empty() ? base.obj : s.obj;
+    w.col_lower = s.col_lower.empty() ? base.col_lower : s.col_lower;
+    w.col_upper = s.col_upper.empty() ? base.col_upper : s.col_upper;
+    w.row_lower = s.row_lower.empty() ? base.row_lower : s.row_lower;
+    w.row_upper = s.row_upper.empty() ? base.row_upper : s.row_upper;
+    out.push_back(w.fingerprint_hex());
+  }
+  return out;
+}
+
 }  // namespace
 
 std::vector<Solution> solve_batch(const Model& base, const std::vector<Scenario>& scenarios, const Options& options) {
@@ -111,10 +131,11 @@ std::vector<Solution> solve_batch(const Model& base, const std::vector<Scenario>
   auto elapsed = [&] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(); };
   const int K = static_cast<int>(scenarios.size());
   std::vector<Solution> out(K);
-  for (auto& s : out) {
-    s.engine = "r2hpdhg-batch";
-    s.precision = "fp64";
-    s.model_fingerprint = base.fingerprint_hex();
+  const auto fingerprints = scenario_fingerprints(base, scenarios);
+  for (int k = 0; k < K; ++k) {
+    out[k].engine = "r2hpdhg-batch";
+    out[k].precision = "fp64";
+    out[k].model_fingerprint = fingerprints[k];
   }
   auto fail_all = [&](const std::string& why) {
     for (auto& s : out) s.status = Status::NotSolved, s.message = why;

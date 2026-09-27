@@ -26,7 +26,8 @@ struct Scenario {
   std::vector<double> row_lower, row_upper;
 };
 
-// One Solution per scenario, in order. Uses options.tolerance, time_limit (for the whole
+// One Solution per scenario, in order. Each Solution's model_fingerprint is that of its
+// scenario model (the base matrix with the scenario's objective and bounds). Uses options.tolerance, time_limit (for the whole
 // batch), iteration_limit, termination_check_every, verbosity and engine_params.
 std::vector<Solution> solve_batch(const Model& base, const std::vector<Scenario>& scenarios,
                                   const Options& options = {});

@@ -88,3 +88,32 @@ TEST(Batch, EmptyAndUnknownKnob) {
   auto s = solve_batch(base, std::vector<Scenario>(2), o);
   EXPECT_EQ(s[0].status, Status::NotSolved);
 }
+
+// Each scenario's solution names the model it solved (base matrix + the scenario's objective
+// and bounds), not the base model: the solution file's `model` line is what verify.py checks.
+TEST(Batch, EachSolutionCarriesItsOwnScenarioFingerprint) {
+  Model base;
+  ASSERT_TRUE(io::read_lpm(data("netlib_small/afiro.lpm"), base).ok);
+  std::vector<Scenario> sc(4);
+  sc[1].obj = base.obj;
+  sc[1].obj[0] += 1.0;
+  sc[2].col_upper = base.col_upper;
+  sc[2].col_upper[1] = 50.0;
+  sc[3].row_lower = base.row_lower;  // equal to the base's: same model, same fingerprint
+  auto sols = solve_batch(base, sc);
+  ASSERT_EQ(sols.size(), sc.size());
+  for (std::size_t k = 0; k < sc.size(); ++k) {
+    SCOPED_TRACE(k);
+    EXPECT_EQ(sols[k].model_fingerprint, with(base, sc[k]).fingerprint_hex());
+  }
+  EXPECT_EQ(sols[0].model_fingerprint, base.fingerprint_hex());
+  EXPECT_EQ(sols[3].model_fingerprint, base.fingerprint_hex());
+  EXPECT_NE(sols[1].model_fingerprint, base.fingerprint_hex());
+  EXPECT_NE(sols[2].model_fingerprint, base.fingerprint_hex());
+  EXPECT_NE(sols[1].model_fingerprint, sols[2].model_fingerprint);
+  // also when the run fails before iterating (unknown engine knob)
+  Options o;
+  o.engine_params = {{"nope", 1}};
+  auto bad = solve_batch(base, sc, o);
+  EXPECT_EQ(bad[1].model_fingerprint, sols[1].model_fingerprint);
+}
