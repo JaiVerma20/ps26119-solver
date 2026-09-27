@@ -202,3 +202,7 @@ Newest last. Each entry: what, why, evidence, how to undo.
     per-unit gain, not on the product: with zero gains everywhere (enigma, a pure feasibility
     model) the rule must fall back to most fractional — an ε on the product made every score
     equal and branched in column order (enigma 0.8 s → 17 s, fixed → 3.7 s).
+    Also a fractional-diving heuristic (root, then every 100 nodes without / 1000 with an
+    incumbent; dive LPs capped at a fifth of node LPs). Scratch runs, 60 s: pk1 incumbent 30 → 18,
+    bell5 final incumbent slightly worse (8966493 vs 8966406), others unchanged
+    (`Mip.DivingFindsAnIncumbentWhereRoundingFails`).

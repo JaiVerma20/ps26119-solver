@@ -214,3 +214,19 @@ TEST(Mip, PseudocostBranchingSolvesGt2WithinANodeBudget) {
   EXPECT_NEAR(s.objective, 21166.0, 1e-6 * 21166.0);
   EXPECT_LT(s.iterations, 20000);
 }
+
+TEST(Mip, DivingFindsAnIncumbentWhereRoundingFails) {
+  // max x1 + x2 + x3, 2(x1 + x2 + x3) <= 5, x binary. Root LP: two ones and a 0.5; rounding it
+  // gives (1,1,1), infeasible. The dive fixes the integral columns, tries x3 = 1 (infeasible),
+  // flips to x3 = 0 and finds the optimum 2 — within a budget of ONE branch-and-bound node.
+  Model m = make_model({1, 1, 1}, {{2, 2, 2}}, {-kInf}, {5}, {0, 0, 0}, {1, 1, 1});
+  m.sense = -1;
+  m.is_integer = {1, 1, 1};
+  Options o;
+  o.iteration_limit = 1;
+  o.presolve = false;
+  const Solution s = solve(m, o);
+  ASSERT_EQ(s.x.size(), 3u) << to_string(s.status) << ": " << s.message;
+  EXPECT_NEAR(s.objective, 2.0, 1e-9);
+  EXPECT_NE(s.message.find("dives"), std::string::npos) << s.message;
+}

@@ -118,6 +118,54 @@ Solution solve_branch_and_bound(const Model& M, const BranchAndBoundOptions& opt
     return g <= std::max(tol::kMipGapAbs, tol::kMipGapRel * std::fabs(incumbent));
   };
 
+  // Fractional diving (primal heuristic; e.g. Berthold, "Primal heuristics for MIP", 2006):
+  // from a node's LP point, fix every integral integer column and the least fractional one to
+  // their rounded values, re-solve, repeat. An infeasible LP flips the last rounding once, then
+  // the dive stops; it also stops when the LP bound can no longer beat the incumbent. Only a
+  // point that passes try_incumbent's check on the ORIGINAL model is ever kept.
+  std::int64_t dive_lps = 0, dives = 0, dive_incumbents = 0;
+  auto dive = [&](const Node& start, std::vector<double> x) {
+    ++dives;
+    Node d = start;
+    for (int step = 0; step < static_cast<int>(ints.size()) + 1; ++step) {
+      int pick = -1;
+      double best = 2.0;
+      for (std::size_t t = 0; t < ints.size(); ++t) {
+        const double v = x[ints[t]], r = std::round(v), f = std::fabs(v - r);
+        if (f <= tol::kMipIntegrality) {
+          d.lo[t] = d.up[t] = std::clamp(r, d.lo[t], d.up[t]);
+        } else if (f < best) {
+          best = f, pick = static_cast<int>(t);
+        }
+      }
+      if (pick < 0) {  // integral
+        const double before = incumbent;
+        try_incumbent(x);
+        if (incumbent < before) ++dive_incumbents;
+        return;
+      }
+      const double v = x[ints[pick]];
+      bool solved = false;
+      for (int attempt = 0; attempt < 2 && !solved; ++attempt) {
+        const double r = attempt == 0 ? std::round(v) : (std::round(v) > v ? std::floor(v) : std::ceil(v));
+        if (r < start.lo[pick] || r > start.up[pick]) continue;
+        Node trial = d;
+        trial.lo[pick] = trial.up[pick] = r;
+        simplex::SimplexOptions so;
+        so.time_limit_seconds = std::max(0.0, opt.time_limit - elapsed());
+        const Solution lp = simplex::solve_primal_simplex(node_model(trial), so);
+        ++dive_lps;
+        lp_iterations += lp.iterations;
+        if (lp.status != Status::Optimal) continue;
+        if (std::isfinite(incumbent) && gap_closed(sense * (lp.objective - M.obj_offset))) return;
+        d = std::move(trial);
+        x = lp.x;
+        solved = true;
+      }
+      if (!solved || elapsed() > opt.time_limit) return;
+    }
+  };
+
   // open nodes: DFS stack until an incumbent exists, then best-bound heap
   auto worse = [](const Node& a, const Node& b) { return a.bound > b.bound; };
   std::priority_queue<Node, std::vector<Node>, decltype(worse)> heap(worse);
@@ -225,6 +273,11 @@ Solution solve_branch_and_bound(const Model& M, const BranchAndBoundOptions& opt
     }
     try_incumbent(lp.x);  // integral LP point, or a rounding of it
     if (branch < 0) continue;  // integral: incumbent updated (if feasible after rounding)
+    // dive at the root, then every 100 nodes without an incumbent / 1000 with one, while the
+    // dives' LPs stay below a fifth of all node LPs
+    if (!use_oracle && (nodes == 1 || nodes % (std::isfinite(incumbent) ? 1000 : 100) == 0) &&
+        dive_lps <= nodes / 5 + static_cast<std::int64_t>(ints.size()))
+      dive(nd, lp.x);
     const double v = lp.x[ints[branch]];
     Node down = nd, upn = nd;
     down.up[branch] = std::floor(v);
@@ -253,6 +306,9 @@ Solution solve_branch_and_bound(const Model& M, const BranchAndBoundOptions& opt
   if (uncertified_prunes > 0)
     best.message += ", " + std::to_string(uncertified_prunes) + " prunes by an uncertified LP bound";
   if (oracle_fallbacks > 0) best.message += ", " + std::to_string(oracle_fallbacks) + " node LPs re-solved by the oracle";
+  if (dives > 0)
+    best.message += ", " + std::to_string(dives) + " dives (" + std::to_string(dive_lps) + " LPs, " +
+                    std::to_string(dive_incumbents) + " incumbents)";
   if (!std::isfinite(incumbent)) {
     best.status = limit == Status::Optimal ? Status::Infeasible : limit;
     return best;
