@@ -5,20 +5,30 @@ Note: Google Test filter = Gpu.*
 [----------] Global test environment set-up.
 [----------] 4 tests from Gpu
 [ RUN      ] Gpu.BackendOpsMatchCpu
-========= Error: Failed to initialize WDDM debugger interface. Please run EnableDebuggerInterface.bat as an administrator
-========= 
-========= Error: Device not supported. Please refer to the "Supported Devices" section of the sanitizer documentation
-========= 
-[       OK ] Gpu.BackendOpsMatchCpu (364 ms)
+[       OK ] Gpu.BackendOpsMatchCpu (2935 ms)
 [ RUN      ] Gpu.EnginesMatchCpuOnSmallNetlib
-[       OK ] Gpu.EnginesMatchCpuOnSmallNetlib (44673 ms)
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:112: Failure
+Expected equality of these values:
+  gpu.status
+    Which is: 4-byte object <04-00 00-00>
+  Status::Optimal
+    Which is: 4-byte object <00-00 00-00>
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:101: kb2 pdlp fp64
+
+[  FAILED  ] Gpu.EnginesMatchCpuOnSmallNetlib (149880 ms)
 [ RUN      ] Gpu.LongRowKernelMatchesCpu
-[       OK ] Gpu.LongRowKernelMatchesCpu (106 ms)
+[       OK ] Gpu.LongRowKernelMatchesCpu (10095 ms)
 [ RUN      ] Gpu.CertifiedVerdictsAndDeterminism
-[       OK ] Gpu.CertifiedVerdictsAndDeterminism (623 ms)
-[----------] 4 tests from Gpu (45771 ms total)
+[       OK ] Gpu.CertifiedVerdictsAndDeterminism (118445 ms)
+[----------] 4 tests from Gpu (281367 ms total)
 
 [----------] Global test environment tear-down
-[==========] 4 tests from 1 test suite ran. (45772 ms total)
-[  PASSED  ] 4 tests.
-========= ERROR SUMMARY: 2 errors
+[==========] 4 tests from 1 test suite ran. (281371 ms total)
+[  PASSED  ] 3 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] Gpu.EnginesMatchCpuOnSmallNetlib
+
+ 1 FAILED TEST
+========= Target application returned an error
+========= ERROR SUMMARY: 0 errors

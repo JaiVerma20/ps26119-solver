@@ -5,22 +5,30 @@ Note: Google Test filter = Gpu.*
 [----------] Global test environment set-up.
 [----------] 4 tests from Gpu
 [ RUN      ] Gpu.BackendOpsMatchCpu
-========= Error: Failed to initialize WDDM debugger interface. Please run EnableDebuggerInterface.bat as an administrator
-========= 
-========= Error: Device not supported. Please refer to the "Supported Devices" section of the sanitizer documentation
-========= 
-[       OK ] Gpu.BackendOpsMatchCpu (311 ms)
+[       OK ] Gpu.BackendOpsMatchCpu (4805 ms)
 [ RUN      ] Gpu.EnginesMatchCpuOnSmallNetlib
-[       OK ] Gpu.EnginesMatchCpuOnSmallNetlib (42282 ms)
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:112: Failure
+Expected equality of these values:
+  gpu.status
+    Which is: 4-byte object <04-00 00-00>
+  Status::Optimal
+    Which is: 4-byte object <00-00 00-00>
+Google Test trace:
+/mnt/c/Users/vatss/OneDrive/Desktop/gpu_optimizer/friend-code/tests/unit/test_gpu.cpp:101: kb2 pdlp fp64
+
+[  FAILED  ] Gpu.EnginesMatchCpuOnSmallNetlib (291612 ms)
 [ RUN      ] Gpu.LongRowKernelMatchesCpu
-[       OK ] Gpu.LongRowKernelMatchesCpu (108 ms)
+[       OK ] Gpu.LongRowKernelMatchesCpu (31652 ms)
 [ RUN      ] Gpu.CertifiedVerdictsAndDeterminism
-[       OK ] Gpu.CertifiedVerdictsAndDeterminism (680 ms)
-[----------] 4 tests from Gpu (43385 ms total)
+[       OK ] Gpu.CertifiedVerdictsAndDeterminism (252143 ms)
+[----------] 4 tests from Gpu (580221 ms total)
 
 [----------] Global test environment tear-down
-[==========] 4 tests from 1 test suite ran. (43387 ms total)
-[  PASSED  ] 4 tests.
-========= Error: process didn't terminate successfully
+[==========] 4 tests from 1 test suite ran. (580226 ms total)
+[  PASSED  ] 3 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] Gpu.EnginesMatchCpuOnSmallNetlib
+
+ 1 FAILED TEST
 ========= Target application returned an error
-========= RACECHECK SUMMARY: 2 hazards displayed (2 errors, 0 warnings)
+========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)

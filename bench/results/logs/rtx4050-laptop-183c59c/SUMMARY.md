@@ -14,7 +14,20 @@
 | Small Netlib GPU (C1/C2) | 40/40 verified PASS |
 | C3 fp64 GPU vs CPU trajectory | scaling + refinery: GPU fp64 iteration counts **identical** to CPU fp64 on every instance |
 | C4 determinism (two GPU runs) | not run separately in this commit |
-| compute-sanitizer memcheck/racecheck | **NOT RUN** — WSL2 cannot attach ("Failed to initialize WDDM debugger interface", "Device not supported"). Kernels are NOT sanitizer-verified. `bench/validate_results.py` flags this folder as FAIL for that reason only. |
+| compute-sanitizer memcheck | **ERROR SUMMARY: 0 errors** (`sanitizer-memcheck.log`) |
+| compute-sanitizer racecheck | **RACECHECK SUMMARY: 0 hazards (0 errors, 0 warnings)** (`sanitizer-racecheck.log`) |
+
+Sanitizer notes:
+- In the `gpu_check.sh` run itself, compute-sanitizer could not attach under WSL2 ("Failed to initialize
+  WDDM debugger interface"). After enabling the NVIDIA GPU debugger interface on Windows
+  (`HKLM\SOFTWARE\NVIDIA Corporation\GPUDebugger` `EnableInterface=1`, then `wsl --shutdown`), both tools
+  were re-run by hand with the exact commands from `gpu_check.sh`
+  (`compute-sanitizer --tool <memcheck|racecheck> --error-exitcode 99 ps26119_tests --gtest_filter='Gpu.*'`)
+  on the same build of 183c59c; the logs above replace the failed-attach logs.
+- 3/4 GPU tests pass under both tools. `Gpu.EnginesMatchCpuOnSmallNetlib` fails under the sanitizer only
+  because its first case (kb2, PDLP fp64) hits the test's 120 s time limit (status TimeLimit) with the
+  sanitizer slowdown; the test then aborts (ASSERT), so the remaining Netlib cases of that test were
+  **not** exercised under the sanitizer. The same test passes without the sanitizer (`ctest.log`).
 
 ## Performance (r²HPDHG, wall time to 1e-8; `scale-rtx4050-laptop-183c59c.csv`)
 | Instance | CPU 1 thr | CPU 12 thr | GPU fp64 | GPU mixed | GPU fp64 vs best CPU |
