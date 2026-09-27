@@ -137,6 +137,19 @@ class VerifierTests(unittest.TestCase):
         rep = verify.verify(path, self._highs(path), -464.0)
         self.assertEqual(rep["verdict"], "FAIL")
 
+    def test_self_check_reads_both_formats(self):
+        # the UI preflight relies on this instead of probing the verifier's reader itself
+        import json
+        import subprocess
+        p = subprocess.run([sys.executable, os.path.join(HERE, "verify.py"), "--self-check"], capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        rep = json.loads(p.stdout)
+        self.assertTrue(rep["ok"])
+        self.assertEqual(set(rep["readers"]), {".mps", ".lpm"})
+        # two independent readers, one model: the same fingerprint
+        self.assertEqual(rep["readers"][".mps"]["fingerprint"], rep["readers"][".lpm"]["fingerprint"])
+        self.assertEqual(rep["readers"][".lpm"]["reader"], "lpm.py")
+
     def test_non_optimal_status_fails(self):
         path = os.path.join(NETLIB, "afiro.mps")
         def st(s):

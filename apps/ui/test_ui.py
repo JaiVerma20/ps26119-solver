@@ -303,7 +303,8 @@ class Endpoints(unittest.TestCase):
         self.assertIn(r["state"], ("ok", "warn", "fail"))
         ids = {i["id"]: i for i in r["items"]}
         self.assertEqual(ids["binary"]["state"], "ok")
-        self.assertIn("verifier", ids)
+        self.assertEqual(ids["verifier"]["state"], "ok")  # from tools/verify.py --self-check
+        self.assertIn(".lpm via lpm.py", ids["verifier"]["detail"])
         self.assertTrue(all(i["state"] in ("ok", "info", "warn", "fixable", "fail") for i in r["items"]))
         self.assertTrue(any(k.startswith("model:") for k in ids))
 

@@ -4,6 +4,7 @@ the demo models are opened, the evidence CSVs are parsed). Each check says how t
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -52,12 +53,18 @@ def run() -> dict:
                            f"CUDA build · {s.get('gpu')}" if s.get("cuda_build") else
                            "CPU-only build on this machine: GPU results are shown from committed evidence",
                            "" if s.get("cuda_build") else "on an NVIDIA machine: cmake -DPS26119_ENABLE_CUDA=ON"))
-    probe = subprocess.run([paths.PYTHON, "-c", "import highspy, numpy; print(highspy.__file__ and 'ok')"],
-                           capture_output=True, text=True)
-    items.append(_item("verifier", "Independent verifier (tools/verify.py)", "ok" if probe.returncode == 0 else "fail",
-                       f"{paths.PYTHON}: highspy + numpy importable" if probe.returncode == 0 else
-                       (probe.stderr.strip().splitlines() or ["import failed"])[-1],
-                       "" if probe.returncode == 0 else "pip install highspy numpy (or set PS26119_PYTHON)"))
+    # ask the verifier itself (tools/verify.py --self-check reads a committed model with each of its
+    # readers); apps/ never touches the verifier's third-party reader directly
+    probe = subprocess.run([paths.PYTHON, os.path.join(paths.ROOT, "tools", "verify.py"), "--self-check"],
+                           capture_output=True, text=True, timeout=120)
+    try:
+        rep = json.loads(probe.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        rep = {"ok": False, "readers": {}, "error": (probe.stderr.strip().splitlines() or ["no output"])[-1]}
+    readers = ", ".join(f"{ext} via {r.get('reader') or r.get('error')}" for ext, r in rep.get("readers", {}).items())
+    items.append(_item("verifier", "Independent verifier (tools/verify.py)", "ok" if rep.get("ok") else "fail",
+                       f"{paths.PYTHON}: {readers}" if readers else rep.get("error", "self-check failed"),
+                       "" if rep.get("ok") else "install the Python tooling of docs/DEVELOPMENT.md, or set PS26119_PYTHON"))
     for rel, what, gen in DEMO_MODELS:
         p = os.path.join(paths.ROOT, rel)
         ok = os.path.exists(p)
