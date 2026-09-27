@@ -13,6 +13,7 @@ Files used:
 - `bench/results/infeasible-cut-simplex-macbook-air-m4-b04f2d8.csv` (committed 2026-09-27)
 - `bench/results/infeasible-cut-simplex-macbook-air-m4-c935a78.csv` (committed 2026-09-27)
 - `bench/results/miplib3-macbook-air-m4-0935157.csv` (committed 2026-09-25)
+- `bench/results/miplib3-macbook-air-m4-b04f2d8.csv` (committed 2026-09-27)
 - `bench/results/miplib3-macbook-air-m4-d824f82.csv` (committed 2026-09-26)
 - `bench/results/miplib3-macbook-air-m4-eb90bbf.csv` (committed 2026-09-26)
 - `bench/results/netlib-full-auto-fp64-macbook-air-m4-d824f82.csv` (committed 2026-09-26)
@@ -356,24 +357,24 @@ Source: `bench/results/batch-T8760-macbook-air-m4-8fd5170.csv`, `bench/results/b
 
 ## 4d. MILP prototype (branch-and-bound, small MIPLIB 3)
 
-Source: `bench/results/miplib3-macbook-air-m4-eb90bbf.csv` — `macbook-air-m4`, commit `eb90bbf`, time limit per model in the CSV. Prototype: sparse primal simplex as node solver, pruning by certified dual bounds (DECISIONS #28), depth-first then best-bound, most-fractional branching, rounding heuristic, no cuts. **10 of 14** solved to proven optimality within the limit, each verified (feasibility + integrality) and equal to the HiGHS optimum.
+Source: `bench/results/miplib3-macbook-air-m4-b04f2d8.csv` — `macbook-air-m4`, commit `b04f2d8`, time limit per model in the CSV. Prototype: sparse primal simplex as node solver, pruning by certified dual bounds (DECISIONS #28), depth-first then best-bound, pseudocost branching, rounding + fractional diving heuristics (DECISIONS #32), no cuts. **12 of 14** solved to proven optimality within the limit, each verified (feasibility + integrality) and equal to the HiGHS optimum.
 
 | instance | rows | cols | int | status | objective | HiGHS | gap | s | verify |
 |---|---|---|---|---|---|---|---|---|---|
-| p0033 | 16 | 33 | 33 | Optimal | 3089 | 3088.9999999999995 | 0 | 0.889 | PASS |
-| flugpl | 18 | 18 | 11 | Optimal | 1201500 | 1201500.0 | 0 | 1.15 | PASS |
-| egout | 98 | 141 | 55 | Optimal | 568.10070000000007 | 568.1007000000001 | 0 | 6.13 | PASS |
-| enigma | 21 | 100 | 100 | Optimal | 0 | 0.0 | 0 | 0.668 | PASS |
-| lseu | 28 | 89 | 89 | Optimal | 1120 | 1120.0 | 0 | 15.7 | PASS |
-| mod008 | 6 | 319 | 319 | Optimal | 307 | 306.99999999996334 | 0 | 5.04 | PASS |
-| stein27 | 118 | 27 | 27 | Optimal | 18 | 17.99999999999989 | 0 | 3.27 | PASS |
-| pk1 | 45 | 86 | 55 | TimeLimit | 30 | 11.000000000000178 | 0.676064 | 300 | — |
-| gt2 | 29 | 188 | 188 | TimeLimit | 139479 | 21166.0 | 0.899724 | 302 | — |
-| rgn | 24 | 180 | 100 | Optimal | 82.199999239999983 | 82.19999923999372 | 0 | 2 | PASS |
-| bell5 | 91 | 104 | 58 | TimeLimit | nan | 8966413.70538 | nan | 300 | — |
-| bell3a | 123 | 133 | 71 | TimeLimit | 878430.31599999999 | 878430.3159999951 | 0.000577381 | 300 | — |
-| misc03 | 96 | 160 | 159 | Optimal | 3360 | 3359.9999999999295 | 0 | 1.19 | PASS |
-| p0201 | 133 | 201 | 201 | Optimal | 7615 | 7615.000000000004 | 0 | 6.95 | PASS |
+| p0033 | 16 | 33 | 33 | Optimal | 3089 | 3088.9999999999995 | 0 | 0.25 | PASS |
+| flugpl | 18 | 18 | 11 | Optimal | 1201500 | 1201500.0 | 0 | 0.433 | PASS |
+| egout | 98 | 141 | 55 | Optimal | 568.10070000000007 | 568.1007000000001 | 0 | 8.84 | PASS |
+| enigma | 21 | 100 | 100 | Optimal | 0 | 0.0 | 0 | 3.66 | PASS |
+| lseu | 28 | 89 | 89 | Optimal | 1120 | 1120.0 | 0 | 8.62 | PASS |
+| mod008 | 6 | 319 | 319 | Optimal | 307 | 306.99999999996334 | 0 | 5.4 | PASS |
+| stein27 | 118 | 27 | 27 | Optimal | 18 | 17.99999999999989 | 0 | 3 | PASS |
+| pk1 | 45 | 86 | 55 | TimeLimit | 12 | 11.000000000000178 | 0.119919 | 300 | — |
+| gt2 | 29 | 188 | 188 | Optimal | 21166 | 21166.0 | 0 | 0.736 | PASS |
+| rgn | 24 | 180 | 100 | Optimal | 82.199999239999983 | 82.19999923999372 | 0 | 2.37 | PASS |
+| bell5 | 91 | 104 | 58 | TimeLimit | 8966492.9201328009 | 8966413.70538 | 0.000208254 | 300 | — |
+| bell3a | 123 | 133 | 71 | Optimal | 878430.31599999999 | 878430.3159999951 | 0 | 134 | PASS |
+| misc03 | 96 | 160 | 159 | Optimal | 3360 | 3359.9999999999295 | 0 | 1.35 | PASS |
+| p0201 | 133 | 201 | 201 | Optimal | 7615 | 7615.000000000004 | 0 | 4.87 | PASS |
 
 ## 4e. Certified infeasibility: Netlib LPs + an objective cut
 
