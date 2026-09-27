@@ -36,7 +36,7 @@ simplex, checker) — with both histories preserved: `docs/FINAL_INTEGRATION_REP
 | Refinery planning LP, hourly year (429k rows, 1.5M nnz), r²HPDHG to 1e-8 | **15.2 s** (1 thread) / **11 s** (all 10 cores, mixed); equal to the known optimum (1.2e-13), verified | `scale-macbook-air-m4-f440782.csv` |
 | Random LP, 1M rows, 6M nnz, r²HPDHG to 1e-8 | 570 s (1 thread) / 380 s (all cores); known optimum matched to 1.2e-11 (verify.py skipped at this size) | `scale-macbook-air-m4-f440782.csv` |
 | What-if re-solves on the refinery year (warm start) | 0.25–0.69× the cold iterations; the cold "price" solve hit its 600 s limit, the warm ones finished | `warm-start-macbook-air-m4-f440782.csv` |
-| GPU (CUDA backend), one RTX 4050 **Laptop** GPU, r²HPDHG to 1e-8 | 40/40 small-Netlib GPU solves verified; vs **one** CPU thread (Core 5 210H, WSL2): refinery year 3.1×, 1e5-row random 4.3×; **GPU slower on small models**. Multi-core CPU baseline and compute-sanitizer pending (`NEXT_STEPS.md`) | `scale-rtx4050-laptop-82d376c.csv`, `netlib-small-gpu-82d376c.csv` |
+| GPU (CUDA backend), one RTX 4050 **Laptop** GPU (6 GB, WSL2), r²HPDHG to 1e-8, commit `183c59c` | vs the **fastest CPU configuration** of the same laptop (Core 5 210H, 12 threads): refinery hourly year **3.0×** (6.2 s vs 18.7 s), 1e5-row random 3.0×, 1e6-row random **4.2×** (116 s vs 489 s); about even at refinery T=365 (1.1×); **GPU slower on small models** (1e4 rows 0.8×, T=12 0.02×). fp64 GPU iteration counts identical to the CPU's; 40/40 small-Netlib GPU solves verified; 198/198 tests on the CUDA build; compute-sanitizer memcheck 0 errors, racecheck 0 hazards | `scale-rtx4050-laptop-183c59c.csv`, `netlib-small-gpu-183c59c.csv`, `logs/rtx4050-laptop-183c59c/` |
 
 Limitations: `docs/LIMITATIONS.md`.
 
