@@ -3,6 +3,8 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <cstring>
+#include <thread>
 #include <algorithm>
 #include <chrono>
 #include <limits>
@@ -377,4 +379,43 @@ TEST(Limits, FirstOrderEnginesStopNearTheTimeLimit) {
     EXPECT_TRUE(s.status == Status::TimeLimit || s.status == Status::Optimal) << to_string(s.status);
     EXPECT_LT(wall, o.time_limit + s.setup_seconds + 3.0) << to_string(a) << ": " << s.iterations << " iterations";
   }
+}
+
+TEST(Concurrency, ParallelSolvesFromSeveralThreadsMatchSequentialResults) {
+  // Library users may call solve() from several threads. The thread pool is process-wide; it
+  // used to take a new job while another was running (and set_threads could stop workers in
+  // use) when threads > 1. Results must be bit-identical to sequential runs, whatever the
+  // interleaving and per-call thread counts. (The TSan CI job runs this too.)
+  std::vector<Model> models;
+  for (const char* name : {"afiro", "sc50a", "blend", "share2b", "stocfor1", "recipe"}) {
+    Model m;
+    ASSERT_TRUE(io::read_lpm(std::string(PS26119_SOURCE_DIR) + "/data/netlib_small/" + name + ".lpm", m).ok);
+    models.push_back(std::move(m));
+  }
+  auto options = [](int k) {
+    Options o;
+    o.algorithm = k % 3 == 2 ? Algorithm::Simplex : Algorithm::R2hpdhg;
+    o.threads = 1 + k % 4;
+    return o;
+  };
+  std::vector<Solution> ref;
+  for (std::size_t i = 0; i < models.size(); ++i) ref.push_back(solve(models[i], options(static_cast<int>(i))));
+  std::vector<std::vector<Solution>> got(4);
+  std::vector<std::thread> pool;
+  for (int t = 0; t < 4; ++t)
+    pool.emplace_back([&, t] {
+      for (int rep = 0; rep < 2; ++rep)
+        for (std::size_t i = 0; i < models.size(); ++i)
+          got[t].push_back(solve(models[(i + t) % models.size()], options(static_cast<int>((i + t) % models.size()))));
+    });
+  for (auto& th : pool) th.join();
+  for (int t = 0; t < 4; ++t)
+    for (std::size_t k = 0; k < got[t].size(); ++k) {
+      const std::size_t i = (k % models.size() + t) % models.size();
+      const Solution& s = got[t][k];
+      EXPECT_EQ(s.status, ref[i].status) << t << "/" << k;
+      EXPECT_EQ(s.iterations, ref[i].iterations) << t << "/" << k;
+      ASSERT_EQ(s.x.size(), ref[i].x.size());
+      EXPECT_EQ(std::memcmp(s.x.data(), ref[i].x.data(), s.x.size() * sizeof(double)), 0) << t << "/" << k;
+    }
 }
