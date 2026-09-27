@@ -419,3 +419,21 @@ TEST(Concurrency, ParallelSolvesFromSeveralThreadsMatchSequentialResults) {
       EXPECT_EQ(std::memcmp(s.x.data(), ref[i].x.data(), s.x.size() * sizeof(double)), 0) << t << "/" << k;
     }
 }
+
+TEST(Robustness, AutoRetriesWithTheOracleWhenTheSimplexGivesUp) {
+  // afiro with one objective coefficient set to 1e308 (found by fuzzing the readers): the fp64
+  // simplex honestly returns NumericalError; the double-double oracle solves it (x5 = 0, same
+  // optimum as afiro). auto now retries with the oracle and keeps only a gate-verified answer.
+  Model m;
+  ASSERT_TRUE(io::read_lpm(std::string(PS26119_SOURCE_DIR) + "/data/netlib_small/afiro.lpm", m).ok);
+  m.obj[5] = 1e308;
+  Options simplex;
+  simplex.algorithm = Algorithm::Simplex;
+  EXPECT_EQ(solve(m, simplex).status, Status::NumericalError);
+  Options autoo;
+  const Solution s = solve(m, autoo);
+  ASSERT_EQ(s.status, Status::Optimal) << s.message;
+  EXPECT_EQ(s.check, "PASS");
+  EXPECT_NEAR(s.objective, -464.753142857, 1e-6);
+  EXPECT_NE(s.message.find("retried with the double-double oracle"), std::string::npos) << s.message;
+}

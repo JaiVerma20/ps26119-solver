@@ -170,8 +170,29 @@ Solution solve(const Model& model, const Options& options) {
   for (const auto& kv : options.engine_params)
     first_order_request = first_order_request || (kv.first.rfind("simplex_", 0) != 0 && kv.first.rfind("mip_", 0) != 0);
   resolved.algorithm = !first_order_request && work <= kAutoSimplexWork ? Algorithm::Simplex : Algorithm::R2hpdhg;
+  const auto t0 = std::chrono::steady_clock::now();
   Solution s = solve_impl(model, resolved);
   core::gate(model, resolved, s);
+  // Robustness: when the fp64 simplex gives up numerically (e.g. a 1e308 cost; badly scaled
+  // data) on an LP small enough for the dense double-double oracle, retry with the oracle.
+  // Only a gate-verified Optimal is taken (the oracle returns no certificates for other
+  // claims); otherwise the simplex's honest NumericalError stands.
+  if (s.status == Status::NumericalError && resolved.algorithm == Algorithm::Simplex && !treat_as_mip(model, options) &&
+      static_cast<double>(model.num_rows) * (model.num_cols + 2.0 * model.num_rows) <= 8e6) {
+    Options oracle = resolved;
+    oracle.algorithm = Algorithm::Oracle;
+    oracle.time_limit =
+        std::max(0.0, options.time_limit - std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
+    Solution o = solve_impl(model, oracle);
+    core::gate(model, oracle, o);
+    if (o.status == Status::Optimal && o.check == "PASS") {
+      o.message = "simplex: NumericalError (" + s.message + "); retried with the double-double oracle" +
+                  (o.message.empty() ? "" : "; " + o.message);
+      o.iterations += s.iterations;
+      s = std::move(o);
+      resolved.algorithm = Algorithm::Oracle;
+    }
+  }
   if (!treat_as_mip(model, options)) {
     char buf[96];
     std::snprintf(buf, sizeof buf, "auto: %s (rows*nnz = %.2g)", to_string(resolved.algorithm), work);
