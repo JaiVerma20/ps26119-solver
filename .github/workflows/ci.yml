@@ -12,6 +12,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Runners: GitHub-hosted by default; the repository variable CI_RUNNER=self-hosted routes every
+# job to the team's self-hosted runners (label ps26119; scripts/ci_runners.sh: a macOS runner and a
+# Linux runner in Docker). Job and check names stay the same, so branch protection is unchanged.
 concurrency:
   group: cpu-ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -22,7 +25,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ vars.CI_RUNNER == 'self-hosted' && (matrix.os == 'macos-latest' && fromJSON('["self-hosted","macOS","ps26119"]') || fromJSON('["self-hosted","Linux","ps26119"]')) || matrix.os }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -64,7 +67,7 @@ jobs:
           - name: tsan
             flags: "-fsanitize=thread"
     name: ${{ matrix.name }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER == 'self-hosted' && fromJSON('["self-hosted","Linux","ps26119"]') || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
