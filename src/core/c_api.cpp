@@ -168,6 +168,15 @@ int ps26119_solve_mps(const char* path, const ps26119_options* opt, ps26119_resu
     return result->status;
   };
   if (!path) return invalid("path is NULL");
+  if (solution_path) {  // fail before solving, not after (it used to return Optimal + a message)
+    std::FILE* probe = std::fopen(solution_path, "r");
+    const bool existed = probe != nullptr;
+    if (probe) std::fclose(probe);
+    std::FILE* f = std::fopen(solution_path, "a");
+    if (!f) return invalid(std::string("cannot write the solution file '") + solution_path + "'");
+    std::fclose(f);
+    if (!existed) std::remove(solution_path);
+  }
   try {
     Model m;
     std::string err;
