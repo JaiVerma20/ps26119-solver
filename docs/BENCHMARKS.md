@@ -18,7 +18,7 @@ generated from the committed CSVs by `bench/make_evidence.py`.
 | `bench/warm_start.py` | refinery what-if re-solves (price / demand / crude): cold vs warm vs warm+ω | `warm-start-<machine>-<hash>.csv` |
 | `bench/batch.py` | K price scenarios: K separate solves vs one batched solve (SpMM) | `batch-<machine>-<hash>.csv` |
 | `scripts/gpu_check.sh` | the one command for GPU machines: build with CUDA, all tests, both benches with `--gpu` | CSVs + `bench/results/logs/<machine>-<hash>/` |
-| `scripts/reproduce.sh` | the same on a CPU-only machine | CSVs |
+| `scripts/reproduce.sh` | ALL CPU evidence from one frozen binary (stages: test, netlib_small, netlib_full, infeasible, miplib, scale 1 thread + all cores, warm, batch; ~2-3 h on an M4) | CSVs, then `make_evidence.py` |
 
 Every CSV row records: git hash, machine label (`PS26119_MACHINE`), CPU, GPU model, driver,
 CUDA version, precision, tolerance, date. The git hash is taken from the BINARY that ran
@@ -67,5 +67,10 @@ failures stay in the tables. Numbers from different machines are never mixed in 
   results for any N). Scaling CSVs have a `threads` column.
 - HiGHS is called through highspy in the benchmark process as an external reference; its
   default algorithm returns a vertex at simplex accuracy, not a 1e-8 relative-KKT point.
+- Wall times on the fanless MacBook Air vary by up to ~2× between runs (thermal throttling,
+  P/E-core scheduling, other load); iteration counts are deterministic. Compare iterations to
+  judge an algorithmic change: e.g. full Netlib r²HPDHG at `d824f82` vs `f440782` has identical
+  iteration counts on all 83 models both solved, but two models near the 60 s limit timed out
+  in the later run at about half the iteration rate. Evidence runs are made without other load.
 - Random LPs of this construction favour first-order methods; Mittelmann / Netlib-large
   runs are the next step before any general speed claim.

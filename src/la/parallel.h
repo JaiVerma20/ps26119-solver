@@ -54,8 +54,14 @@ class ThreadPool {
   //     outlives every use.
   // Chunks are claimed with an atomic counter; idle workers spin briefly before sleeping.
   void run(int chunks, const std::function<void(int)>& f) {
-    std::lock_guard<std::mutex> use(use_m_);
+    // Inline path first and without the lock: it touches no pool state, so concurrent callers
+    // cannot interfere (and single-threaded solves pay nothing for the lock).
     if (threads_.load() <= 1 || chunks <= 1) {
+      for (int c = 0; c < chunks; ++c) f(c);
+      return;
+    }
+    std::lock_guard<std::mutex> use(use_m_);
+    if (threads_.load() <= 1) {  // resized to 1 while we waited for the lock
       for (int c = 0; c < chunks; ++c) f(c);
       return;
     }
