@@ -81,14 +81,17 @@ explorer with sparsity view, live solve with residual/objective charts, the veri
 of every run, and the benchmark evidence with its source CSVs; a full-screen **jury demo**
 (live solves + committed GPU evidence), per-run verification certificates exportable as a
 self-contained HTML report, and a demo preflight. See `apps/ui/README.md` and `apps/ui/DEMO.md`.
-The Solve page can also run the same model through HiGHS (dual simplex, interior point or PDLP)
-as a separate reference, judged by the same independent verifier.
+On the Solve page a model can also be typed in (algebraic text in CPLEX-LP or lp_solve style, or a
+table), its sensitivity ranges read (`solve --ranging`), and the same model raced live against every
+installed real-world solver — HiGHS, Google OR-Tools, SCIP, COIN-OR CLP / CBC — each run as a
+separate tool and judged by the same independent verifier.
 
-Comparison with a real-world solver: `python3 bench/compare_highs.py` runs Netlib and the
-generated refinery / random LPs through our engines and through HiGHS's three engines under one
-rule (Optimal + `tools/verify.py` PASS + within 1e-6 of the reference; time = the solve call on
-both sides) and writes `bench/results/compare-highs-<machine>-<hash>.csv`, shown on the UI's
-"vs HiGHS" page (performance profile, head-to-head, per-engine claims rejected by the verifier).
+Comparison with real-world solvers: `python3 bench/compare_highs.py --refs highs,ortools` runs
+Netlib, the Kennington LPs and the generated refinery / random LPs through our engines and through
+HiGHS's and OR-Tools's engines under one rule (Optimal + `tools/verify.py` PASS + within 1e-6 of
+the reference; time = the solve call on every side; `--refs …,scip,coin` adds SCIP and CLP) and
+writes `bench/results/compare-<refs>-<machine>-<hash>.csv`, shown on the UI's "vs solvers" page
+(performance profile, head-to-head, per-engine claims rejected by the verifier; EVIDENCE §2d).
 
 Reproduce all CPU evidence from one commit: `PS26119_MACHINE=<name> scripts/reproduce.sh`
 (stages and timings in the script header), then `python3 bench/make_evidence.py`.
