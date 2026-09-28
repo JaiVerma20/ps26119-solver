@@ -39,6 +39,12 @@ export const api = {
     if (!r.ok) throw new Error(j.error || r.statusText);
     return j;
   },
+  async reference(path, solver = "simplex", time_limit = 120) {
+    const r = await fetch("/api/reference", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path, solver, time_limit }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || r.statusText);
+    return j.job;
+  },
   cancel: (job) => fetch(`/api/jobs/${job}/cancel`, { method: "POST" }),
   // live events of a job (server-sent events); returns a close() function
   stream(job, onEvent) {

@@ -1,7 +1,7 @@
 // pages/solve.js — configure a run, watch it live, read the verified result.
 import { api } from "../api.js";
 import { store } from "../store.js";
-import { h, fnum, fexp, fint, fsec, statusBadge, passBadge, toast } from "../util.js";
+import { h, fnum, fexp, fint, fsec, fratio, statusBadge, passBadge, toast } from "../util.js";
 import { lineChart } from "../charts.js";
 import { startSolve, certificateStatus, DEFAULT_OPTS } from "../run.js";
 
@@ -69,6 +69,53 @@ export function mount(root) {
   const solBody = h("div.scroll");
   let solTab = "vars";
 
+  // ------------------------------------------------------------------ reference: the same model through HiGHS
+  // (tools/highs_ref.py — a separate reference, never linked) and the same independent verifier
+  const refPanel = h("div.panel");
+  let ref = null, refSolver = "simplex";
+  const REF_LABEL = { simplex: "dual simplex", ipm: "interior point", pdlp: "PDLP" };
+  async function runReference() {
+    const r = store.run;
+    if (!r?.done || !r.result) return;
+    ref = { path: r.path, ourJob: r.job, solver: refSolver, events: {}, done: false };
+    drawRef();
+    try {
+      const job = await api.reference(r.path, refSolver, Math.max(60, +r.opts.time_limit || 60));
+      api.stream(job, (ev) => {
+        if (!ref || ref.ourJob !== r.job) return;
+        if (ev.type === "end" || ev.type === "stream-error") ref.done = true; else ref.events[ev.type] = ev;
+        drawRef();
+      });
+    } catch (e) { toast(e.message); ref = null; drawRef(); }
+  }
+  function drawRef() {
+    const r = store.run && store.run.path === store.selectedModel ? store.run : null;
+    const mine = r?.result?.solution;
+    if (!r?.done || !mine) { refPanel.replaceChildren(); return; }
+    const cur = ref && ref.ourJob === r.job ? ref : null;
+    const res = cur?.events.result, v = cur?.events.verify, err = cur?.events.error;
+    const seg = h("div.seg", { style: { width: "320px" } }, Object.entries(REF_LABEL).map(([k, l]) =>
+      h("button", { class: refSolver === k ? "on" : null, disabled: cur && !cur.done || null, onclick: () => { refSolver = k; drawRef(); } }, l)));
+    const btn = h("button.btn", { disabled: cur && !cur.done || null, onclick: runReference }, cur && !cur.done ? "running HiGHS…" : "Run HiGHS on this model ▸");
+    const rel = res && Number.isFinite(res.objective) && Number.isFinite(mine.objective) ? Math.abs(res.objective - mine.objective) / (1 + Math.abs(mine.objective)) : null;
+    const ourVerdict = r.verify?.report?.verdict, refVerdict = v?.report?.verdict;
+    const row = (k, a, b, note = "") => h("tr", h("td", k), h("td.num", a), h("td.num", b), h("td.dim", note));
+    refPanel.replaceChildren(
+      h("div.panel-h", "Real-world reference · the same model through HiGHS", h("span.right.dim", "HiGHS runs as a separate tool; the same independent verifier judges both")),
+      h("div.panel-b", { style: { display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" } }, seg, btn,
+        res ? h("span.dim.mono", `${res.highs_version ? "HiGHS " + res.highs_version : ""} · ${res.highs_status}`) : null),
+      err ? h("div.note.bad", err.message) : null,
+      res ? h("table.t", h("thead", h("tr", h("th", ""), h("th.num", "ps26119"), h("th.num", `HiGHS ${REF_LABEL[cur.solver]}`), h("th", ""))),
+        h("tbody",
+          row("status", statusBadge(mine.status), statusBadge(res.status)),
+          row("objective", fnum(mine.objective, 12), fnum(res.objective, 12), rel != null ? `relative difference ${fexp(rel)}` : ""),
+          row("solve time", fsec(mine.seconds), fsec(res.seconds), mine.seconds > 0 && res.seconds > 0 ? (mine.seconds <= res.seconds ? `ours ${fratio(res.seconds / mine.seconds)} faster` : `HiGHS ${fratio(mine.seconds / res.seconds)} faster`) : ""),
+          row("iterations", fint(mine.iterations), fint(res.iterations), `${mine.engine} vs ${res.engine}`),
+          row("independent verify", ourVerdict ? passBadge(ourVerdict) : "—", refVerdict ? passBadge(refVerdict) : v?.skipped ? "n/a" : cur.done ? "—" : h("span.acc", "checking…"),
+            refVerdict === "FAIL" ? (v.report.reasons || []).join("; ").slice(0, 120) : ""))) : null,
+      h("div.note", "Times are the solve call only on both sides (model reading excluded). One live run on this machine — for a measured comparison over all of Netlib and the refinery models see the ‘vs HiGHS’ page."));
+  }
+
   const area = h("div.grid", { style: { gap: "12px" } },
     pipeline, kpis,
     h("div.grid.g2",
@@ -77,6 +124,7 @@ export function mount(root) {
     h("div.grid.g2",
       h("div.panel", h("div.panel-h", "Solver log", h("span.right.dim", "stderr, live (-vv)")), consoleEl),
       h("div.panel", h("div.panel-h", "Solution", h("span.right", solTabs)), solBody)),
+    refPanel,
   );
 
   root.append(
@@ -269,6 +317,7 @@ export function mount(root) {
 
   let raf = 0;
   function drawAll() {
+    drawRef();
     if (raf) return;
     raf = requestAnimationFrame(() => { raf = 0; drawKpis(); drawPipeline(); drawCharts(); drawConsole(); drawSolution(); drawButtons(); renderCmd(); });
   }

@@ -311,6 +311,23 @@ class Endpoints(unittest.TestCase):
         self.assertTrue(all(i["state"] in ("ok", "info", "warn", "fixable", "fail") for i in r["items"]))
         self.assertTrue(any(k.startswith("model:") for k in ids))
 
+    def test_reference_run_through_highs_is_verified_like_ours(self):
+        code, j = self.post("/api/reference", {"path": "data/netlib_small/afiro.mps", "solver": "ipm"})
+        self.assertEqual(code, 200, j)
+        ev = self.wait(j["job"])
+        self.assertEqual(ev["result"]["status"], "Optimal")
+        self.assertEqual(ev["result"]["engine"], "highs-ipm")
+        self.assertAlmostEqual(ev["result"]["objective"], -464.75314286, places=6)
+        self.assertEqual(ev["verify"]["report"]["verdict"], "PASS")
+        for bad in ({"path": "data/netlib_small/afiro.mps", "solver": "gurobi"}, {"path": "../x.mps"},
+                    {"path": "data/netlib_small/afiro.mps", "time_limit": 0}):
+            self.assertIn(self.post("/api/reference", bad)[0], (400, 404), bad)
+        # reference runs are not ps26119 runs: no certificate, not in the run list
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            self.get(f"/api/jobs/{j['job']}/certificate")
+        self.assertEqual(cm.exception.code, 409)
+        self.assertNotIn(j["job"], [r["id"] for r in self.get("/api/runs")])
+
     def test_compare_endpoint_serves_the_committed_csv(self):
         c = self.get("/api/compare")
         self.assertIn("runs", c)

@@ -207,6 +207,15 @@ class Handler(BaseHTTPRequestHandler):
                     return self.error(400, err)
                 job = JOBS.start(paths.rel(model), opts)
                 return self.send_json({"job": job.id})
+            if route == "/api/reference":
+                body = self.body_json()
+                model = paths.resolve_model(body.get("path", ""))
+                if not model:
+                    return self.error(404, "unknown model")
+                o, err = runner.validate_reference(body)
+                if err:
+                    return self.error(400, err)
+                return self.send_json({"job": JOBS.add(runner.ReferenceJob(paths.rel(model), o)).id})
             if route == "/api/scenario":
                 o, err = scenarios.validate(self.body_json())
                 if err:

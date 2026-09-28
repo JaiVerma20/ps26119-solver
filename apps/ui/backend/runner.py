@@ -335,3 +335,47 @@ def validate_options(body: dict) -> tuple[dict | None, str | None]:
     if not (0 <= o["threads"] <= 4096) or not (0 < o["time_limit"] <= 86400) or (o["tol"] is not None and not o["tol"] > 0):
         return None, "threads 0-4096, time_limit (0, 86400], tol > 0"
     return o, None
+
+
+REFERENCE_SOLVERS = ("simplex", "ipm", "pdlp")
+
+
+class ReferenceJob(Job):
+    """The same model through HiGHS (tools/highs_ref.py, a separate reference used only by tooling)
+    and then through the same independent verifier as our runs — for a side-by-side on the Solve page."""
+    kind = "reference"
+
+    def _run(self):
+        model_abs = paths.resolve_model(self.model_rel)
+        os.makedirs(self.dir, exist_ok=True)
+        sol = os.path.join(self.dir, "reference.sol")
+        o = self.opts
+        cmd = [paths.PYTHON, os.path.join(paths.ROOT, "tools", "highs_ref.py"), model_abs, sol, "--solver", o["solver"],
+               "--time-limit", str(o["time_limit"]), "--json"]
+        self.emit("started", command=f"python3 tools/highs_ref.py {self.model_rel} --solver {o['solver']}", stage="reference")
+        t0 = time.time()
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=o["time_limit"] + 600)
+        try:
+            res = json.loads(p.stdout.strip().splitlines()[-1])
+        except (ValueError, IndexError):
+            self.emit("error", message=(p.stderr.strip().splitlines() or ["the reference run failed"])[-1][:300])
+            return
+        self.emit("result", **res, wall_seconds=round(time.time() - t0, 3))
+        if os.path.exists(sol) and res.get("status") in ("Optimal", "Infeasible", "Unbounded"):
+            self.emit("stage", stage="verify")
+            self.emit("verify", **verify(model_abs, sol, self.dir))
+        else:
+            self.emit("verify", skipped=True, reason=f"{res.get('status')}: no answer to verify")
+
+
+def validate_reference(body: dict):
+    solver = body.get("solver", "simplex")
+    if solver not in REFERENCE_SOLVERS:
+        return None, f"solver must be one of {', '.join(REFERENCE_SOLVERS)}"
+    try:
+        tl = float(body.get("time_limit", 120))
+    except (TypeError, ValueError):
+        return None, "time_limit must be a number"
+    if not 0 < tl <= 3600:
+        return None, "time_limit (0, 3600]"
+    return {"solver": solver, "time_limit": tl}, None

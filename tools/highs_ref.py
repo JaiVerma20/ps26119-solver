@@ -3,7 +3,8 @@
 result in OUR solution-file format, so tools/verify.py and the benches can treat HiGHS
 like any other engine. Never used by the solver (CLAUDE.md §5.7).
 
-usage: highs_ref.py MODEL.{mps,lpm} OUT.sol
+usage: highs_ref.py MODEL.{mps,lpm} OUT.sol [--solver simplex|ipm|pdlp|choose] [--time-limit S] [--json]
+       (--json prints the result as one JSON line; pdlp runs to pdlp_optimality_tolerance 1e-8)
 """
 import os
 import sys
@@ -91,8 +92,24 @@ def highs_version(h=None) -> str:
         return "unknown"
 
 
+ENGINES = {"choose": {}, "simplex": {"solver": "simplex"}, "ipm": {"solver": "ipm"},
+           "pdlp": {"solver": "pdlp", "pdlp_optimality_tolerance": 1e-8}}
+
+
+def main(argv=None) -> int:
+    import argparse
+    import json
+    ap = argparse.ArgumentParser(description="HiGHS as a separate reference (tooling only)")
+    ap.add_argument("model")
+    ap.add_argument("out")
+    ap.add_argument("--solver", choices=sorted(ENGINES), default="choose")
+    ap.add_argument("--time-limit", type=float, default=0.0)
+    ap.add_argument("--json", action="store_true")
+    a = ap.parse_args(argv)
+    res = solve_with_highs(a.model, a.out, time_limit=a.time_limit, options=ENGINES[a.solver])
+    print(json.dumps(res) if a.json else res)
+    return 0
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print(__doc__, file=sys.stderr)
-        sys.exit(2)
-    print(solve_with_highs(sys.argv[1], sys.argv[2]))
+    sys.exit(main())
