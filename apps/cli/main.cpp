@@ -349,7 +349,7 @@ int cmd_batch(int argc, char** argv) {
   Model base;
   if (!load_model(files[0], base)) return kExitReadError;
   std::vector<Scenario> sc;
-  std::vector<std::string> names;
+  std::vector<std::string> names, model_names;
   for (std::size_t f = 1; f < files.size(); ++f) {
     Model s;
     if (!load_model(files[f], s)) return kExitReadError;
@@ -363,6 +363,7 @@ int cmd_batch(int argc, char** argv) {
     const auto slash = files[f].find_last_of('/');
     std::string nm = files[f].substr(slash == std::string::npos ? 0 : slash + 1);
     names.push_back(nm.substr(0, nm.rfind('.')));
+    model_names.push_back(s.name);
   }
   const auto sols = solve_batch(base, sc, opt);
   int worst = 0;
@@ -372,6 +373,9 @@ int cmd_batch(int argc, char** argv) {
                 static_cast<long long>(s.iterations), s.seconds, s.message.empty() ? "" : "  ", s.message.c_str());
     worst = std::max(worst, exit_code(s.status));
     if (!out_dir.empty()) {
+      // The file describes the scenario: its own name, and (from solve_batch) the fingerprint
+      // of the scenario model. The matrix and the row / column names are the base's (shared).
+      base.name = model_names[k];
       std::string err;
       if (!io::write_solution(out_dir + "/" + names[k] + ".sol", base, s, err)) {
         std::fprintf(stderr, "%s\n", err.c_str());

@@ -285,6 +285,50 @@ class Cli(unittest.TestCase):
         self.assertEqual(out.count("Optimal"), 2)
         self.assertTrue(os.path.exists(os.path.join(self.tmp, "afiro.sol")))
 
+    def test_batch_solution_files_name_their_own_scenario_model(self):
+        # regression: every scenario .sol used to carry the BASE model's fingerprint and name
+        sys.path.insert(0, os.path.join(ROOT, "tools"))
+        from lpm import read_lpm, read_solution, write_lpm
+        base = os.path.join(DATA, "netlib_small", "afiro.lpm")
+        m = read_lpm(base)
+        m.obj[0] += 1.0
+        m.name = "afiro_obj"
+        s1 = os.path.join(self.tmp, "s_obj.lpm")
+        write_lpm(m, s1)
+        m = read_lpm(base)
+        m.col_upper[1] = 50.0
+        m.name = "afiro_ub"
+        s2 = os.path.join(self.tmp, "s_ub.lpm")
+        write_lpm(m, s2)
+        out_dir = os.path.join(self.tmp, "out")
+        os.makedirs(out_dir)
+        code, out = run("batch", base, base, s1, s2, "--out-dir", out_dir)
+        self.assertEqual(code, 0, out)
+
+        def info_fp(path):
+            c, o = run("info", path)
+            self.assertEqual(c, 0, o)
+            return next(l.split()[-1] for l in o.splitlines() if l.strip().startswith("fingerprint"))
+
+        fps = {}
+        for model, stem, name in ((base, "afiro", "afiro"), (s1, "s_obj", "afiro_obj"), (s2, "s_ub", "afiro_ub")):
+            h = read_solution(os.path.join(out_dir, stem + ".sol")).header
+            self.assertEqual(h["model"], info_fp(model), stem)
+            self.assertEqual(h["name"], name, stem)
+            fps[stem] = h["model"]
+        self.assertEqual(len(set(fps.values())), 3)
+        # and the independent verifier agrees that each file belongs to its scenario
+        ver = os.path.join(ROOT, "tools", "verify.py")
+        for model, stem in ((s1, "s_obj"), (s2, "s_ub")):
+            p = subprocess.run([sys.executable, ver, model, os.path.join(out_dir, stem + ".sol"), "--json",
+                                os.path.join(self.tmp, stem + ".json"), "--quiet"], capture_output=True, text=True)
+            self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+            import json
+            with open(os.path.join(self.tmp, stem + ".json")) as f:
+                rep = json.load(f)
+            self.assertTrue(rep["model_match"], stem)
+            self.assertEqual(rep["fingerprint_model"], rep["fingerprint_solution"], stem)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
