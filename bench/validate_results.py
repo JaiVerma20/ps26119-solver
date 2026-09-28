@@ -19,6 +19,7 @@ usage: bench/validate_results.py [--csv-only] [files or folders ...]
 """
 import csv
 import glob
+import json
 import os
 import re
 import subprocess
@@ -80,7 +81,39 @@ def check_csv(path):
     return errors[:20], warnings
 
 
+def check_ui_export(folder):
+    """A Command Center export (logs/<machine>-<hash>-ui/: SUMMARY.md, system.json, one <job>.json per
+    run, next to ui-gpu-runs-<machine>-<hash>.csv): every CSV row has its job file, the build probed
+    by the UI is the file name's commit, and a row marked verified carries a verify.py PASS."""
+    errors, warnings = [], []
+    base = os.path.basename(os.path.normpath(folder))[:-len("-ui")]
+    csv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.normpath(folder))), f"ui-gpu-runs-{base}.csv")
+    try:
+        system = json.load(open(os.path.join(folder, "system.json")))
+    except (OSError, ValueError) as e:
+        return [f"system.json unreadable: {e}"], warnings
+    if not base.endswith(system.get("git_hash", "?")):
+        errors.append(f"system.json build {system.get('git_hash')!r} is not the folder's commit")
+    if not os.path.exists(csv_path):
+        return errors + [f"missing {os.path.basename(csv_path)}"], warnings
+    with open(csv_path, newline="") as f:
+        ui_rows = list(csv.DictReader(f))
+    for r in ui_rows:
+        job = os.path.join(folder, f"{r.get('job')}.json")
+        if not os.path.exists(job):
+            errors.append(f"row {r.get('job')}: no job file")
+            continue
+        rep = (json.load(open(job)).get("verify") or {}).get("report") or {}
+        if r.get("verify_py") == "PASS" and rep.get("verdict") != "PASS":
+            errors.append(f"row {r.get('job')}: CSV says verify PASS, the job file says {rep.get('verdict')!r}")
+    if not os.path.exists(os.path.join(folder, "SUMMARY.md")):
+        warnings.append("no SUMMARY.md")
+    return errors, warnings
+
+
 def check_logs(folder):
+    if os.path.normpath(folder).endswith("-ui"):
+        return check_ui_export(folder)
     errors, warnings = [], []
     ct = os.path.join(folder, "ctest.log")
     if not os.path.exists(ct):

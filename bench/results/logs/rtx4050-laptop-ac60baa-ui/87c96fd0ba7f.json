@@ -1,0 +1,164 @@
+{
+ "model": "data/netlib_small/afiro.mps",
+ "opts": {
+  "algorithm": "auto",
+  "precision": "mixed",
+  "threads": 0,
+  "time_limit": 60.0,
+  "tol": null,
+  "presolve": true,
+  "gpu": true,
+  "verify": true,
+  "ranging": true
+ },
+ "command": "ps26119 solve data/netlib_small/afiro.mps --algorithm auto --precision mixed --threads 0 --time-limit 60.0 --out apps/ui/.runs/jobs/87c96fd0ba7f/solution.sol -vv --gpu --ranging apps/ui/.runs/jobs/87c96fd0ba7f/solution.ranging.csv",
+ "solver_stdout": "model      AFIRO  rows 27  cols 32  nnz 83  fingerprint 673a285110961a03\nstatus     Optimal\nengine     r2hpdhg (mixed)\nobjective  -464.75314205\nresiduals  primal 1.14e-09  dual 8.64e-11  gap 9.58e-10\ncheck      PASS  (in-process, original model: primal 8.3e-07  dual 9.4e-11  gap 9.6e-10)\ncertified  optimum >= -464.753143875  (rounding-proof lower bound from y)\niterations 448   seconds 1.083   (setup 1.033)\nto 1e-4    iterations 256   seconds 1.070\nmessage    auto: r2hpdhg (rows*nnz = 2.2e+03); fp32 -> fp64 at iteration 320; presolve removed 2 rows, 0 cols\nranging    refused: the solution is not a basic solution (the columns of the variables strictly inside their bounds are dependent)",
+ "exit_code": 0,
+ "wall_seconds": 1.224,
+ "solution_sha256": "01d84b5a197ee60503cd037462a014375924efd49269607e75a8a2c389209108",
+ "known": null,
+ "verify": {
+  "exit_code": 0,
+  "report": {
+   "model": "afiro.mps",
+   "reader": "highspy",
+   "rows": 27,
+   "cols": 32,
+   "nnz": 83,
+   "status": "Optimal",
+   "engine": "r2hpdhg",
+   "precision": "mixed",
+   "fingerprint_model": "673a285110961a03",
+   "fingerprint_solution": "673a285110961a03",
+   "model_match": true,
+   "mip": false,
+   "max_col_violation_abs": 0.0,
+   "max_row_violation_abs": 8.276792300421221e-07,
+   "primal_rel": 8.276792300421221e-07,
+   "activity_mismatch_abs": 0.0,
+   "reduced_cost_mismatch_abs": 5.551115123125783e-17,
+   "dual_violation_abs": 9.354717396701125e-10,
+   "dual_rel": 8.504288542455569e-11,
+   "objective": -464.75314204965093,
+   "dual_objective": -464.7531429406173,
+   "gap_abs": 8.909663620215724e-07,
+   "gap_rel": 9.575070866188622e-10,
+   "objective_reported": -464.7531420496509,
+   "complementarity_abs": 5.202555174131776e-07,
+   "verdict": "PASS",
+   "reasons": []
+  },
+  "stderr": ""
+ },
+ "certificate": {
+  "id": "87c96fd0ba7f",
+  "created": "2026-09-28T17:46:05+00:00",
+  "final": {
+   "verdict": "PASS",
+   "reasons": []
+  },
+  "checks": [
+   {
+    "name": "Definitive answer",
+    "ok": true,
+    "detail": "status Optimal",
+    "required": true
+   },
+   {
+    "name": "Original-model check (in-process)",
+    "ok": true,
+    "detail": "PASS  (in-process, original model: primal 8.3e-07  dual 9.4e-11  gap 9.6e-10)",
+    "required": true
+   },
+   {
+    "name": "Independent verification",
+    "ok": true,
+    "detail": "tools/verify.py PASS \u00b7 reader highspy",
+    "required": true
+   },
+   {
+    "name": "Same model (fingerprint)",
+    "ok": true,
+    "detail": "solver 673a285110961a03 = verifier 673a285110961a03",
+    "required": true
+   },
+   {
+    "name": "Rounding-proof bound",
+    "ok": true,
+    "detail": "optimum >= -464.753143875  (rounding-proof lower bound from y)",
+    "required": false
+   }
+  ],
+  "model": {
+   "name": "AFIRO",
+   "path": "data/netlib_small/afiro.mps",
+   "rows": 27,
+   "cols": 32,
+   "nnz": 83,
+   "fingerprint": "673a285110961a03",
+   "verifier_fingerprint": "673a285110961a03",
+   "verifier_reader": "highspy"
+  },
+  "solver": {
+   "version": "ps26119 0.1.0 (git ac60baa)",
+   "git_hash": "ac60baa",
+   "binary": "../../../../../../../../home/vatsshivanshu/ps26119-build-gpu/ps26119",
+   "command": "ps26119 solve data/netlib_small/afiro.mps --algorithm auto --precision mixed --threads 0 --time-limit 60.0 --out apps/ui/.runs/jobs/87c96fd0ba7f/solution.sol -vv --gpu --ranging apps/ui/.runs/jobs/87c96fd0ba7f/solution.ranging.csv"
+  },
+  "machine": {
+   "cpu": "Intel(R) Core(TM) 5 210H",
+   "cores": 12,
+   "os": "Linux 6.6.87.2-microsoft-standard-WSL2 (x86_64)",
+   "gpu": "NVIDIA GeForce RTX 4050 Laptop GPU",
+   "cuda_build": true
+  },
+  "run": {
+   "engine": "r2hpdhg",
+   "requested": "auto",
+   "backend": "GPU (CUDA)",
+   "threads": 0,
+   "precision": "mixed",
+   "presolve": true,
+   "tolerance": null,
+   "iterations": 448.0,
+   "solve_seconds": 1.083313,
+   "wall_seconds": 1.224
+  },
+  "result": {
+   "status": "Optimal",
+   "objective": -464.7531420496509,
+   "dual_objective": -464.7531429406173,
+   "certified_bound": -464.75314387493023,
+   "certified_line": "optimum >= -464.753143875  (rounding-proof lower bound from y)",
+   "primal_residual": 1.14286e-09,
+   "dual_residual": 8.64043e-11,
+   "gap": 9.57507e-10,
+   "message": "auto: r2hpdhg (rows*nnz = 2.2e+03); fp32 -> fp64 at iteration 320; presolve removed 2 rows, 0 cols"
+  },
+  "gate": {
+   "line": "PASS  (in-process, original model: primal 8.3e-07  dual 9.4e-11  gap 9.6e-10)",
+   "primal": 8.28e-07,
+   "dual": 9.35e-11,
+   "gap": 9.58e-10
+  },
+  "verifier": {
+   "verdict": "PASS",
+   "reader": "highspy",
+   "seconds": 0.485,
+   "objective": -464.75314204965093,
+   "primal_rel": 8.276792300421221e-07,
+   "dual_rel": 8.504288542455569e-11,
+   "gap_rel": 9.575070866188622e-10,
+   "complementarity_abs": 5.202555174131776e-07,
+   "certificate": null,
+   "farkas_exact_L0": null,
+   "reasons": [],
+   "skipped": null
+  },
+  "known": null,
+  "artifact": {
+   "solution_file": "apps/ui/.runs/jobs/87c96fd0ba7f/solution.sol",
+   "sha256": "01d84b5a197ee60503cd037462a014375924efd49269607e75a8a2c389209108"
+  }
+ }
+}
