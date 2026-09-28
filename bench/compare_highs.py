@@ -5,6 +5,8 @@ highspy, tooling only; never linked), engine by engine, on the same models and t
   ps26119:  auto, simplex, r2hpdhg (1 thread), r2hpdhg (all cores)          --tol 1e-8
   HiGHS:    simplex (dual), ipm (interior point + crossover), pdlp           pdlp tolerance 1e-8
   OR-Tools: glop (Google's simplex), pdlp (Google's PDLP)  [--refs highs,ortools]   pdlp rel + abs 1e-8
+  SCIP:     lp (SoPlex, presolve off so its duals verify)    [--refs …,scip]
+  COIN-OR:  clp (CLP dual simplex, via cylp)                  [--refs …,coin]
 
 Models: the Netlib LP set (data/netlib/, tools/fetch_netlib.py), the Kennington LPs
 (data/kennington/, tools/fetch_kennington.py; --set netlib,kennington,scale) and the generated LPs with an
@@ -54,6 +56,14 @@ OURS = [("auto", 1), ("simplex", 1), ("r2hpdhg", 1), ("r2hpdhg", 0)]
 HIGHS = [("simplex", {"solver": "simplex"}), ("ipm", {"solver": "ipm"}),
          ("pdlp", {"solver": "pdlp", "pdlp_optimality_tolerance": 1e-8})]
 ORTOOLS = [("glop", {}), ("pdlp", {})]
+# further references, each a separate tool process writing our solution format:
+#   solver: (tool, [(engine, tool arguments, tolerance note)], version probe)
+TOOL_REFS = {
+    "scip": ("scip_ref.py", [("lp", [], "SCIP defaults; LP with presolve off so that its duals can be verified")],
+             "from pyscipopt import Model; print('SCIP', Model().version())"),
+    "coin": ("coin_ref.py", [("clp", ["--solver", "clp"], "CLP defaults (dual simplex)")],
+             "from importlib.metadata import version; print('COIN-OR CLP via cylp', version('cylp'))"),
+}
 SCALE = ["refinery-T12-s1", "refinery-T365-s1", "refinery-T2190-s1", "refinery-T8760-s1", "rand-10000-s1", "rand-100000-s1"]
 
 
@@ -126,12 +136,12 @@ def main():
     ap.add_argument("--time-limit", type=float, default=60)
     ap.add_argument("--scale-time-limit", type=float, default=300)
     ap.add_argument("--kennington-time-limit", type=float, default=120)
-    ap.add_argument("--refs", default="highs", help="reference solvers: highs, or highs,ortools")
+    ap.add_argument("--refs", default="highs", help="reference solvers, comma-separated: highs, ortools, scip, coin")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
     refs = [r for r in a.refs.split(",") if r]
-    if not set(refs) <= {"highs", "ortools"}:
-        sys.exit("--refs: highs and/or ortools")
+    if not refs or not set(refs) <= {"highs", "ortools", *TOOL_REFS}:
+        sys.exit("--refs: one or more of highs, ortools, " + ", ".join(TOOL_REFS))
     info = machine_info(a.bin)
     ours_version = subprocess.run([a.bin, "--version"], capture_output=True, text=True).stdout.strip()
     hv = "HiGHS " + highs_ref.highs_version()
@@ -139,6 +149,8 @@ def main():
     # symbols, so it always runs as a separate process (tools/ortools_ref.py --json)
     ov = ("OR-Tools " + subprocess.run([sys.executable, "-c", "import ortools; print(ortools.__version__)"],
                                        capture_output=True, text=True).stdout.strip()) if "ortools" in refs else ""
+    tv = {k: subprocess.run([sys.executable, "-c", TOOL_REFS[k][2]], capture_output=True, text=True).stdout.strip()
+          for k in refs if k in TOOL_REFS}
     rows = []
     out = a.out or os.path.join(HERE, "results", f"compare-{'-'.join(refs)}-{info['machine']}-{info['git_hash']}.csv")
 
@@ -200,6 +212,27 @@ def main():
                 except Exception as e:  # noqa: BLE001 — a failed reference run is a row, not a crash
                     r.update(status="Error", verify="FAIL", message=f"{type(e).__name__}: {e}"[:200])
                 rows.append(finish(r))
+            for ref in [k for k in refs if k in TOOL_REFS]:
+                tool, engines, _ = TOOL_REFS[ref]
+                for eng, args, tol_note in engines:
+                    sol = os.path.join(tmp, f"{m['name']}.{ref}-{eng}.sol")
+                    r = {**base, "solver": ref, "engine": eng, "threads": "default", "tolerance": tol_note, "solver_version": tv[ref]}
+                    try:
+                        p = subprocess.run([sys.executable, os.path.join(ROOT, "tools", tool), m["path"], sol, *args,
+                                            "--time-limit", str(tl), "--json"], capture_output=True, text=True, timeout=tl + 120)
+                        lines = [ln for ln in p.stdout.splitlines() if ln.startswith("{")]
+                        if not lines:
+                            raise RuntimeError((p.stderr.strip().splitlines() or ["no output"])[-1])
+                        res = json.loads(lines[-1])
+                        r.update(status=res["status"], iterations=res.get("iterations", ""), seconds=f"{res['seconds']:.6f}",
+                                 objective=repr(res["objective"]), message=f"{ref} status {res.get('raw_status', '')}")
+                        if res["status"] == "Optimal":
+                            check(m["path"], sol, r)
+                    except subprocess.TimeoutExpired:  # CLP has no internal time limit: the process timeout is it
+                        r.update(status="TimeLimit", seconds=f"{tl:.6f}", message="stopped by the benchmark's process timeout")
+                    except Exception as e:  # noqa: BLE001 — a failed reference run is a row, not a crash
+                        r.update(status="Error", verify="FAIL", message=f"{type(e).__name__}: {e}"[:200])
+                    rows.append(finish(r))
             line = "  ".join(f"{x['solver'][:2]}-{x['engine']}{'' if x['threads'] in (1, 'default') else '*'}:"
                              f"{'✓' if x['solved'] == 'yes' else x['status'][:4]} {float(x.get('seconds') or 'nan'):.3g}s"
                              for x in rows if x["instance"] == m["name"])

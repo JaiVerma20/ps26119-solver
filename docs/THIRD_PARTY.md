@@ -8,6 +8,9 @@ This table lists third-party code or tools used in `tools/`, `bench/`, `tests/` 
 |---|---|---|---|---|
 | GoogleTest v1.15.2 | BSD-3-Clause | https://github.com/google/googletest | tests (FetchContent, not in the binary) | test framework |
 | highspy (HiGHS Python bindings) | MIT | https://github.com/ERGO-Code/HiGHS | `tools/` and `bench/` only (MPS bridge, verifier's independent reader, reference solves) | Python package, run as a separate reference; never linked into the solver |
+| Google OR-Tools (`ortools`) 9.15 | Apache-2.0 | https://github.com/google/or-tools | `tools/ortools_ref.py`, `bench/compare_highs.py --refs …,ortools` | GLOP simplex and PDLP as separate references (own process); never linked |
+| PySCIPOpt 6.2 (bundles SCIP 10, Apache-2.0) | MIT | https://github.com/scipopt/PySCIPOpt | `tools/scip_ref.py`, UI live comparison, `--refs …,scip` | SCIP / SoPlex as a separate reference (own process); never linked |
+| CyLP 0.94 (bundles COIN-OR CLP and CBC, EPL-2.0) | EPL-2.0 | https://github.com/coin-or/CyLP | `tools/coin_ref.py`, UI live comparison, `--refs …,coin` | CLP dual simplex and CBC branch and cut as separate references (own process); never linked |
 | NumPy | BSD-3-Clause | https://numpy.org | `tools/`, `bench/` | array maths in the verifier and generators |
 | matplotlib | PSF-based (BSD-compatible) | https://matplotlib.org | `bench/scale.py` charts | plotting only |
 | SciPy (`scipy.optimize.linprog`, HiGHS inside) | BSD-3-Clause | https://scipy.org | `tools/crosscheck_random_mps.py` (external reference in the `tools.crosscheck.*` tests) | reference status/objective for random MPS models; never linked |
