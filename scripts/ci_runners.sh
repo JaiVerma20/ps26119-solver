@@ -31,10 +31,14 @@ CONTAINER=ps26119-runner-linux
 
 token() { gh api -X POST "repos/$REPO/actions/runners/$1" --jq .token; }
 
-mac_running() { [ -f "$MAC_DIR/run.pid" ] && kill -0 "$(cat "$MAC_DIR/run.pid")" 2>/dev/null; }
+# The runner is run.sh -> run-helper.sh -> bin/Runner.Listener (-> Runner.Worker per job): judge
+# and stop it by its processes, not by a pid file — killing only run.sh leaves the listener alive,
+# and a second start then runs two listeners on one work folder (jobs collide and fail).
+mac_pids() { pgrep -f "$MAC_DIR/(run.sh|run-helper.sh|bin/Runner.Listener|bin/Runner.Worker)" || true; }
+mac_running() { pgrep -f "$MAC_DIR/bin/Runner.Listener" >/dev/null; }
 
 start_mac() {
-  if mac_running; then echo "macOS runner already running (pid $(cat "$MAC_DIR/run.pid"))"; return; fi
+  if mac_running; then echo "macOS runner already running (listener pid $(pgrep -f "$MAC_DIR/bin/Runner.Listener" | tr '\n' ' '))"; return; fi
   (cd "$MAC_DIR" && nohup ./run.sh >> run.log 2>&1 & echo $! > "$MAC_DIR/run.pid")
   echo "macOS runner started (log $MAC_DIR/run.log)"
 }
@@ -70,11 +74,20 @@ case "${1:-status}" in
     ;;
   start) start_mac; start_linux ;;
   stop)
-    if mac_running; then kill "$(cat "$MAC_DIR/run.pid")"; rm -f "$MAC_DIR/run.pid"; echo "macOS runner stopped"; fi
+    pids=$(mac_pids)
+    if [ -n "$pids" ]; then
+      kill $pids 2>/dev/null || true
+      for _ in 1 2 3 4 5 6 7 8 9 10; do [ -z "$(mac_pids)" ] && break; sleep 1; done
+      [ -n "$(mac_pids)" ] && kill -9 $(mac_pids) 2>/dev/null || true
+      echo "macOS runner stopped"
+    fi
+    rm -f "$MAC_DIR/run.pid"
     docker stop "$CONTAINER" >/dev/null 2>&1 && echo "Linux runner stopped" || true
     ;;
   status)
-    if mac_running; then echo "macOS runner: running (pid $(cat "$MAC_DIR/run.pid"))"; else echo "macOS runner: stopped"; fi
+    n=$(pgrep -f "$MAC_DIR/bin/Runner.Listener" | wc -l | tr -d ' ')
+    if [ "$n" -gt 1 ]; then echo "macOS runner: $n listeners running — run: $0 stop; $0 start"
+    elif [ "$n" -eq 1 ]; then echo "macOS runner: running (listener pid $(pgrep -f "$MAC_DIR/bin/Runner.Listener"))"; else echo "macOS runner: stopped"; fi
     echo "Linux runner: $(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null || echo 'not created')"
     echo "CI_RUNNER=$(gh variable get CI_RUNNER --repo "$REPO" 2>/dev/null || echo '(unset: GitHub-hosted)')"
     gh api "repos/$REPO/actions/runners" --jq '.runners[] | "GitHub sees \(.name): \(.status)\(if .busy then " (busy)" else "" end)"'
