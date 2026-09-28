@@ -3,9 +3,21 @@ name: cpu-ci
 # CPU only. GitHub has no NVIDIA runners for this project, so GPU verification is a
 # separate, recorded step on real hardware (scripts/gpu_check.sh, docs/GPU_VERIFICATION.md).
 
+# Minutes matter (private repository; macOS minutes are billed 10×): a pull request is tested
+# once, by its pull_request run (which reports the required checks); pushes are tested only on
+# main. A newer push to the same PR cancels the run it supersedes. Manual runs: Actions tab.
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# Runners: GitHub-hosted by default; the repository variable CI_RUNNER=self-hosted routes every
+# job to the team's self-hosted runners (label ps26119; scripts/ci_runners.sh: a macOS runner and a
+# Linux runner in Docker). Job and check names stay the same, so branch protection is unchanged.
+concurrency:
+  group: cpu-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-test:
@@ -13,15 +25,24 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ vars.CI_RUNNER == 'self-hosted' && (matrix.os == 'macos-latest' && fromJSON('["self-hosted","macOS","ps26119"]') || fromJSON('["self-hosted","Linux","ps26119"]')) || matrix.os }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # validate_results.py checks that every CSV's commit is in the history
 
       - uses: actions/setup-python@v5
+        if: vars.CI_RUNNER != 'self-hosted' || runner.os != 'macOS'
         with:
           python-version: "3.11"
+
+      # setup-python's macOS builds install under /Users/runner (GitHub's image layout), which a
+      # self-hosted Mac does not have: use the machine's Python 3.11 in a fresh virtual environment
+      - name: Python 3.11 (self-hosted macOS)
+        if: vars.CI_RUNNER == 'self-hosted' && runner.os == 'macOS'
+        run: |
+          python3.11 -m venv "$RUNNER_TEMP/py311"
+          echo "$RUNNER_TEMP/py311/bin" >> "$GITHUB_PATH"
 
       - name: Tools
         run: |
@@ -55,7 +76,7 @@ jobs:
           - name: tsan
             flags: "-fsanitize=thread"
     name: ${{ matrix.name }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER == 'self-hosted' && fromJSON('["self-hosted","Linux","ps26119"]') || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

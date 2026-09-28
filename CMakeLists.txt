@@ -70,6 +70,14 @@ if(PS26119_ENABLE_CUDA)
 endif()
 
 add_library(ps26119_core STATIC ${PS26119_SOURCES})
+# src/oracle/dense_tableau.cpp is a plain-double TEST oracle (tests/unit/test_differential.cpp).
+# GCC on aarch64 fuses a*b+c into FMA across statements by default, which changes its rounding: on
+# one badly scaled random LP it then reported "Optimal -1.96e16" where every production engine
+# proves Unbounded (found on the Linux arm64 CI runner). Evaluate it exactly as written on every
+# platform, as x86-64 already does. The production engines are not affected by this setting.
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  set_source_files_properties(src/oracle/dense_tableau.cpp PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
+endif()
 target_include_directories(ps26119_core
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
