@@ -1,0 +1,45 @@
+name: gpu-check
+
+# GPU validation on a self-hosted NVIDIA runner (label `gpu`), started by hand from the Actions tab
+# (Run workflow) when that machine is online — never automatically, so no job waits for a laptop
+# that is switched off. Runs scripts/gpu_check.sh (QUICK = build + all tests + small Netlib on the
+# GPU; full = also the scaling and refinery benchmarks) and uploads the CSVs and logs as an
+# artifact; committing them to bench/results/ stays a reviewed human step (CLAUDE.md §5.1).
+# Registering the runner: docs/CONTRIBUTING.md, "GPU runner".
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "quick (build + tests + small Netlib) or full (+ scaling, refinery)"
+        required: true
+        default: quick
+        type: choice
+        options: [quick, full]
+      machine:
+        description: "machine name written into the CSVs (e.g. rtx4050-laptop)"
+        required: true
+        default: rtx4050-laptop
+
+jobs:
+  gpu-check:
+    runs-on: [self-hosted, Linux, gpu]
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: nvidia-smi
+        run: nvidia-smi
+      - name: gpu_check.sh
+        env:
+          PS26119_MACHINE: ${{ inputs.machine }}
+          QUICK: ${{ inputs.mode == 'quick' && '1' || '' }}
+        run: scripts/gpu_check.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gpu-check-${{ inputs.machine }}-${{ github.sha }}
+          path: |
+            bench/results/*.csv
+            bench/results/logs/

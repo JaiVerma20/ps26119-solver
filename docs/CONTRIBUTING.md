@@ -49,6 +49,15 @@ either way, so branch protection is unchanged.
 Jobs queue while the laptop sleeps or the runners are stopped. Differences from GitHub's
 ubuntu-latest: arm64 instead of x86_64, Docker's Linux kernel. Only collaborators can trigger
 workflows in this private repository; do not attach these runners to a public repository.
+
+### GPU runner (NVIDIA machine, optional)
+The `gpu-check` workflow (`.github/workflows/gpu.yml`) runs `scripts/gpu_check.sh` on a self-hosted
+runner labelled `gpu`, started by hand (Actions → gpu-check → Run workflow) while that machine is
+online, and uploads the CSVs and logs as an artifact. To register an NVIDIA Linux / WSL2 machine:
+download the official runner for linux-x64 from github.com/actions/runner/releases (verify the
+SHA-256 in the release notes), then `./config.sh --url https://github.com/<owner>/<repo> --token
+<token from Settings → Actions → Runners → New self-hosted runner> --labels ps26119,gpu` and
+`./run.sh`. The machine needs what `scripts/gpu_check.sh` needs (CUDA toolkit, cmake, python3-venv).
    GPU changes additionally need a `scripts/gpu_check.sh` log from real hardware in the PR.
 6. The other teammate reviews; merge with "squash and merge" (or "rebase and merge" to keep
    individual commits). Delete the branch.
