@@ -42,7 +42,7 @@ export function mount(root) {
   const printBtn = h("button.btn", { onclick: () => { if (cert) window.open(api.reportUrl([cert.id], { evidence: evChk.checked }), "_blank"); } }, "Printable / PDF ↗");
   const presentBtn = h("button.btn", { onclick: () => document.body.classList.toggle("present") }, "Present ⤢");
   root.append(
-    h("div.page-head", h("div", h("div.eyebrow", "05 · certificate"), h("h1", "Verification certificate"),
+    h("div.page-head", h("div", h("div.eyebrow", "06 · certificate"), h("h1", "Verification certificate"),
       h("p", "One page per run, for the jury: what was solved, how, and every check it passed. Built from the run's own solution file and the independent verifier's report; exported as a self-contained HTML file (open it and print to PDF)."))),
     h("div.toolbar", h("span.dim", "run"), pick, h("label.check", { style: { margin: 0 } }, evChk, "include benchmark evidence"), h("span.grow"), exportBtn, printBtn, presentBtn),
     body);

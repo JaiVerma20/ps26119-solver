@@ -9,7 +9,7 @@ simulated, so rehearse on the machine you will present with.
 1. `git pull` on the branch you present, then `cmake --build build -j` — the binary's git hash must
    match the checkout (a `-dirty` build means uncommitted changes).
 2. `python3 apps/ui/server.py --open`
-3. Open **System check** (key 9): everything green or "note". If a demo model is missing, click
+3. Open **System check** (last item on the rail): everything green or "note". If a demo model is missing, click
    **Prepare demo models** (generates the 429k-row refinery year in ~2 s).
 4. Close heavy applications; plug the laptop in (the fanless M4 throttles: the refinery year takes
    5–13 s depending on its thermal state — say "about ten seconds", not an exact figure).

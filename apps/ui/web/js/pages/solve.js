@@ -128,7 +128,7 @@ export function mount(root) {
   );
 
   root.append(
-    h("div.page-head", h("div", h("div.eyebrow", "03 · solve"), h("h1", "Solve"),
+    h("div.page-head", h("div", h("div.eyebrow", "04 · solve"), h("h1", "Solve"),
       h("p", "Runs the real ps26119 binary. The run is checked twice: in-process on the original model, then by an independent verifier with its own MPS reader."))),
     h("div.grid.g-side", config, area));
 

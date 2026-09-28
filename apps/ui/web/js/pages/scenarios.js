@@ -50,7 +50,7 @@ function start(cfg) {
 export function mount(root) {
   const cfgBox = h("div.panel"), out = h("div.grid", { style: { gap: "14px", alignContent: "start" } });
   root.append(
-    h("div.page-head", h("div", h("div.eyebrow", "06 · scenarios"), h("h1", "What-if planning"),
+    h("div.page-head", h("div", h("div.eyebrow", "07 · scenarios"), h("h1", "What-if planning"),
       h("p", "Change prices, crude availability, demand or unit capacity on the multi-period refinery LP and see the profit impact, the new bottlenecks and what it costs to re-solve. What-if: the scenario is solved cold and warm-started from the base plan. Sweep: K values of one lever are solved together in one batched pass. Each answer goes back through tools/verify.py."))),
     h("div.grid.g-side", cfgBox, out));
 

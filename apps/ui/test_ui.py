@@ -328,6 +328,17 @@ class Endpoints(unittest.TestCase):
         self.assertEqual(cm.exception.code, 409)
         self.assertNotIn(j["job"], [r["id"] for r in self.get("/api/runs")])
 
+    def test_coverage_is_parsed_from_the_status_matrix(self):
+        c = self.get("/api/coverage")
+        self.assertEqual(c["source"], "docs/SIH_STATUS.md")
+        self.assertGreaterEqual(len(c["rows"]), 15)
+        self.assertEqual(sum(c["counts"].values()), len(c["rows"]))  # every row has a known status word
+        self.assertTrue(all(r["status_word"] != "UNKNOWN" for r in c["rows"]))
+        self.assertTrue(any(r["requirement"].startswith("Comparison with real-world solvers") for r in c["rows"]))
+        from backend import coverage as cov  # a qualified DONE with a PARTIAL caveat counts as PARTIAL
+        self.assertEqual(cov.status_word("DONE on one laptop GPU (PARTIAL: no data-centre GPU yet)"), "PARTIAL")
+        self.assertEqual(cov.status_word("DONE (LP)"), "DONE")
+
     def test_compare_endpoint_serves_the_committed_csv(self):
         c = self.get("/api/compare")
         self.assertIn("runs", c)

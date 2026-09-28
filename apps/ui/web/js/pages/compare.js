@@ -24,7 +24,7 @@ export function mount(root) {
   let data = null, set = "all";
   const body = h("div.grid", { style: { gap: "14px" } });
   root.append(
-    h("div.page-head", h("div", h("div.eyebrow", "09 · real-world solvers"), h("h1", "ps26119 vs HiGHS"),
+    h("div.page-head", h("div", h("div.eyebrow", "10 · real-world solvers"), h("h1", "ps26119 vs HiGHS"),
       h("p", "The PS asks for comparison with real-world solvers. HiGHS — the open-source solver inside SciPy and JuMP — is run on the same models, engine by engine: its dual simplex, its interior point and its PDLP (the CPU cuPDLP-C port, the same algorithm family as our r²HPDHG). Both sides are timed on the solve call only and judged by the same rule: Optimal AND the independent verifier passes AND within 1e-6 of the reference optimum."))),
     body);
 

@@ -3,6 +3,7 @@ import { api } from "./api.js";
 import { store } from "./store.js";
 import { h, $, fsec, fnum } from "./util.js";
 import * as dashboard from "./pages/dashboard.js";
+import * as coverage from "./pages/coverage.js";
 import * as models from "./pages/models.js";
 import * as solve from "./pages/solve.js";
 import * as verify from "./pages/verify.js";
@@ -18,6 +19,7 @@ import * as demo from "./pages/demo.js";
 // from this list. A new page = one module with mount(root) → optional cleanup, plus one line here.
 const ICON = {
   dashboard: "M3 13h8V3H3zm10 8h8V11h-8zM3 21h8v-6H3zm10-18v6h8V3z",
+  coverage: "M4 5h2v2H4zm4 0h12v2H8zM4 11h2v2H4zm4 0h12v2H8zm-4 6h2v2H4zm4 0h12v2H8z",
   models: "M4 4h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 10h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 16h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z",
   solve: "M8 5v14l11-7z",
   verify: "M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5zm-1.2 14.2-3.5-3.5 1.4-1.4 2.1 2.1 4.8-4.8 1.4 1.4z",
@@ -29,7 +31,7 @@ const ICON = {
   preflight: "M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z",
 };
 const PAGES = [
-  ["dashboard", "Dashboard", dashboard], ["models", "Models", models], ["solve", "Solve", solve],
+  ["dashboard", "Dashboard", dashboard], ["coverage", "PS coverage", coverage], ["models", "Models", models], ["solve", "Solve", solve],
   ["verify", "Verification", verify], ["certificate", "Certificate", certificate], ["scenarios", "Scenarios", scenarios],
   ["gpu", "GPU", gpu], ["bench", "Benchmarks", bench], ["compare", "vs HiGHS", compare], ["preflight", "System check", preflight],
 ];

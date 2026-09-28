@@ -21,7 +21,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from backend import certificate, evidence, generate, models, paths, preflight, report, runner, scenarios, system  # noqa: E402
+from backend import certificate, coverage, evidence, generate, models, paths, preflight, report, runner, scenarios, system  # noqa: E402
 
 JOBS = runner.Jobs()
 
@@ -100,6 +100,8 @@ class Handler(BaseHTTPRequestHandler):
                                        "max_sweep": scenarios.MAX_SWEEP})
             if route == "/api/evidence":
                 return self.send_json(evidence.collect())
+            if route == "/api/coverage":
+                return self.send_json(coverage.parse())
             if route == "/api/compare":
                 return self.send_json(evidence.compare())
             if route == "/api/gpu":

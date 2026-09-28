@@ -13,7 +13,7 @@ export function mount(root) {
   let data = null, sel = null, mi = 0;
   const body = h("div.grid", { style: { gap: "14px" } });
   root.append(
-    h("div.page-head", h("div", h("div.eyebrow", "07 · gpu compute"), h("h1", "GPU compute"),
+    h("div.page-head", h("div", h("div.eyebrow", "08 · gpu compute"), h("h1", "GPU compute"),
       h("p", "r²HPDHG on the CUDA backend against the same engine on the CPU (1 thread and all cores), in fp64 and in mixed precision (fp32 iterations, fp64 residuals and restarts). Every figure is read from the committed GPU run and its logs; ratios follow bench/gpu_compare.py (CPU seconds / GPU seconds to relative KKT 1e-8)."))),
     body);
 

@@ -10,7 +10,7 @@ export function mount(root) {
   const search = h("input.input.search", { placeholder: "filter models…", oninput: (e) => { filter = e.target.value.toLowerCase(); drawList(); } });
 
   root.append(
-    h("div.page-head", h("div", h("div.eyebrow", "02 · models"), h("h1", "Model Explorer"),
+    h("div.page-head", h("div", h("div.eyebrow", "03 · models"), h("h1", "Model Explorer"),
       h("p", "Every model in the repository's data folders. Statistics come from `ps26119 info` (the solver's own MPS reader); the sparsity image is a block-count picture of the constraint matrix."))),
     h("div.grid.g-side",
       h("div.grid", { style: { gap: "12px", alignContent: "start" } },

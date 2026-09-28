@@ -7,7 +7,7 @@ import { certificateStatus } from "../run.js";
 export function mount(root) {
   const body = h("div");
   root.append(
-    h("div.page-head", h("div", h("div.eyebrow", "04 · verification"), h("h1", "Verification"),
+    h("div.page-head", h("div", h("div.eyebrow", "05 · verification"), h("h1", "Verification"),
       h("p", "A wrong answer is worse than no answer. Every result passes an in-process check on the ORIGINAL model; Infeasible and Unbounded carry a certificate; then tools/verify.py re-reads the model with a different reader (HiGHS's MPS parser used only as a file reader, or a separate Python reader for .lpm) and re-checks everything from the solution file alone."))),
     body);
 

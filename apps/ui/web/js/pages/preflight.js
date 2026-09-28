@@ -14,7 +14,7 @@ export function mount(root) {
     catch (e) { toast(e.message); } finally { prep.disabled = false; prep.textContent = "Prepare demo models"; }
   } }, "Prepare demo models");
   root.append(
-    h("div.page-head", h("div", h("div.eyebrow", "10 · system check"), h("h1", "Demo preflight"),
+    h("div.page-head", h("div", h("div.eyebrow", "11 · system check"), h("h1", "Demo preflight"),
       h("p", "Run this before going on stage. Each line is checked for real: the solver binary is executed, the verifier's Python modules are imported, the demo models are opened, the evidence CSVs are parsed.")),
       h("div.actions", recheck, prep)),
     body);
