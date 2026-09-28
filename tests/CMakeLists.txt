@@ -9,6 +9,7 @@ set(PS26119_TEST_SOURCES
   unit/test_pdhg.cpp
   unit/test_c_api.cpp
   unit/test_batch.cpp
+  unit/test_ranging.cpp
   unit/test_safe_bound.cpp
   unit/test_presolve.cpp
   unit/test_mip.cpp

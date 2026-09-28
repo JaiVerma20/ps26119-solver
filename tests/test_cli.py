@@ -278,6 +278,41 @@ class Cli(unittest.TestCase):
                 open(bare, "w").write("\n".join(keep) + "\n")
                 self.assertEqual(ver(mps, bare).returncode, 1)
 
+    def test_ranging_file_and_refusals(self):
+        import csv
+        lp = os.path.join(DATA, "netlib_small", "afiro.lpm")
+        rng = os.path.join(self.tmp, "afiro.ranging.csv")
+        code, out = run("solve", lp, "--algorithm", "simplex", "--ranging", rng)
+        self.assertEqual(code, 0, out)
+        self.assertIn("ranging    32 costs, 27 rows", out)
+        with open(rng) as f:
+            rows = list(csv.DictReader(f))
+        self.assertEqual(list(rows[0]), ["kind", "index", "name", "value", "status", "lower", "upper", "dual_or_reduced_cost"])
+        self.assertEqual(sum(r["kind"] == "cost" for r in rows), 32)
+        self.assertEqual(sum(r["kind"] == "rhs" for r in rows), 27)
+        for r in rows:  # every range contains the current value
+            self.assertLessEqual(float(r["lower"]), float(r["value"]) + 1e-9, r)
+            self.assertGreaterEqual(float(r["upper"]), float(r["value"]) - 1e-9, r)
+        # a limit status is never ranged; the solve result is unaffected and no file is written
+        os.remove(rng)
+        code, out = run("solve", lp, "--algorithm", "simplex", "--iteration-limit", "1", "--ranging", rng)
+        self.assertEqual(code, 1, out)
+        self.assertIn("ranging    refused:", out)
+        self.assertFalse(os.path.exists(rng))
+        code, out = run("solve", lp, "--ranging", os.path.join(self.tmp, "no", "such", "dir", "r.csv"))
+        self.assertEqual(code, 4, out)
+        # names with a comma or a quote stay one CSV field
+        named = os.path.join(self.tmp, "named.lpm")
+        with open(named, "w") as f:
+            f.write(INFEASIBLE.replace("ROW_LOWER\n-inf 3", "ROW_LOWER\n-inf -inf").replace("ROW_UPPER\n1 inf", "ROW_UPPER\n1 3")
+                    .replace("END\n", 'ROW_NAMES\ncap,a\nq"b\nCOL_NAMES\nx,1\ny\nEND\n'))
+        code, out = run("solve", named, "--algorithm", "simplex", "--ranging", rng)
+        self.assertEqual(code, 0, out)
+        with open(rng) as f:
+            rows = list(csv.DictReader(f))
+        self.assertEqual([r["name"] for r in rows], ["x,1", "y", "cap,a", 'q"b'])
+        self.assertTrue(all(r["status"] in ("basic", "nonbasic", "upper_binding", "lower_binding", "not_binding") for r in rows))
+
     def test_batch_two_scenarios(self):
         lp = os.path.join(DATA, "netlib_small", "afiro.lpm")
         code, out = run("batch", lp, lp, lp, "--out-dir", self.tmp)

@@ -56,6 +56,30 @@ END
 Signs: z = c − Aᵀy (HiGHS convention). The reader requires every number to parse completely,
 validates block counts, and never allocates from a count before the lines exist.
 
+## Ranging file (`solve --ranging <file>`)
+
+Cost and right-hand-side ranging at the optimal vertex (`include/ps26119/ranging.h`,
+`src/core/ranging.cpp`): the basis is rebuilt from the solution, factorised, and checked for
+primal and dual feasibility before any range is computed. LPs only, vertex answers only (simplex,
+oracle — an interior first-order answer is refused), up to 25,000 rows. When ranging is refused
+the CLI prints `ranging    refused: <reason>` and writes no file; the solve result is unaffected.
+
+```
+kind,index,name,value,status,lower,upper,dual_or_reduced_cost
+cost,<j>,<name>,<c_j>,basic|nonbasic,<lower>,<upper>,<z_j>       c_j may move within [lower, upper]
+rhs,<i>,<name>,<b_i>,upper_binding|lower_binding,<lower>,<upper>,<y_i>   the binding bound b_i may move within [lower, upper]
+rhs,<i>,<name>,<b_i>,not_binding,<activity>,inf,<y_i>          upper bound b_i: down to the activity, up freely
+rhs,<i>,<name>,<b_i>,not_binding,-inf,<activity>,<y_i>         (no finite upper bound) lower bound b_i
+rhs,<i>,<name>,<activity>,not_binding,-inf,inf,<y_i>           free row
+```
+A not-binding row with both bounds finite is reported on its upper bound (its lower bound may
+likewise rise up to the activity). An equality row whose slack is basic at a degenerate vertex
+is `upper_binding` with the one-point range `[b_i, b_i]`.
+Within a range the optimal basis stays the same: a cost change moves the objective by Δc·x_j, a
+bound change by y_i·Δb. Ranges are in the model's own objective sense; under primal degeneracy a
+range can be one-sided at the current value (the CLI line says how many basic variables sit at a
+bound). `%.17g`; infinite ends are written `inf` / `-inf`.
+
 ## `.lpm` model format
 
 Exact text form of the Model contract (CLAUDE.md §6), written by `tools/mps_to_lpm.py` and the
