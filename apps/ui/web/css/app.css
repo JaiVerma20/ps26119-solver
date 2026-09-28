@@ -359,3 +359,6 @@ details.panel > summary::before { content: "▸ "; color: var(--accent); } detai
 .badge.vio { background: rgba(167,139,250,.12); color: var(--violet); border-color: rgba(167,139,250,.3); }
 .g-side > .grid { align-content: start; }  /* a tall sidebar must not stretch the main column's rows */
 .hs-label { font: 10px var(--mono); fill: var(--text-2); }
+.stale-banner { position: fixed; left: 0; right: 0; top: 0; z-index: 50; padding: 8px 16px; background: #3a2a06; color: var(--warn);
+  border-bottom: 1px solid rgba(255,181,71,.5); font-size: 13px; text-align: center; }
+.stale-banner code { font: 12px var(--mono); color: var(--text); }

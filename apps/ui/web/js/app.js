@@ -56,10 +56,22 @@ function route() {
   main.scrollTop = 0;
 }
 
+// The server loads its code once; after a pull / branch switch the pages (read from disk) can be
+// newer than the API. Say so plainly instead of leaving pages empty.
+function renderStaleBanner(s) {
+  let b = document.getElementById("stale-banner");
+  if (!s?.server_stale) { b?.remove(); return; }
+  if (b) return;
+  b = h("div#stale-banner.stale-banner", h("b", "The Command Center server is running older code than the files on disk. "),
+    "Restart it to see every page: Ctrl+C in its terminal, then ", h("code", "python3 apps/ui/server.py"), ".");
+  document.body.prepend(b);
+}
+
 function renderStatus() {
   const s = store.system;
   const box = $("#sys-status");
   if (!s) return;
+  renderStaleBanner(s);
   const run = store.run;
   const busy = run && !run.done;
   box.replaceChildren(
@@ -99,6 +111,8 @@ window.addEventListener("keydown", (e) => {
   if (n >= 1 && n <= PAGES.length) location.hash = `#/${PAGES[n - 1][0]}`;
 });
 
+// re-check every 30 s: the stale-server banner must appear even if the page stays open across a pull
+setInterval(() => api.system().then((s) => { if (s.server_stale !== store.system?.server_stale) store.set({ system: s }); }).catch(() => {}), 30000);
 api.system().then((s) => store.set({ system: s })).catch((e) => {
   $("#sys-status").replaceChildren(h("span.chip", h("span.led.bad"), `backend unreachable: ${e.message}`));
 });

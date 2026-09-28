@@ -26,6 +26,20 @@ from backend import certificate, coverage, evidence, generate, models, paths, pd
 JOBS = runner.Jobs()
 
 
+def _code_fingerprint() -> tuple:
+    """(file, mtime) of the server's own Python code. Pages are read from disk on every request but
+    this code is loaded once: after a `git pull` or a branch switch the page can be newer than the
+    API it calls. /api/system reports that, and the UI asks for a restart instead of showing empty
+    pages."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    files = [os.path.join(here, "server.py")] + sorted(
+        os.path.join(here, "backend", f) for f in os.listdir(os.path.join(here, "backend")) if f.endswith(".py"))
+    return tuple((f, os.path.getmtime(f)) for f in files if os.path.exists(f))
+
+
+STARTED_CODE = _code_fingerprint()
+
+
 def clean(o):
     """JSON has no NaN / Infinity: non-finite numbers become null (an Infeasible objective is NaN,
     an unavailable certified bound is ±inf). Without this the browser's JSON.parse rejects the event."""
@@ -85,7 +99,7 @@ class Handler(BaseHTTPRequestHandler):
         route = urllib.parse.urlparse(self.path).path
         try:
             if route == "/api/system":
-                return self.send_json(system.probe())
+                return self.send_json({**system.probe(), "server_stale": _code_fingerprint() != STARTED_CODE})
             if route == "/api/models":
                 return self.send_json(models.catalog())
             if route == "/api/model/info":

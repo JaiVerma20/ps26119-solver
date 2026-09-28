@@ -96,6 +96,15 @@ class Endpoints(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError):
             urllib.request.urlopen(self.base + "/../server.py", timeout=10)
 
+    def test_server_reports_when_its_code_changed_on_disk(self):
+        self.assertFalse(self.get("/api/system")["server_stale"])
+        saved = server.STARTED_CODE
+        try:  # as if a backend file had changed after start-up (git pull, branch switch)
+            server.STARTED_CODE = saved[:-1] + ((saved[-1][0], saved[-1][1] - 1),)
+            self.assertTrue(self.get("/api/system")["server_stale"])
+        finally:
+            server.STARTED_CODE = saved
+
     def test_system_and_model_info_come_from_the_solver(self):
         s = self.get("/api/system")
         self.assertTrue(s["binary_found"])
