@@ -214,3 +214,37 @@ export function heatStrip(rows, opts = {}) {
   svg.dataset.bin = bin; svg.dataset.vmax = vmax;
   return svg;
 }
+
+/** Sensitivity ranges, one row each: the interval [lower, upper] (null / ±Infinity = unbounded) in
+ *  which a value may move with the same optimal plan, drawn on the row's OWN scale centred on the
+ *  current value (rows have unrelated units); an unbounded side runs to the edge with an arrow.
+ *  rows: [{label, value, lower, upper}] ; opts: {labelW, rowH, color} */
+export function rangeChart(rows, opts = {}) {
+  const W = 640, L = opts.labelW || 130, R = 150, rowH = opts.rowH || 16, gap = 8, T = 18, B = 6;
+  const H = T + rows.length * (rowH + gap) + B, mid = L + (W - L - R) / 2, half = (W - L - R) / 2 - 8;
+  const svg = s("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, style: `height:${H}px`, role: "img" });
+  const color = opts.color || "#5ce1e6";
+  const fin = (v) => v != null && Number.isFinite(v);
+  const g = s("g", { class: "axis" });
+  g.append(s("text", { x: mid, y: 11, "text-anchor": "middle" }, "current value"));
+  g.append(s("text", { x: L + 4, y: 11 }, "← may fall"));
+  g.append(s("text", { x: W - R - 4, y: 11, "text-anchor": "end" }, "may rise →"));
+  svg.append(g, s("line", { x1: mid, x2: mid, y1: T - 4, y2: H - B, stroke: "#2a3542", "stroke-dasharray": "3 3" }));
+  const pct = (d, v) => (d == null ? "∞" : Math.abs(v) > 1e-12 ? `${fmtTick(100 * d / Math.abs(v))}%` : fmtTick(d));
+  rows.forEach((r, k) => {
+    const y = T + k * (rowH + gap), cy = y + rowH / 2;
+    const dn = fin(r.lower) ? Math.max(0, r.value - r.lower) : null, up = fin(r.upper) ? Math.max(0, r.upper - r.value) : null;
+    const w = Math.max(dn ?? 0, up ?? 0, 1e-12) * 1.25;  // the larger finite side fills 80 % of its half
+    const xl = dn == null ? mid - half : mid - half * (dn / w), xr = up == null ? mid + half : mid + half * (up / w);
+    svg.append(s("text", { x: L - 6, y: cy + 4, "text-anchor": "end", class: "hs-label" }, r.label));
+    const bar = s("rect", { x: xl.toFixed(1), y: y + 3, width: Math.max(1, xr - xl).toFixed(1), height: rowH - 6, fill: color, "fill-opacity": 0.35, stroke: color, "stroke-opacity": 0.8 });
+    bar.append(s("title", {}, `${r.label}: ${r.value} in [${fin(r.lower) ? r.lower : "−∞"}, ${fin(r.upper) ? r.upper : "+∞"}]`));
+    svg.append(bar);
+    if (dn == null) svg.append(s("path", { d: `M${mid - half - 6},${cy} l8,-5 v10 z`, fill: color }));
+    if (up == null) svg.append(s("path", { d: `M${mid + half + 6},${cy} l-8,-5 v10 z`, fill: color }));
+    if (dn === 0 || up === 0) svg.append(s("line", { x1: mid, x2: mid, y1: y, y2: y + rowH, stroke: "#f5a524", "stroke-width": 2 }));
+    svg.append(s("circle", { cx: mid, cy, r: 3, fill: "#e6edf3" }));
+    svg.append(s("text", { x: W - R + 8, y: cy + 4, class: "hs-label" }, `−${pct(dn, r.value)} / +${pct(up, r.value)}`));
+  });
+  return svg;
+}

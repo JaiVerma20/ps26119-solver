@@ -62,8 +62,9 @@ export function mount(root) {
   }
   const offSys = store.on((p) => { if ("system" in p) pdfBtn.style.display = store.system?.pdf_export ? "" : "none"; });
   api.runs().then((rs) => {
-    runs = rs;
+    runs = rs.filter((r) => r.status || r.id === jid);  // a run that produced no answer has no certificate
     if (!jid) jid = (store.run?.done && store.run.result ? store.run.job : null) || runs[0]?.id;
+    if (!runs.length) { body.replaceChildren(h("div.panel", h("div.empty", "no finished run yet — solve a model first"))); return; }
     fill(); load();
   }).catch((e) => toast(e.message));
   return () => { offSys(); document.body.classList.remove("present"); };

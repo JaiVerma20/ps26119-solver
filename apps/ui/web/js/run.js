@@ -1,8 +1,9 @@
 // run.js — start a solve and collect its live events into store.run (shared by every page).
 import { api } from "./api.js";
 import { store } from "./store.js";
+import { toast } from "./util.js";
 
-export const DEFAULT_OPTS = { algorithm: "auto", precision: "fp64", threads: 0, time_limit: 60, tol: "", presolve: true, gpu: false };
+export const DEFAULT_OPTS = { algorithm: "auto", precision: "fp64", threads: 0, time_limit: 60, tol: "", presolve: true, gpu: false, ranging: true };
 
 const waiters = new Map();  // job -> [resolve]
 
@@ -30,7 +31,7 @@ export async function startSolve(path, opts) {
     else if (ev.type === "stage") r.stage = ev.stage;
     else if (ev.type === "result") { r.result = ev; r.stage = r.opts.verify === false ? "done" : "verify"; }
     else if (ev.type === "verify") { r.verify = ev; }
-    else if (ev.type === "error") { r.error = ev.message; }
+    else if (ev.type === "error") { r.error = ev.message; toast(ev.message); }
     if (ev.type === "end" || ev.type === "stream-error") {
       r.done = true;
       r.stage = "done";
@@ -44,6 +45,24 @@ export async function startSolve(path, opts) {
     if (r.done) { for (const f of waiters.get(job) || []) f(r); waiters.delete(job); }
   });
   return job;
+}
+
+// a finished run kept on disk by the server, as store.run (Verification page after a reload)
+export async function loadRun(job) {
+  const j = await api.job(job);
+  if (j.kind !== "solve" || !j.done) throw new Error("not a finished solve run");
+  const run = { job, path: j.model, opts: { ...DEFAULT_OPTS, ...(j.opts || {}) }, events: j.events, progress: [], logs: [], result: null,
+    verify: null, stage: "done", done: true, started: Date.now(), command: "", restored: true };
+  for (const ev of j.events) {
+    if (ev.type === "started") run.command = ev.command;
+    else if (ev.type === "progress") run.progress.push(ev);
+    else if (ev.type === "log") run.logs.push(ev.line);
+    else if (ev.type === "result") run.result = ev;
+    else if (ev.type === "verify") run.verify = ev;
+    else if (ev.type === "error") run.error = ev.message;
+  }
+  store.set({ run, selectedModel: j.model });
+  return run;
 }
 
 // how the result should be described: Optimal answers are checked by the gate, Infeasible and

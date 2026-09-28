@@ -95,6 +95,48 @@ def solution_summary(path: str, max_vector: int = 2000) -> dict:
     return res
 
 
+def ranging_summary(path: str, stdout: str, max_rows: int = 2000) -> dict:
+    """The CLI's --ranging CSV (cost and right-hand-side ranging at the optimal vertex), or why it
+    was refused (the CLI prints 'ranging    refused: <reason>')."""
+    import csv
+    refused = next((ln.split("refused:", 1)[1].strip() for ln in stdout.splitlines() if ln.startswith("ranging") and "refused:" in ln), None)
+    if refused or not os.path.exists(path):
+        return {"ok": False, "message": refused or "no ranging file was written"}
+    num = lambda v: _f(v)
+    cost, rhs = [], []
+    with open(path) as f:
+        for r in csv.DictReader(f):
+            item = {"i": int(r["index"]), "name": r["name"] or (("x" if r["kind"] == "cost" else "r") + r["index"]),
+                    "value": num(r["value"]), "status": r["status"], "lower": num(r["lower"]), "upper": num(r["upper"]),
+                    "dual": num(r["dual_or_reduced_cost"])}
+            (cost if r["kind"] == "cost" else rhs).append(item)
+    # what a planner reads first, before the lists are cut: binding rows by |dual|, basic columns by |cost|
+    rhs.sort(key=lambda r: (r["status"] == "not_binding", -abs(r["dual"] or 0.0)))
+    cost.sort(key=lambda c: (c["status"] != "basic", -abs(c["value"] or 0.0)))
+    note = next((ln.split("(", 1)[1].rstrip(")") for ln in stdout.splitlines() if ln.startswith("ranging") and "(" in ln), "")
+    return {"ok": True, "message": note, "costs": cost[:max_rows], "rows": rhs[:max_rows],
+            "truncated": len(cost) > max_rows or len(rhs) > max_rows, "n_costs": len(cost), "n_rows": len(rhs)}
+
+
+_supports_cache: dict = {}
+
+
+def binary_supports(flag: str) -> bool:
+    """Whether the solver binary's usage text lists `flag` (cached per binary mtime): an older build
+    — e.g. one compiled before --ranging existed — must still run, without the option."""
+    try:
+        key = (paths.BIN, os.path.getmtime(paths.BIN), flag)
+    except OSError:
+        return False
+    if key not in _supports_cache:
+        try:
+            p = subprocess.run([paths.BIN, "--help"], capture_output=True, text=True, timeout=30)
+            _supports_cache[key] = flag in (p.stdout + p.stderr)
+        except (OSError, subprocess.TimeoutExpired):
+            _supports_cache[key] = False
+    return _supports_cache[key]
+
+
 def sha256_file(path: str) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -132,6 +174,8 @@ class Job:
             cmd.append("--no-presolve")
         if o.get("gpu"):
             cmd.append("--gpu")
+        if o.get("ranging") and binary_supports("--ranging"):
+            cmd += ["--ranging", sol[:-4] + ".ranging.csv"]
         return cmd
 
     def run(self):
@@ -161,8 +205,10 @@ class Job:
             th = threading.Thread(target=pump_stdout, daemon=True)
             th.start()
             last = 0.0
+            stderr_tail: list[str] = []
             for line in self.proc.stderr:
                 line = line.rstrip("\n")
+                stderr_tail = (stderr_tail + [line])[-20:]
                 p = parse_progress(line)
                 if p:
                     # throttle very chatty logs (the simplex prints every 1000 iterations anyway)
@@ -189,6 +235,9 @@ class Job:
             result["solution_sha256"] = sha256_file(sol)  # identifies the exact artifact the verifier checked
             try:
                 result["solution"] = solution_summary(sol)
+                if self.opts.get("ranging"):
+                    result["ranging"] = ranging_summary(sol[:-4] + ".ranging.csv", stdout) if binary_supports("--ranging") else \
+                        {"ok": False, "message": "this solver binary predates --ranging; rebuild it (cmake --build build)"}
             except Exception as e:  # noqa: BLE001 — report, never crash the server
                 result["solution_error"] = str(e)
         known = generate.known(model_abs)
@@ -198,6 +247,12 @@ class Job:
                 known["rel_err"] = abs(obj - known["optimum"]) / (1 + abs(known["optimum"]))
             result["known"] = known
         self.emit("result", **result)
+        if not os.path.exists(sol) and code in (2, 3, 4, 5):
+            # no answer at all (usage / read / output error): say why instead of a silent empty page
+            why = {2: "usage error", 3: "the model could not be read", 4: "the output could not be written", 5: "numerical error"}[code]
+            detail = next((ln.strip() for ln in reversed(stderr_tail) if ln.strip() and not ln.startswith("  ")), "")
+            self.emit("error", message=f"ps26119 exited with code {code} ({why}){': ' + detail if detail else ''}")
+            return
         status = (result.get("solution") or {}).get("status")
         if status and status not in ("Optimal", "Infeasible", "Unbounded"):
             # a limit or an error is not an answer: there is nothing to verify (verify.py would say FAIL)
@@ -260,7 +315,10 @@ def run_summary(job: Job) -> dict:
     return {"id": job.id, "kind": job.kind, "model": job.model_rel, "created": job.created, "done": job.done,
             "status": sol.get("status"), "objective": sol.get("objective"), "engine": sol.get("engine"),
             "seconds": sol.get("seconds"), "verdict": ver.get("verdict"), "algorithm": job.opts.get("algorithm"),
-            "gpu": bool(job.opts.get("gpu")), "rows": (ev.get("result") or {}).get("rows")}
+            "gpu": bool(job.opts.get("gpu")), "rows": (ev.get("result") or {}).get("rows"),
+            # a run without an answer says why (older runs: the solver's exit code)
+            "error": (ev.get("error") or {}).get("message") or (None if sol or not ev.get("result") else
+                                                              f"ps26119 exited with code {ev['result'].get('exit_code')}")}
 
 
 def list_runs(limit: int = 60) -> list[dict]:
@@ -321,7 +379,7 @@ def validate_options(body: dict) -> tuple[dict | None, str | None]:
         "algorithm": body.get("algorithm", "auto"), "precision": body.get("precision", "fp64"),
         "threads": body.get("threads", 0), "time_limit": body.get("time_limit", 60),
         "tol": body.get("tol"), "presolve": bool(body.get("presolve", True)), "gpu": bool(body.get("gpu", False)),
-        "verify": bool(body.get("verify", True)),
+        "verify": bool(body.get("verify", True)), "ranging": bool(body.get("ranging", False)),
     }
     if o["algorithm"] not in ALGORITHMS:
         return None, f"unknown algorithm {o['algorithm']!r}"
@@ -338,12 +396,51 @@ def validate_options(body: dict) -> tuple[dict | None, str | None]:
     return o, None
 
 
-REFERENCE_SOLVERS = ("simplex", "ipm", "pdlp")
+# Real-world reference solvers for the live comparison on the Solve page. Each runs as a separate
+# tool process (tools/*_ref.py — tooling only, never linked into ps26119), writes our solution-file
+# format, and its Optimal answer is judged by the same independent verifier as ours.
+#   key: (label, tool, tool arguments, Python module it needs, solves LP, solves MILP, note)
+REFERENCES = {
+    "highs-simplex": ("HiGHS · dual simplex", "highs_ref.py", ["--solver", "simplex"], "highspy", True, False, ""),
+    "highs-ipm": ("HiGHS · interior point", "highs_ref.py", ["--solver", "ipm"], "highspy", True, False, ""),
+    "highs-pdlp": ("HiGHS · PDLP", "highs_ref.py", ["--solver", "pdlp"], "highspy", True, False, "CPU cuPDLP-C port, tolerance 1e-8"),
+    "highs-mip": ("HiGHS · branch and cut", "highs_ref.py", ["--solver", "choose"], "highspy", False, True, ""),
+    "ortools-glop": ("OR-Tools · GLOP simplex", "ortools_ref.py", ["--solver", "glop"], "ortools", True, False, ""),
+    "ortools-pdlp": ("OR-Tools · PDLP", "ortools_ref.py", ["--solver", "pdlp"], "ortools", True, False, "Google's PDLP, tolerance 1e-8"),
+    "scip": ("SCIP · SoPlex LP / branch and cut", "scip_ref.py", [], "pyscipopt", True, True,
+             "LP with presolve off so that its duals can be verified (not SCIP's fastest LP setting)"),
+    "coin-clp": ("COIN-OR CLP · dual simplex", "coin_ref.py", ["--solver", "clp"], "cylp", True, False, ""),
+    "coin-cbc": ("COIN-OR CBC · branch and cut", "coin_ref.py", ["--solver", "cbc"], "cylp", False, True, ""),
+}
+# the first live reference (PR #18) took HiGHS engine names
+REFERENCE_ALIASES = {"simplex": "highs-simplex", "ipm": "highs-ipm", "pdlp": "highs-pdlp", "choose": "highs-mip"}
+_available_cache: dict | None = None
+
+
+def available_references() -> dict:
+    """{module: installed?} for the tool interpreter (checked once, in a subprocess: the tools may
+    run under a different Python than the server)."""
+    global _available_cache
+    if _available_cache is None:
+        mods = sorted({r[3] for r in REFERENCES.values()})
+        code = "import importlib.util as u, json; print(json.dumps({m: u.find_spec(m) is not None for m in %r}))" % mods
+        try:
+            p = subprocess.run([paths.PYTHON, "-c", code], capture_output=True, text=True, timeout=60)
+            _available_cache = json.loads(p.stdout.strip() or "{}")
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            _available_cache = {m: False for m in mods}
+    return _available_cache
+
+
+def reference_list() -> list:
+    av = available_references()
+    return [{"key": k, "label": r[0], "tool": r[1], "module": r[3], "lp": r[4], "mip": r[5], "note": r[6],
+             "available": bool(av.get(r[3]))} for k, r in REFERENCES.items()]
 
 
 class ReferenceJob(Job):
-    """The same model through HiGHS (tools/highs_ref.py, a separate reference used only by tooling)
-    and then through the same independent verifier as our runs — for a side-by-side on the Solve page."""
+    """The same model through a real-world solver (REFERENCES) and then, for an Optimal answer,
+    through the same independent verifier as our runs — the live comparison on the Solve page."""
     kind = "reference"
 
     def _run(self):
@@ -351,28 +448,42 @@ class ReferenceJob(Job):
         os.makedirs(self.dir, exist_ok=True)
         sol = os.path.join(self.dir, "reference.sol")
         o = self.opts
-        cmd = [paths.PYTHON, os.path.join(paths.ROOT, "tools", "highs_ref.py"), model_abs, sol, "--solver", o["solver"],
+        label, tool, args, _mod, _lp, _mip, note = REFERENCES[o["solver"]]
+        cmd = [paths.PYTHON, os.path.join(paths.ROOT, "tools", tool), model_abs, sol, *args,
                "--time-limit", str(o["time_limit"]), "--json"]
-        self.emit("started", command=f"python3 tools/highs_ref.py {self.model_rel} --solver {o['solver']}", stage="reference")
+        self.emit("started", command=f"python3 tools/{tool} {self.model_rel} {' '.join(args)}".rstrip(), stage="reference",
+                  solver=o["solver"], label=label, note=note)
         t0 = time.time()
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=o["time_limit"] + 600)
+        try:  # a solver without an internal time limit (CLP) is stopped here
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=o["time_limit"] + 30)
+        except subprocess.TimeoutExpired:
+            self.emit("result", status="TimeLimit", objective=None, seconds=o["time_limit"], engine=o["solver"],
+                      solver=o["solver"], label=label, wall_seconds=round(time.time() - t0, 3))
+            self.emit("verify", skipped=True, reason="TimeLimit: no answer to verify")
+            return
         try:
             res = json.loads(p.stdout.strip().splitlines()[-1])
         except (ValueError, IndexError):
             self.emit("error", message=(p.stderr.strip().splitlines() or ["the reference run failed"])[-1][:300])
             return
-        self.emit("result", **res, wall_seconds=round(time.time() - t0, 3))
-        if os.path.exists(sol) and res.get("status") in ("Optimal", "Infeasible", "Unbounded"):
+        res.setdefault("version", res.get("highs_version") and f"HiGHS {res['highs_version']}" or
+                       res.get("ortools_version") and f"OR-Tools {res['ortools_version']}" or "")
+        self.emit("result", **res, solver=o["solver"], label=label, wall_seconds=round(time.time() - t0, 3))
+        if os.path.exists(sol) and res.get("status") == "Optimal":
             self.emit("stage", stage="verify")
             self.emit("verify", **verify(model_abs, sol, self.dir))
+        elif res.get("status") in ("Infeasible", "Unbounded"):
+            self.emit("verify", skipped=True, reason=f"{res['status']}: this solver gives no certificate to check")
         else:
             self.emit("verify", skipped=True, reason=f"{res.get('status')}: no answer to verify")
 
 
 def validate_reference(body: dict):
-    solver = body.get("solver", "simplex")
-    if solver not in REFERENCE_SOLVERS:
-        return None, f"solver must be one of {', '.join(REFERENCE_SOLVERS)}"
+    solver = REFERENCE_ALIASES.get(body.get("solver", "highs-simplex"), body.get("solver", "highs-simplex"))
+    if solver not in REFERENCES:
+        return None, f"solver must be one of {', '.join(REFERENCES)}"
+    if not available_references().get(REFERENCES[solver][3]):
+        return None, f"{REFERENCES[solver][0]} is not installed (Python module {REFERENCES[solver][3]})"
     try:
         tl = float(body.get("time_limit", 120))
     except (TypeError, ValueError):

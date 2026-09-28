@@ -42,8 +42,9 @@ def latest(paths, prefix):
     cands = [p for p in paths if os.path.basename(p).startswith(prefix)]
     if not cands:
         return None
+    # staged but not yet committed = newest (make_evidence may run before the commit that adds it)
     cands.sort(key=lambda p: subprocess.run(["git", "log", "-1", "--format=%ct", "--", p], cwd=ROOT,
-                                            capture_output=True, text=True).stdout.strip())
+                                            capture_output=True, text=True).stdout.strip() or "9" * 12)
     return cands[-1]
 
 
@@ -338,9 +339,32 @@ def gpu_vs_cpu(paths):
     return "\n".join(out)
 
 
-def compare_highs_section(path):
-    """bench/compare_highs.py: ps26119 and HiGHS engine by engine, one rule for both."""
-    rows = load(path)
+def compare_group(paths, machine=None):
+    """The newest committed comparison (bench/compare_highs.py) of a machine, merged over every
+    compare-*.csv of that machine and commit: a run may be split by reference solver (e.g.
+    compare-highs-ortools-… and compare-scip-coin-…, the same binary). ps26119's rows come from the
+    first-committed file of the group (the primary run); each reference solver's rows from the
+    newest file that has it. Returns (files, rows); files[0] is the primary."""
+    comp = [p for p in paths if os.path.basename(p).startswith("compare-") and (machine is None or load(p)[0].get("machine") == machine)]
+    newest = latest(comp, "compare-")
+    if not newest:
+        return [], []
+    head = load(newest)[0]
+    group = [p for p in comp if (lambda r: (r.get("machine"), r.get("git_hash")) == (head.get("machine"), head.get("git_hash")))(load(p)[0])]
+    group.sort(key=lambda p: subprocess.run(["git", "log", "-1", "--format=%ct", "--", p], cwd=ROOT,
+                                            capture_output=True, text=True).stdout.strip() or "9" * 12)
+    rows = [r for r in load(group[0])]
+    have = {r["solver"] for r in rows}
+    for p in reversed(group[1:]):  # newest first
+        extra = [r for r in load(p) if r["solver"] != "ps26119" and r["solver"] not in have]
+        have |= {r["solver"] for r in extra}
+        rows += extra
+    return group, rows
+
+
+def compare_highs_section(files, rows):
+    """bench/compare_highs.py: ps26119 and the reference solvers engine by engine, one rule for all."""
+    path = ", ".join(f"`{p}`" for p in files)
     r0 = rows[0]
 
     def key(r):
@@ -358,6 +382,8 @@ def compare_highs_section(path):
         claims = [r for r in rows if key(r) == k and r["status"] == "Optimal"]
         line.append(f"{sum(r['solved'] != 'yes' for r in claims)} of {len(claims)}")
         body.append(line)
+    limits = ", ".join(f"{lab} {fnum(next(r['time_limit'] for r in rows if r['set'] == sid), '{:g}')} s"
+                       for sid, lab in sets if any(r.get("time_limit") for r in rows if r["set"] == sid)) or "see the CSV"
     big = []
     for inst in dict.fromkeys(r["instance"] for r in rows if r["set"] in ("scale", "kennington")):
         rs = {key(r): r for r in rows if r["instance"] == inst}
@@ -367,17 +393,18 @@ def compare_highs_section(path):
              ("limit" if rs[k]["status"] == "TimeLimit" else "rejected" if rs[k]["status"] == "Optimal" else rs[k]["status"]))
             if k in rs else "–" for k in keys])
     return "\n".join([
-        f"Source: `{path}` — commit `{r0['git_hash']}`, {r0['cpu']}, {r0['solver_version'] if r0['solver'] == 'ps26119' else ''} "
+        f"Source: {path} — commit `{r0['git_hash']}`, {r0['cpu']}, {r0['solver_version'] if r0['solver'] == 'ps26119' else ''} "
         f"vs {', '.join(dict.fromkeys(r['solver_version'] for r in rows if r['solver'] != 'ps26119'))}. Solved = status Optimal AND tools/verify.py "
-        "PASS AND within 1e-6 of the reference (HiGHS optimum for Netlib, known optimum for generated models) — the same "
-        "rule and verifier for both solvers; time = the solve call only on both sides; 60 s per Netlib model, 300 s per "
-        "large model.", "",
+        "PASS AND within 1e-6 of the reference (HiGHS optimum for Netlib, the published optimum for Kennington, the known "
+        "optimum for generated models) — the same rule and verifier for every solver; time = the solve call only on every "
+        f"side; time limit per model: {limits}.", "",
         table(["engine"] + [f"{lab} solved" for _, lab in sets] + ["'Optimal' claims rejected"], body), "",
         "Time to a verified optimum on the Kennington and generated large models (s):", "",
         table(["instance", "rows", "nnz"] + keys, big), "",
-        "Reading: HiGHS's simplex and interior point solve all of Netlib and are faster than ours on most of it; on the "
-        "largest generated models they reach the time limit. HiGHS PDLP's 'Optimal' claims that are rejected fail the "
-        "verifier's worst-row feasibility test at 1e-6 (its stopping test is norm-based)."])
+        "Reading: the reference simplex and interior-point engines solve (almost) every model and are faster than ours on "
+        "most Netlib and Kennington models; on the largest generated refinery models they are slower or reach the time "
+        "limit. The PDLP engines' rejected 'Optimal' claims fail the verifier's worst-row feasibility test at 1e-6 (their "
+        "stopping tests are norm-based)."])
 
 
 def fulls_all_untagged_before(ablations, fulls_all):
@@ -488,7 +515,17 @@ def main():
 
     comp = [p for p in paths if os.path.basename(p).startswith("compare-")]
     if comp:
-        doc += ["### 2d. ps26119 vs real-world solvers (HiGHS, OR-Tools), engine by engine", "", compare_highs_section(latest(comp, "compare-")), ""]
+        names = {"highs": "HiGHS", "ortools": "OR-Tools", "scip": "SCIP", "coin": "COIN-OR CLP"}
+        files, crows = compare_group(paths)
+        refs = ", ".join(dict.fromkeys(names.get(r["solver"], r["solver"]) for r in crows if r["solver"] != "ps26119"))
+        doc += [f"### 2d. ps26119 vs real-world solvers ({refs}), engine by engine", "", compare_highs_section(files, crows), ""]
+        # earlier runs (another commit or machine label) stay in the record: e.g. models the newest run did not reach
+        rest = [p for p in comp if p not in files]
+        while rest:
+            efiles, erows = compare_group(rest)
+            erefs = ", ".join(dict.fromkeys(names.get(r["solver"], r["solver"]) for r in erows if r["solver"] != "ps26119"))
+            doc += [f"#### Earlier run: commit `{erows[0]['git_hash']}` ({erefs})", "", compare_highs_section(efiles, erows), ""]
+            rest = [p for p in rest if p not in efiles]
 
     doc += ["", "## 3. CPU vs GPU", ""]
     if gpu_scales or net_gpu:

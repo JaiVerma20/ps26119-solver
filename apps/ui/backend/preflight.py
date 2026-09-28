@@ -8,8 +8,9 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 
-from . import evidence, generate, paths, system
+from . import evidence, generate, paths, runner, system
 
 # the models the jury demo walks through (path, what it shows, generator args if generated)
 DEMO_MODELS = [
@@ -65,6 +66,17 @@ def run() -> dict:
     items.append(_item("verifier", "Independent verifier (tools/verify.py)", "ok" if rep.get("ok") else "fail",
                        f"{paths.PYTHON}: {readers}" if readers else rep.get("error", "self-check failed"),
                        "" if rep.get("ok") else "install the Python tooling of docs/DEVELOPMENT.md, or set PS26119_PYTHON"))
+    refs = runner.reference_list()  # the live comparison on the Solve page (optional packages)
+    have = [r["label"] for r in refs if r["available"]]
+    missing = sorted({r["module"] for r in refs if not r["available"]})
+    items.append(_item("references", "Live comparison solvers (optional)", "ok" if not missing else "info",
+                       f"{len(have)} of {len(refs)} engines installed" + (f" · missing Python modules: {', '.join(missing)}" if missing else ""),
+                       f"pip install {' '.join(missing)}  (for {paths.PYTHON})" if missing else ""))
+    if runner.binary_supports("--ranging"):
+        items.append(_item("ranging", "Sensitivity ranging in this binary", "ok", "solve --ranging"))
+    else:
+        items.append(_item("ranging", "Sensitivity ranging in this binary", "warn", "this build predates --ranging (the Ranging tab stays empty)",
+                           "cmake --build build -j"))
     for rel, what, gen in DEMO_MODELS:
         p = os.path.join(paths.ROOT, rel)
         ok = os.path.exists(p)
@@ -79,10 +91,9 @@ def run() -> dict:
         items.append(_item("evidence", "Benchmark evidence (bench/results)", "fail", f"{type(e).__name__}: {e}"))
     try:
         os.makedirs(paths.RUNS, exist_ok=True)
-        t = os.path.join(paths.RUNS, ".write-test")
-        with open(t, "w") as f:
-            f.write("ok")
-        os.remove(t)
+        # a unique name: two checks at once (page load + Re-check) must not delete each other's file
+        with tempfile.NamedTemporaryFile(dir=paths.RUNS, prefix=".write-test-") as f:
+            f.write(b"ok")
         free = shutil.disk_usage(paths.RUNS).free
         items.append(_item("disk", "Run folder writable", "ok" if free > 2 << 30 else "warn",
                            f"{paths.rel(paths.RUNS)} · {free / 2**30:.1f} GB free"))

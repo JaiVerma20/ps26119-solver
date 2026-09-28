@@ -225,18 +225,16 @@ def compare() -> dict:
 
 
 def _compare() -> dict:
-    """The newest committed ps26119-vs-HiGHS run (bench/compare_highs.py), per machine: every row, as
-    written. Aggregates (solved counts, performance profiles, shifted geometric means) are computed
+    """The newest committed ps26119-vs-real-world-solvers run (bench/compare_highs.py), per machine —
+    merged over the CSVs of that run's commit (make_evidence.compare_group): every row, as written. Aggregates (solved counts, performance profiles, shifted geometric means) are computed
     by the page from these rows, with the rule stated there."""
     paths_ = [p for p in me.committed_csvs() if os.path.basename(p).startswith("compare-")]
-    by_machine: dict = {}
-    for p in paths_:
-        by_machine.setdefault(me.load(p)[0].get("machine"), []).append(p)
     out = []
-    for machine, ps in sorted(by_machine.items()):
-        p = me.latest(ps, "compare-")
-        rows = me.load(p)
+    for machine in sorted({me.load(p)[0].get("machine") for p in paths_}):
+        files, rows = me.compare_group(paths_, machine)  # one run, possibly split by reference solver
         num = ("rows", "cols", "nnz", "iterations", "seconds", "objective", "rel_err_ref", "time_limit")
-        out.append({"machine": machine, "source": _src(p), "solver_versions": sorted({r["solver_version"] for r in rows}),
+        out.append({"machine": machine, "source": _src(files[0]), "sources": [_src(p) for p in files],
+                    "solver_versions": sorted({r["solver_version"] for r in rows}),
                     "rows": [{**r, **{k: _f(r.get(k)) for k in num}} for r in rows]})
+    out.sort(key=lambda r: r["source"].get("date") or "", reverse=True)  # the newest run first
     return {"runs": out}

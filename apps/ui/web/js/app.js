@@ -33,7 +33,7 @@ const ICON = {
 const PAGES = [
   ["dashboard", "Dashboard", dashboard], ["coverage", "PS coverage", coverage], ["models", "Models", models], ["solve", "Solve", solve],
   ["verify", "Verification", verify], ["certificate", "Certificate", certificate], ["scenarios", "Scenarios", scenarios],
-  ["gpu", "GPU", gpu], ["bench", "Benchmarks", bench], ["compare", "vs HiGHS", compare], ["preflight", "System check", preflight],
+  ["gpu", "GPU", gpu], ["bench", "Benchmarks", bench], ["compare", "vs solvers", compare], ["preflight", "System check", preflight],
 ];
 const HIDDEN = { demo };  // routable, not in the rail (full-screen)
 const BY_NAME = Object.fromEntries([...PAGES.map(([k, , m]) => [k, m]), ...Object.entries(HIDDEN)]);

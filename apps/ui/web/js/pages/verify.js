@@ -2,7 +2,8 @@
 // certificate / rounding-proof bound, independent verifier (different reader, different code).
 import { store } from "../store.js";
 import { h, fnum, fexp, fsec, statusBadge, passBadge } from "../util.js";
-import { certificateStatus } from "../run.js";
+import { certificateStatus, loadRun } from "../run.js";
+import { api } from "../api.js";
 
 export function mount(root) {
   const body = h("div");
@@ -14,8 +15,16 @@ export function mount(root) {
   function draw() {
     const r = store.run;
     if (!r || !r.result) {
-      body.replaceChildren(h("div.panel", h("div.empty", r ? "the run is still in progress…" : "no run yet — solve a model on the Solve page, then come back here"),
-        h("div", { style: { textAlign: "center", paddingBottom: "24px" } }, h("a.btn.primary", { href: "#/solve" }, "Go to Solve ▸"))));
+      const actions = h("div", { style: { display: "flex", gap: "10px", justifyContent: "center", paddingBottom: "24px" } },
+        h("a.btn.primary", { href: "#/solve" }, "Go to Solve ▸"));
+      body.replaceChildren(h("div.panel", h("div.empty", r ? "the run is still in progress…" : "no run in this browser session — solve a model, or open the last run kept on disk"), actions));
+      if (!r) {  // offer the newest finished run from the server's run history
+        api.runs().then((runs) => {
+          const last = runs.find((x) => x.status);
+          if (last) actions.append(h("button.btn", { onclick: () => loadRun(last.id).catch(() => {}) },
+            `open the last run: ${last.model.split("/").pop()} · ${last.status} ▸`));
+        }).catch(() => {});
+      }
       return;
     }
     const res = r.result, sol = res.solution || {}, v = r.verify?.report, cert = certificateStatus(res, r.verify);
