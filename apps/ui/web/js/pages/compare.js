@@ -8,24 +8,24 @@ import { barChart, profileChart, scatterChart } from "../charts.js";
 const LABEL = {
   "ps26119·auto": "ps26119 · auto", "ps26119·simplex": "ps26119 · simplex", "ps26119·r2hpdhg": "ps26119 · r²HPDHG",
   "ps26119·r2hpdhg·mt": "ps26119 · r²HPDHG all cores", "highs·simplex": "HiGHS · dual simplex", "highs·ipm": "HiGHS · interior point",
-  "highs·pdlp": "HiGHS · PDLP",
+  "highs·pdlp": "HiGHS · PDLP", "ortools·glop": "OR-Tools · GLOP simplex", "ortools·pdlp": "OR-Tools · PDLP",
 };
 const COLOR = {
   "ps26119·auto": "#5ce1e6", "ps26119·simplex": "#2aa8b0", "ps26119·r2hpdhg": "#3ddc97", "ps26119·r2hpdhg·mt": "#a7f3d0",
-  "highs·simplex": "#ffb547", "highs·ipm": "#ff8a5c", "highs·pdlp": "#a78bfa",
+  "highs·simplex": "#ffb547", "highs·ipm": "#ff8a5c", "highs·pdlp": "#a78bfa", "ortools·glop": "#f472b6", "ortools·pdlp": "#c084fc",
 };
-const DASH = { "highs·simplex": "6 3", "highs·ipm": "6 3", "highs·pdlp": "6 3" };
+const DASH = { "highs·simplex": "6 3", "highs·ipm": "6 3", "highs·pdlp": "6 3", "ortools·glop": "2 3", "ortools·pdlp": "2 3" };
 const keyOf = (r) => `${r.solver}·${r.engine}${r.solver === "ps26119" && r.threads !== 1 && r.threads !== "1" ? "·mt" : ""}`;
 const SHIFT = 1; // seconds, for the shifted geometric mean
 const SHORT = { "ps26119·auto": "ours auto", "ps26119·simplex": "ours simplex", "ps26119·r2hpdhg": "ours r²HPDHG", "ps26119·r2hpdhg·mt": "ours r²HPDHG mt",
-  "highs·simplex": "HiGHS simplex", "highs·ipm": "HiGHS IPM", "highs·pdlp": "HiGHS PDLP" };
+  "highs·simplex": "HiGHS simplex", "highs·ipm": "HiGHS IPM", "highs·pdlp": "HiGHS PDLP", "ortools·glop": "GLOP", "ortools·pdlp": "OR-T PDLP" };
 
 export function mount(root) {
   let data = null, set = "all";
   const body = h("div.grid", { style: { gap: "14px" } });
   root.append(
-    h("div.page-head", h("div", h("div.eyebrow", "10 · real-world solvers"), h("h1", "ps26119 vs HiGHS"),
-      h("p", "The PS asks for comparison with real-world solvers. HiGHS — the open-source solver inside SciPy and JuMP — is run on the same models, engine by engine: its dual simplex, its interior point and its PDLP (the CPU cuPDLP-C port, the same algorithm family as our r²HPDHG). Both sides are timed on the solve call only and judged by the same rule: Optimal AND the independent verifier passes AND within 1e-6 of the reference optimum."))),
+    h("div.page-head", h("div", h("div.eyebrow", "10 · real-world solvers"), h("h1#cmp-title", "ps26119 vs real-world solvers"),
+      h("p", "The PS asks for comparison with real-world solvers. HiGHS (the open-source solver inside SciPy and JuMP: dual simplex, interior point, PDLP) and Google OR-Tools (GLOP simplex and Google's own PDLP — the reference implementation of the algorithm family of our r²HPDHG) run the same models, engine by engine. Both sides are timed on the solve call only and judged by the same rule: Optimal AND the independent verifier passes AND within 1e-6 of the reference optimum."))),
     body);
 
   function draw() {
@@ -48,7 +48,8 @@ export function mount(root) {
       return t.length ? Math.exp(t.reduce((a, x) => a + Math.log(x + SHIFT), 0) / t.length) - SHIFT : null;
     };
     const sg = Object.fromEntries(keys.map((k) => [k, sgm(k)]));
-    const bestHighs = keys.filter((k) => k.startsWith("highs")).reduce((a, k) => (!a || count[k] > count[a] ? k : a), null);
+    // the strongest reference engine (most solved; ties: faster shifted geometric mean)
+    const bestHighs = keys.filter((k) => !k.startsWith("ps26119")).reduce((a, k) => (!a || count[k] > count[a] || (count[k] === count[a] && sg[k] < sg[a]) ? k : a), null);
 
     // performance profile over instances some solver solved
     const solvable = insts.filter((i) => keys.some((k) => solved(byInst[i][k])));
@@ -61,7 +62,7 @@ export function mount(root) {
 
     const kpis = h("div.kpis",
       h("div.kpi.hl.big", h("div.k", "ps26119 auto · solved"), h("div.v", `${count["ps26119·auto"] ?? 0}/${insts.length}`), h("div.s", "Optimal + verified + matches the reference")),
-      bestHighs ? h("div.kpi.big", h("div.k", "HiGHS best · solved"), h("div.v", `${count[bestHighs]}/${insts.length}`), h("div.s", LABEL[bestHighs])) : null,
+      bestHighs ? h("div.kpi.big", h("div.k", "best reference · solved"), h("div.v", `${count[bestHighs]}/${insts.length}`), h("div.s", LABEL[bestHighs])) : null,
       h("div.kpi", h("div.k", "within 2× of fastest"), h("div.v", `${within("ps26119·auto", 2)} / ${bestHighs ? within(bestHighs, 2) : "—"}`), h("div.s", `ours auto / ${bestHighs ? LABEL[bestHighs] : "HiGHS"} · of ${solvable.length}`)),
       h("div.kpi.span2", h("div.k", "shifted geometric mean time"), h("div.v", `${fsec(sg["ps26119·auto"])} / ${bestHighs ? fsec(sg[bestHighs]) : "—"}`), h("div.s", `ours auto / ${bestHighs ? LABEL[bestHighs] : ""} · shift ${SHIFT} s, unsolved = limit`)),
       h(`div.kpi.${claimsRejected["ps26119·auto"] === 0 ? "okc" : "badc"}`, h("div.k", "claims rejected · ours"), h("div.v", `${claimsRejected["ps26119·auto"] ?? 0}`), h("div.s", "ours auto — by the independent verifier or the reference")));
@@ -82,7 +83,7 @@ export function mount(root) {
     const rej = h("div.panel", h("div.panel-h", "When a solver says ‘Optimal’ but is not"),
       h("table.t", h("thead", h("tr", h("th", "engine"), h("th.num", "Optimal claims"), h("th.num", "rejected"), h("th", "why it matters"))),
         h("tbody", keys.map((k) => { const claims = insts.filter((i) => byInst[i][k]?.status === "Optimal").length;
-          return h("tr", h("td.mono", LABEL[k]), h("td.num", claims), h("td.num", { class: claimsRejected[k] ? "warn" : "ok" }, claimsRejected[k]), h("td.dim", k.startsWith("ps26119") ? "ours: the in-process gate withdraws Optimal when the original model is violated" : "HiGHS's own stopping test; checked here by our verifier")); }))),
+          return h("tr", h("td.mono", LABEL[k]), h("td.num", claims), h("td.num", { class: claimsRejected[k] ? "warn" : "ok" }, claimsRejected[k]), h("td.dim", k.startsWith("ps26119") ? "ours: the in-process gate withdraws Optimal when the original model is violated" : "its own stopping test; checked here by our verifier")); }))),
       h("div.note", "A rejected claim is an answer its own solver called optimal that violates the original model beyond 1e-6 (worst row, relative) or misses the reference optimum. First-order methods with norm-based stopping tests are the usual source."));
 
     const pts = insts.map((i) => ({ i, a: byInst[i]["ps26119·auto"], b: byInst[i]["highs·simplex"] })).filter(({ a, b }) => solved(a) && solved(b));

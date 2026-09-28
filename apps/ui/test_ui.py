@@ -373,8 +373,8 @@ class Endpoints(unittest.TestCase):
         c = self.get("/api/compare")
         self.assertIn("runs", c)
         for run in c["runs"]:  # zero runs is valid until a comparison CSV is committed
-            self.assertRegex(run["source"]["file"], r"^compare-highs-.+-[0-9a-f]{7}\.csv$")
-            self.assertTrue({r["solver"] for r in run["rows"]} <= {"ps26119", "highs"})
+            self.assertRegex(run["source"]["file"], r"^compare-(highs|ortools)(-ortools)?-.+-[0-9a-f]{7}\.csv$")
+            self.assertTrue({r["solver"] for r in run["rows"]} <= {"ps26119", "highs", "ortools"})
             for r in run["rows"]:
                 self.assertIn(r["solved"], ("yes", "no"))
                 if r["solved"] == "yes":  # the rule the page states: Optimal + verified + within 1e-6

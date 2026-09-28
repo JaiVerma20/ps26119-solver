@@ -255,7 +255,7 @@ Source: `bench/results/scale-simplex-macbook-air-m4-d824f82.csv` — commit `d82
 | refinery-T12-s1 | 588 | 2065 | Optimal | 888 | 0.0395 | 0.00e+00 | PASS |
 | refinery-T365-s1 | 17885 | 63134 | Optimal | 33348 | 22.8 | 2.07e-15 | PASS |
 
-### 2d. ps26119 vs HiGHS, engine by engine
+### 2d. ps26119 vs real-world solvers (HiGHS, OR-Tools), engine by engine
 
 Source: `bench/results/compare-highs-Darwin-arm64-90fc378.csv` — commit `90fc378`, Apple M4, ps26119 0.1.0 (git 90fc378) vs HiGHS 1.15.1. Solved = status Optimal AND tools/verify.py PASS AND within 1e-6 of the reference (HiGHS optimum for Netlib, known optimum for generated models) — the same rule and verifier for both solvers; time = the solve call only on both sides; 60 s per Netlib model, 300 s per large model.
 

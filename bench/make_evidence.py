@@ -367,7 +367,7 @@ def compare_highs_section(path):
             if k in rs else "–" for k in keys])
     return "\n".join([
         f"Source: `{path}` — commit `{r0['git_hash']}`, {r0['cpu']}, {r0['solver_version'] if r0['solver'] == 'ps26119' else ''} "
-        f"vs {next(r['solver_version'] for r in rows if r['solver'] == 'highs')}. Solved = status Optimal AND tools/verify.py "
+        f"vs {', '.join(dict.fromkeys(r['solver_version'] for r in rows if r['solver'] != 'ps26119'))}. Solved = status Optimal AND tools/verify.py "
         "PASS AND within 1e-6 of the reference (HiGHS optimum for Netlib, known optimum for generated models) — the same "
         "rule and verifier for both solvers; time = the solve call only on both sides; 60 s per Netlib model, 300 s per "
         "large model.", "",
@@ -485,9 +485,9 @@ def main():
                 "primal simplex prices every column and computes the Devex row every iteration.", "",
                 table(["instance", "rows", "nnz", "status", "iterations", "s", "rel. err vs known opt", "verify"], body), ""]
 
-    comp = [p for p in paths if os.path.basename(p).startswith("compare-highs-")]
+    comp = [p for p in paths if os.path.basename(p).startswith("compare-")]
     if comp:
-        doc += ["### 2d. ps26119 vs HiGHS, engine by engine", "", compare_highs_section(latest(comp, "compare-highs-")), ""]
+        doc += ["### 2d. ps26119 vs real-world solvers (HiGHS, OR-Tools), engine by engine", "", compare_highs_section(latest(comp, "compare-")), ""]
 
     doc += ["", "## 3. CPU vs GPU", ""]
     if gpu_scales or net_gpu:

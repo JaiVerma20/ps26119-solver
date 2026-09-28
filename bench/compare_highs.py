@@ -4,6 +4,7 @@ highspy, tooling only; never linked), engine by engine, on the same models and t
 
   ps26119:  auto, simplex, r2hpdhg (1 thread), r2hpdhg (all cores)          --tol 1e-8
   HiGHS:    simplex (dual), ipm (interior point + crossover), pdlp           pdlp tolerance 1e-8
+  OR-Tools: glop (Google's simplex), pdlp (Google's PDLP)  [--refs highs,ortools]   pdlp rel + abs 1e-8
 
 Models: the Netlib LP set (data/netlib/, tools/fetch_netlib.py) and the generated LPs with an
 optimum known by construction (bench/generated: refinery T12 / T365 / T2190 / T8760, random 1e4 /
@@ -20,8 +21,9 @@ Honest limits: HiGHS runs with its defaults (serial simplex, serial IPM); its PD
 cuPDLP-C port, whose stopping measure is not identical to ours even at the same 1e-8. One machine.
 
 usage: bench/compare_highs.py [--bin build/ps26119] [--set netlib,scale] [--big] [--only a,b]
-                              [--time-limit 60] [--scale-time-limit 300]
-Writes bench/results/compare-highs-<machine>-<githash>.csv.
+                              [--time-limit 60] [--scale-time-limit 300] [--refs highs[,ortools]]
+Writes bench/results/compare-<refs joined by ->-<machine>-<githash>.csv, e.g. compare-highs-...,
+compare-highs-ortools-... (OR-Tools runs with its defaults except the PDLP tolerance).
 """
 import argparse
 import csv
@@ -37,6 +39,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 sys.path.insert(0, HERE)
 import highs_ref  # noqa: E402
+
 import verify  # noqa: E402
 from lpm import read_solution  # noqa: E402
 from machine_info import machine_info  # noqa: E402
@@ -49,6 +52,7 @@ FIELDS = ["git_hash", "machine", "cpu", "cpu_cores", "gpu", "driver", "cuda", "d
 OURS = [("auto", 1), ("simplex", 1), ("r2hpdhg", 1), ("r2hpdhg", 0)]
 HIGHS = [("simplex", {"solver": "simplex"}), ("ipm", {"solver": "ipm"}),
          ("pdlp", {"solver": "pdlp", "pdlp_optimality_tolerance": 1e-8})]
+ORTOOLS = [("glop", {}), ("pdlp", {})]
 SCALE = ["refinery-T12-s1", "refinery-T365-s1", "refinery-T2190-s1", "refinery-T8760-s1", "rand-10000-s1", "rand-100000-s1"]
 
 
@@ -111,13 +115,21 @@ def main():
     ap.add_argument("--big", action="store_true")
     ap.add_argument("--time-limit", type=float, default=60)
     ap.add_argument("--scale-time-limit", type=float, default=300)
+    ap.add_argument("--refs", default="highs", help="reference solvers: highs, or highs,ortools")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
+    refs = [r for r in a.refs.split(",") if r]
+    if not set(refs) <= {"highs", "ortools"}:
+        sys.exit("--refs: highs and/or ortools")
     info = machine_info(a.bin)
     ours_version = subprocess.run([a.bin, "--version"], capture_output=True, text=True).stdout.strip()
     hv = "HiGHS " + highs_ref.highs_version()
+    # OR-Tools bundles its own HiGHS: loaded next to highspy in one process it binds to the wrong
+    # symbols, so it always runs as a separate process (tools/ortools_ref.py --json)
+    ov = ("OR-Tools " + subprocess.run([sys.executable, "-c", "import ortools; print(ortools.__version__)"],
+                                       capture_output=True, text=True).stdout.strip()) if "ortools" in refs else ""
     rows = []
-    out = a.out or os.path.join(HERE, "results", f"compare-highs-{info['machine']}-{info['git_hash']}.csv")
+    out = a.out or os.path.join(HERE, "results", f"compare-{'-'.join(refs)}-{info['machine']}-{info['git_hash']}.csv")
 
     def flush():
         with open(out, "w", newline="") as f:
@@ -145,7 +157,7 @@ def main():
                 else:
                     r.update(status="NoOutput", verify="FAIL")
                 rows.append(finish(r))
-            for eng, opts in HIGHS:
+            for eng, opts in (HIGHS if "highs" in refs else []):
                 sol = os.path.join(tmp, f"{m['name']}.highs-{eng}.sol")
                 r = {**base, "solver": "highs", "engine": eng, "threads": "default",
                      "tolerance": "1e-8 (pdlp_optimality_tolerance)" if eng == "pdlp" else "HiGHS defaults (1e-7 feasibility)",
@@ -154,6 +166,25 @@ def main():
                     res = highs_ref.solve_with_highs(m["path"], sol, time_limit=tl, options=opts)
                     r.update(status=res["status"], iterations=res["iterations"], seconds=f"{res['seconds']:.6f}",
                              objective=repr(res["objective"]), message=f"HiGHS model status {res['highs_status']}")
+                    check(m["path"], sol, r)
+                except Exception as e:  # noqa: BLE001 — a failed reference run is a row, not a crash
+                    r.update(status="Error", verify="FAIL", message=f"{type(e).__name__}: {e}"[:200])
+                rows.append(finish(r))
+            for eng, _ in (ORTOOLS if "ortools" in refs else []):
+                sol = os.path.join(tmp, f"{m['name']}.ortools-{eng}.sol")
+                r = {**base, "solver": "ortools", "engine": eng, "threads": "default",
+                     "tolerance": "1e-8 (PDLP relative + absolute)" if eng == "pdlp" else "OR-Tools defaults",
+                     "solver_version": ov}
+                try:
+                    p = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "ortools_ref.py"), m["path"], sol, "--solver", eng,
+                                        "--time-limit", str(tl), "--tol", "1e-8", "--json"], capture_output=True, text=True,
+                                       timeout=tl + 600)
+                    lines = [ln for ln in p.stdout.splitlines() if ln.startswith("{")]
+                    if not lines:
+                        raise RuntimeError((p.stderr.strip().splitlines() or ["no output"])[-1])
+                    res = json.loads(lines[-1])
+                    r.update(status=res["status"], seconds=f"{res['seconds']:.6f}", objective=repr(res["objective"]),
+                             message=f"OR-Tools status {res['ortools_status']}")
                     check(m["path"], sol, r)
                 except Exception as e:  # noqa: BLE001 — a failed reference run is a row, not a crash
                     r.update(status="Error", verify="FAIL", message=f"{type(e).__name__}: {e}"[:200])
