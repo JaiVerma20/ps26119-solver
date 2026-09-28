@@ -30,6 +30,34 @@ main  (protected: pull request + green CI; nobody pushes to it directly)
    Python tests — configure with `-DPython3_EXECUTABLE=<python with highspy, numpy, scipy>`).
 4. `git push -u origin feature/<person>/<topic>`; open a pull request to `main`.
 5. CI must be green (Ubuntu + macOS build/test, ASan/UBSan, TSan, no-foreign-solver check).
+   `scripts/ci_local.sh` runs the same jobs locally (before pushing, or when GitHub Actions is
+   unavailable — then paste its summary into the PR).
+
+### Where CI runs
+GitHub-hosted runners are billed for this private repository. When they are unavailable, CI runs on
+**self-hosted runners** on a team laptop (Apple Silicon + Docker; self-hosted runners are free):
+a macOS runner for `build-test (macos-latest)` and a Linux runner in Docker (Ubuntu 24.04, arm64) for
+`build-test (ubuntu-latest)`, `asan-ubsan` and `tsan`. The repository variable `CI_RUNNER` chooses:
+`self-hosted` routes every job there, anything else uses GitHub's runners. Check names are the same
+either way, so branch protection is unchanged.
+
+    scripts/ci_runners.sh setup    # once: download (checksum-verified), register, start
+    scripts/ci_runners.sh start    # after a reboot (the Linux runner restarts with Docker)
+    scripts/ci_runners.sh status   # local state + what GitHub sees
+    scripts/ci_runners.sh hosted   # back to GitHub-hosted runners (when billing allows)
+
+Jobs queue while the laptop sleeps or the runners are stopped. Differences from GitHub's
+ubuntu-latest: arm64 instead of x86_64, Docker's Linux kernel. Only collaborators can trigger
+workflows in this private repository; do not attach these runners to a public repository.
+
+### GPU runner (NVIDIA machine, optional)
+The `gpu-check` workflow (`.github/workflows/gpu.yml`) runs `scripts/gpu_check.sh` on a self-hosted
+runner labelled `gpu`, started by hand (Actions → gpu-check → Run workflow) while that machine is
+online, and uploads the CSVs and logs as an artifact. To register an NVIDIA Linux / WSL2 machine:
+download the official runner for linux-x64 from github.com/actions/runner/releases (verify the
+SHA-256 in the release notes), then `./config.sh --url https://github.com/<owner>/<repo> --token
+<token from Settings → Actions → Runners → New self-hosted runner> --labels ps26119,gpu` and
+`./run.sh`. The machine needs what `scripts/gpu_check.sh` needs (CUDA toolkit, cmake, python3-venv).
    GPU changes additionally need a `scripts/gpu_check.sh` log from real hardware in the PR.
 6. The other teammate reviews; merge with "squash and merge" (or "rebase and merge" to keep
    individual commits). Delete the branch.
