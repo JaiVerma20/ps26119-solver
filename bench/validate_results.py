@@ -73,7 +73,9 @@ def check_csv(path):
                 errors.append(f"row {i + 2}: backend=gpu but no driver version")
             if not r.get("cuda"):
                 errors.append(f"row {i + 2}: backend=gpu but no CUDA version")
-        if r.get("status") == "Optimal" and r.get("verify") == "FAIL":
+        # our engines must never report an Optimal that fails verification; rows of a reference
+        # solver (compare-highs-*.csv, column solver != ps26119) record its claims as they are
+        if r.get("status") == "Optimal" and r.get("verify") == "FAIL" and r.get("solver", "ps26119") == "ps26119":
             errors.append(f"row {i + 2}: status Optimal but verify FAIL ({r.get('instance')})")
     return errors[:20], warnings
 

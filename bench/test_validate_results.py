@@ -45,6 +45,15 @@ class Validate(unittest.TestCase):
             errors, _ = vr.check_csv(self.write(name, body))
             self.assertTrue(errors, why)
 
+    def test_reference_solver_rows_may_record_rejected_claims(self):
+        # compare-highs-*.csv: a HiGHS row may say Optimal while verify.py rejects it (that is the
+        # finding); a ps26119 row may not, with or without the solver column
+        cols = "git_hash,machine,cpu,gpu,driver,cuda,date,instance,backend,status,verify,solver\n"
+        ok = self.write(f"compare-highs-lap-{HEAD}.csv", cols + f"{HEAD},lap,c,none,,,d,m,,Optimal,FAIL,highs\n")
+        self.assertEqual(vr.check_csv(ok)[0], [])
+        bad = self.write(f"compare-highs-lap-{HEAD}.csv", cols + f"{HEAD},lap,c,none,,,d,m,,Optimal,FAIL,ps26119\n")
+        self.assertTrue(vr.check_csv(bad)[0])
+
     def test_logs(self):
         good = os.path.join(self.d, "logs", "lap-" + HEAD)
         os.makedirs(good)
