@@ -100,7 +100,7 @@ export function mount(root) {
     const rel = res && Number.isFinite(res.objective) && Number.isFinite(mine.objective) ? Math.abs(res.objective - mine.objective) / (1 + Math.abs(mine.objective)) : null;
     const ourVerdict = r.verify?.report?.verdict, refVerdict = v?.report?.verdict;
     const row = (k, a, b, note = "") => h("tr", h("td", k), h("td.num", a), h("td.num", b), h("td.dim", note));
-    refPanel.replaceChildren(
+    refPanel.replaceChildren(...[
       h("div.panel-h", "Real-world reference · the same model through HiGHS", h("span.right.dim", "HiGHS runs as a separate tool; the same independent verifier judges both")),
       h("div.panel-b", { style: { display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" } }, seg, btn,
         res ? h("span.dim.mono", `${res.highs_version ? "HiGHS " + res.highs_version : ""} · ${res.highs_status}`) : null),
@@ -113,7 +113,7 @@ export function mount(root) {
           row("iterations", fint(mine.iterations), fint(res.iterations), `${mine.engine} vs ${res.engine}`),
           row("independent verify", ourVerdict ? passBadge(ourVerdict) : "—", refVerdict ? passBadge(refVerdict) : v?.skipped ? "n/a" : cur.done ? "—" : h("span.acc", "checking…"),
             refVerdict === "FAIL" ? (v.report.reasons || []).join("; ").slice(0, 120) : ""))) : null,
-      h("div.note", "Times are the solve call only on both sides (model reading excluded). One live run on this machine — for a measured comparison over all of Netlib and the refinery models see the ‘vs HiGHS’ page."));
+      h("div.note", "Times are the solve call only on both sides (model reading excluded). One live run on this machine — for a measured comparison over all of Netlib and the refinery models see the ‘vs HiGHS’ page.")].filter(Boolean));
   }
 
   const area = h("div.grid", { style: { gap: "12px" } },

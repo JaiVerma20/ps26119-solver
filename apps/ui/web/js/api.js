@@ -26,8 +26,8 @@ export const api = {
   runs: () => get("/api/runs"),
   certificate: (job) => get(`/api/jobs/${job}/certificate`),
   // the self-contained HTML report (certificates of these runs + optionally the evidence)
-  reportUrl: (jobs, { evidence = true, download = false, title = "" } = {}) =>
-    `/api/report?jobs=${jobs.join(",")}&evidence=${evidence ? 1 : 0}${download ? "&download=1" : ""}${title ? `&title=${encodeURIComponent(title)}` : ""}`,
+  reportUrl: (jobs, { evidence = true, download = false, title = "", format = "" } = {}) =>
+    `/api/report?jobs=${jobs.join(",")}&evidence=${evidence ? 1 : 0}${download ? "&download=1" : ""}${format ? `&format=${format}` : ""}${title ? `&title=${encodeURIComponent(title)}` : ""}`,
   async solve(opts) {
     const r = await fetch("/api/solve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(opts) });
     const j = await r.json();

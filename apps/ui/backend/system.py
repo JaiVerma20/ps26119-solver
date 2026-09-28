@@ -28,6 +28,8 @@ def probe() -> dict:
         p = subprocess.run([paths.BIN, "solve", tiny, "--algorithm", "r2hpdhg", "--gpu"], capture_output=True, text=True)
         res["cuda_build"] = "no CUDA backend" not in p.stdout
         res["cuda_probe"] = next((l.split(None, 1)[1] for l in p.stdout.splitlines() if l.startswith("message")), "")
+    from . import pdf
+    res["pdf_export"] = pdf.browser() is not None  # a local Chrome / Chromium can print the report to PDF
     res["cpu"] = cpu_name()
     res["cores"] = os.cpu_count()
     res["os"] = f"{platform.system()} {platform.release()} ({platform.machine()})"

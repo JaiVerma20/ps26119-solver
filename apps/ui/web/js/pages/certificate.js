@@ -39,12 +39,15 @@ export function mount(root) {
   const evChk = h("input", { type: "checkbox", checked: true });
   const body = h("div");
   const exportBtn = h("button.btn.primary", { onclick: () => { if (cert) location.href = api.reportUrl([cert.id], { evidence: evChk.checked, download: true }); } }, "Export HTML report");
-  const printBtn = h("button.btn", { onclick: () => { if (cert) window.open(api.reportUrl([cert.id], { evidence: evChk.checked }), "_blank"); } }, "Printable / PDF ↗");
+  const printBtn = h("button.btn", { onclick: () => { if (cert) window.open(api.reportUrl([cert.id], { evidence: evChk.checked }), "_blank"); } }, "Printable ↗");
+  // a real PDF when the server has a local Chrome / Chromium to print it (/api/system pdf_export)
+  const pdfBtn = h("button.btn", { style: { display: store.system?.pdf_export ? "" : "none" },
+    onclick: () => { if (cert) location.href = api.reportUrl([cert.id], { evidence: evChk.checked, download: true, format: "pdf" }); } }, "Download PDF");
   const presentBtn = h("button.btn", { onclick: () => document.body.classList.toggle("present") }, "Present ⤢");
   root.append(
     h("div.page-head", h("div", h("div.eyebrow", "06 · certificate"), h("h1", "Verification certificate"),
       h("p", "One page per run, for the jury: what was solved, how, and every check it passed. Built from the run's own solution file and the independent verifier's report; exported as a self-contained HTML file (open it and print to PDF)."))),
-    h("div.toolbar", h("span.dim", "run"), pick, h("label.check", { style: { margin: 0 } }, evChk, "include benchmark evidence"), h("span.grow"), exportBtn, printBtn, presentBtn),
+    h("div.toolbar", h("span.dim", "run"), pick, h("label.check", { style: { margin: 0 } }, evChk, "include benchmark evidence"), h("span.grow"), exportBtn, pdfBtn, printBtn, presentBtn),
     body);
 
   async function load() {
@@ -57,10 +60,11 @@ export function mount(root) {
     pick.replaceChildren(...runs.map((r) => h("option", { value: r.id, selected: r.id === jid || null },
       `${new Date(r.created * 1000).toLocaleTimeString()} · ${r.model.split("/").pop()} · ${r.status || "—"} · ${r.verdict || "no verify"}`)));
   }
+  const offSys = store.on((p) => { if ("system" in p) pdfBtn.style.display = store.system?.pdf_export ? "" : "none"; });
   api.runs().then((rs) => {
     runs = rs;
     if (!jid) jid = (store.run?.done && store.run.result ? store.run.job : null) || runs[0]?.id;
     fill(); load();
   }).catch((e) => toast(e.message));
-  return () => document.body.classList.remove("present");
+  return () => { offSys(); document.body.classList.remove("present"); };
 }

@@ -21,7 +21,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from backend import certificate, coverage, evidence, generate, models, paths, preflight, report, runner, scenarios, system  # noqa: E402
+from backend import certificate, coverage, evidence, generate, models, paths, pdf, preflight, report, runner, scenarios, system  # noqa: E402
 
 JOBS = runner.Jobs()
 
@@ -141,13 +141,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self.error(404, f"no certificate for run {jid}")
             certs.append(c)
         title = q.get("title") or ("Verification certificate" if len(certs) == 1 else "Verification report")
-        body = report.render(certs, include_evidence=q.get("evidence", "1") != "0", title=title[:120]).encode()
+        html_ = report.render(certs, include_evidence=q.get("evidence", "1") != "0", title=title[:120])
+        as_pdf = q.get("format") == "pdf"
+        body = pdf.html_to_pdf(html_) if as_pdf else html_.encode()
         self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Type", "application/pdf" if as_pdf else "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         if q.get("download"):
-            name = "ps26119-" + ("-".join(c["model"]["name"] for c in certs[:3]) or "evidence") + ".html"
+            name = "ps26119-" + ("-".join(c["model"]["name"] for c in certs[:3]) or "evidence") + (".pdf" if as_pdf else ".html")
             self.send_header("Content-Disposition", f'attachment; filename="{re.sub(r"[^A-Za-z0-9._-]", "_", name)}"')
         self.end_headers()
         self.wfile.write(body)

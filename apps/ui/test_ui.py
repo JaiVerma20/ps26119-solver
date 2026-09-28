@@ -268,6 +268,19 @@ class Endpoints(unittest.TestCase):
             with self.assertRaises(urllib.error.HTTPError):
                 urllib.request.urlopen(f"{self.base}/api/report?{bad}", timeout=10)
 
+    def test_report_as_pdf_when_a_browser_is_available(self):
+        from backend import pdf
+        if not pdf.browser():
+            self.skipTest("no Chrome / Chromium on this machine (the HTML report is the fallback)")
+        self.assertTrue(self.get("/api/system")["pdf_export"])
+        jid = self.solve_and_wait({"path": "data/netlib_small/afiro.mps", "algorithm": "simplex"})
+        with urllib.request.urlopen(f"{self.base}/api/report?jobs={jid}&format=pdf&download=1&evidence=0", timeout=120) as r:
+            body = r.read()
+            self.assertEqual(r.headers.get("Content-Type"), "application/pdf")
+            self.assertIn(".pdf", r.headers.get("Content-Disposition", ""))
+        self.assertTrue(body.startswith(b"%PDF"))
+        self.assertGreater(len(body), 5000)
+
     def test_a_limit_or_claim_is_certified_only_as_what_it_is(self):
         jid = self.solve_and_wait({"path": "data/netlib_small/afiro.mps", "algorithm": "simplex", "time_limit": 1e-9})
         c = self.get(f"/api/jobs/{jid}/certificate")

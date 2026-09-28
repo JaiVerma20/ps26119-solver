@@ -188,7 +188,8 @@ export function mount(root) {
       h("div.dfinal", stamp(all, all ? `✓ ALL ${done.length} RUNS CERTIFIED` : "SOME RUNS NOT CERTIFIED"),
         h("div", { style: { display: "flex", gap: "10px" } },
           h("a.btn.primary", { href: api.reportUrl(done.map((x) => x.R.job), { download: true, title: "Jury demo — verification report" }) }, "Export the report (HTML)"),
-          h("a.btn", { href: api.reportUrl(done.map((x) => x.R.job), { title: "Jury demo — verification report" }), target: "_blank" }, "Printable / PDF ↗"))));
+          store.system?.pdf_export ? h("a.btn", { href: api.reportUrl(done.map((x) => x.R.job), { download: true, format: "pdf", title: "Jury demo — verification report" }) }, "Download PDF") : null,
+          h("a.btn", { href: api.reportUrl(done.map((x) => x.R.job), { title: "Jury demo — verification report" }), target: "_blank" }, "Printable ↗"))));
   }
 
   function introView() {
