@@ -1,0 +1,137 @@
+{
+ "model": "bench/generated/rand-1000000-s1.lpm",
+ "opts": {
+  "algorithm": "auto",
+  "precision": "fp64",
+  "threads": 0,
+  "time_limit": 60.0,
+  "tol": null,
+  "presolve": true,
+  "gpu": true,
+  "verify": true,
+  "ranging": true
+ },
+ "command": "ps26119 solve bench/generated/rand-1000000-s1.lpm --algorithm auto --precision fp64 --threads 0 --time-limit 60.0 --out apps/ui/.runs/jobs/5add6b72ff2c/solution.sol -vv --gpu --ranging apps/ui/.runs/jobs/5add6b72ff2c/solution.ranging.csv",
+ "solver_stdout": "",
+ "exit_code": -15,
+ "wall_seconds": 16.177,
+ "solution_sha256": null,
+ "known": {
+  "optimum": -1138593.9295595926,
+  "sense": 1,
+  "generator": "generate_lp.py",
+  "periods": null,
+  "seed": 1
+ },
+ "verify": {
+  "exit_code": null,
+  "report": {},
+  "stderr": null
+ },
+ "certificate": {
+  "id": "5add6b72ff2c",
+  "created": "2026-09-28T17:04:55+00:00",
+  "final": {
+   "verdict": "NOT CERTIFIED",
+   "reasons": [
+    "Definitive answer",
+    "Original-model check (in-process)",
+    "Independent verification"
+   ]
+  },
+  "checks": [
+   {
+    "name": "Definitive answer",
+    "ok": false,
+    "detail": "status none \u2014 a limit or an error is not an answer",
+    "required": true
+   },
+   {
+    "name": "Original-model check (in-process)",
+    "ok": false,
+    "detail": "no gate line",
+    "required": true
+   },
+   {
+    "name": "Independent verification",
+    "ok": false,
+    "detail": "no report",
+    "required": true
+   }
+  ],
+  "model": {
+   "name": "rand-1000000-s1.lpm",
+   "path": "bench/generated/rand-1000000-s1.lpm",
+   "rows": null,
+   "cols": null,
+   "nnz": null,
+   "fingerprint": null,
+   "verifier_fingerprint": null,
+   "verifier_reader": null
+  },
+  "solver": {
+   "version": "ps26119 0.1.0 (git ac60baa)",
+   "git_hash": "ac60baa",
+   "binary": "../../../../../../../../home/vatsshivanshu/ps26119-build-gpu/ps26119",
+   "command": "ps26119 solve bench/generated/rand-1000000-s1.lpm --algorithm auto --precision fp64 --threads 0 --time-limit 60.0 --out apps/ui/.runs/jobs/5add6b72ff2c/solution.sol -vv --gpu --ranging apps/ui/.runs/jobs/5add6b72ff2c/solution.ranging.csv"
+  },
+  "machine": {
+   "cpu": "Intel(R) Core(TM) 5 210H",
+   "cores": 12,
+   "os": "Linux 6.6.87.2-microsoft-standard-WSL2 (x86_64)",
+   "gpu": "NVIDIA GeForce RTX 4050 Laptop GPU",
+   "cuda_build": true
+  },
+  "run": {
+   "engine": null,
+   "requested": "auto",
+   "backend": "GPU (CUDA)",
+   "threads": 0,
+   "precision": null,
+   "presolve": true,
+   "tolerance": null,
+   "iterations": null,
+   "solve_seconds": null,
+   "wall_seconds": 16.177
+  },
+  "result": {
+   "status": null,
+   "objective": null,
+   "dual_objective": null,
+   "certified_bound": null,
+   "certified_line": null,
+   "primal_residual": null,
+   "dual_residual": null,
+   "gap": null,
+   "message": null
+  },
+  "gate": {
+   "line": ""
+  },
+  "verifier": {
+   "verdict": null,
+   "reader": null,
+   "seconds": null,
+   "objective": null,
+   "primal_rel": null,
+   "dual_rel": null,
+   "gap_rel": null,
+   "complementarity_abs": null,
+   "certificate": null,
+   "farkas_exact_L0": null,
+   "reasons": [],
+   "skipped": null
+  },
+  "known": {
+   "optimum": -1138593.9295595926,
+   "sense": 1,
+   "generator": "generate_lp.py",
+   "periods": null,
+   "seed": 1
+  },
+  "artifact": {
+   "solution_file": null,
+   "sha256": null
+  }
+ }
+}

@@ -1,0 +1,184 @@
+{
+ "model": "bench/generated/rand-100000-s1.lpm",
+ "opts": {
+  "algorithm": "auto",
+  "precision": "mixed",
+  "threads": 0,
+  "time_limit": 80.0,
+  "tol": null,
+  "presolve": true,
+  "gpu": true,
+  "verify": true,
+  "ranging": true
+ },
+ "command": "ps26119 solve bench/generated/rand-100000-s1.lpm --algorithm auto --precision mixed --threads 0 --time-limit 80.0 --out apps/ui/.runs/jobs/f806e00026b7/solution.sol -vv --gpu --ranging apps/ui/.runs/jobs/f806e00026b7/solution.ranging.csv",
+ "solver_stdout": "model      rand-100000-s1  rows 100000  cols 150000  nnz 600228  fingerprint 06fdcd082429e92e\nstatus     Optimal\nengine     r2hpdhg (mixed)\nobjective  -109311.468884\nresiduals  primal 5.29e-10  dual 1.69e-10  gap 2.31e-10\ncheck      PASS  (in-process, original model: primal 4.0e-07  dual 4.2e-09  gap 2.3e-10)\ncertified  none  (y gives no finite rounding-proof bound)\niterations 2944   seconds 2.022   (setup 0.742)\nto 1e-4    iterations 448   seconds 0.846\nmessage    auto: r2hpdhg (rows*nnz = 6e+10); fp32 -> fp64 at iteration 1664; presolve removed 1752 rows, 530 cols\nranging    refused: model too large for full ranging (100000 rows > 25000)",
+ "exit_code": 0,
+ "wall_seconds": 11.264,
+ "solution_sha256": "8839967b71dc7b5b166f1bc305dd5644ec3ab8903577f9c5f6efa43ef17eb1bd",
+ "known": {
+  "optimum": -109311.46887857676,
+  "sense": 1,
+  "generator": "generate_lp.py",
+  "periods": null,
+  "seed": 1,
+  "rel_err": 5.091085089636658e-11
+ },
+ "verify": {
+  "exit_code": 0,
+  "report": {
+   "model": "rand-100000-s1.lpm",
+   "reader": "lpm.py",
+   "rows": 100000,
+   "cols": 150000,
+   "nnz": 600228,
+   "status": "Optimal",
+   "engine": "r2hpdhg",
+   "precision": "mixed",
+   "fingerprint_model": "skipped",
+   "fingerprint_solution": "06fdcd082429e92e",
+   "model_match": true,
+   "mip": false,
+   "max_col_violation_abs": 4.440892098500626e-16,
+   "max_row_violation_abs": 1.5445005074887774e-06,
+   "primal_rel": 4.04559160088181e-07,
+   "activity_mismatch_abs": 0.0,
+   "reduced_cost_mismatch_abs": 5.329070518200751e-15,
+   "dual_violation_abs": 1.2977208374564952e-07,
+   "dual_rel": 4.069594477883926e-09,
+   "objective": -109311.46888414251,
+   "dual_objective": -109311.46893462626,
+   "gap_abs": 5.0483751692809165e-05,
+   "gap_rel": 2.3091593810124462e-10,
+   "objective_reported": -109311.46888414196,
+   "complementarity_abs": 7.200599875265901e-06,
+   "verdict": "PASS",
+   "reasons": []
+  },
+  "stderr": ""
+ },
+ "certificate": {
+  "id": "f806e00026b7",
+  "created": "2026-09-28T17:52:16+00:00",
+  "final": {
+   "verdict": "PASS",
+   "reasons": []
+  },
+  "checks": [
+   {
+    "name": "Definitive answer",
+    "ok": true,
+    "detail": "status Optimal",
+    "required": true
+   },
+   {
+    "name": "Original-model check (in-process)",
+    "ok": true,
+    "detail": "PASS  (in-process, original model: primal 4.0e-07  dual 4.2e-09  gap 2.3e-10)",
+    "required": true
+   },
+   {
+    "name": "Independent verification",
+    "ok": true,
+    "detail": "tools/verify.py PASS \u00b7 reader lpm.py",
+    "required": true
+   },
+   {
+    "name": "Same model (fingerprint)",
+    "ok": true,
+    "detail": "solver 06fdcd082429e92e \u00b7 not recomputed by the verifier at this size",
+    "required": true
+   },
+   {
+    "name": "Known optimum (by construction)",
+    "ok": true,
+    "detail": "|obj \u2212 known| / (1 + |known|) = 5.09e-11 (known -109311.46887857676)",
+    "required": true
+   },
+   {
+    "name": "Rounding-proof bound",
+    "ok": true,
+    "detail": "none  (y gives no finite rounding-proof bound)",
+    "required": false
+   }
+  ],
+  "model": {
+   "name": "rand-100000-s1",
+   "path": "bench/generated/rand-100000-s1.lpm",
+   "rows": 100000,
+   "cols": 150000,
+   "nnz": 600228,
+   "fingerprint": "06fdcd082429e92e",
+   "verifier_fingerprint": "skipped",
+   "verifier_reader": "lpm.py"
+  },
+  "solver": {
+   "version": "ps26119 0.1.0 (git ac60baa)",
+   "git_hash": "ac60baa",
+   "binary": "../../../../../../../../home/vatsshivanshu/ps26119-build-gpu/ps26119",
+   "command": "ps26119 solve bench/generated/rand-100000-s1.lpm --algorithm auto --precision mixed --threads 0 --time-limit 80.0 --out apps/ui/.runs/jobs/f806e00026b7/solution.sol -vv --gpu --ranging apps/ui/.runs/jobs/f806e00026b7/solution.ranging.csv"
+  },
+  "machine": {
+   "cpu": "Intel(R) Core(TM) 5 210H",
+   "cores": 12,
+   "os": "Linux 6.6.87.2-microsoft-standard-WSL2 (x86_64)",
+   "gpu": "NVIDIA GeForce RTX 4050 Laptop GPU",
+   "cuda_build": true
+  },
+  "run": {
+   "engine": "r2hpdhg",
+   "requested": "auto",
+   "backend": "GPU (CUDA)",
+   "threads": 0,
+   "precision": "mixed",
+   "presolve": true,
+   "tolerance": null,
+   "iterations": 2944.0,
+   "solve_seconds": 2.022268,
+   "wall_seconds": 11.264
+  },
+  "result": {
+   "status": "Optimal",
+   "objective": -109311.46888414196,
+   "dual_objective": -109311.46893462604,
+   "certified_bound": null,
+   "certified_line": "none  (y gives no finite rounding-proof bound)",
+   "primal_residual": 5.29217e-10,
+   "dual_residual": 1.68817e-10,
+   "gap": 2.30917e-10,
+   "message": "auto: r2hpdhg (rows*nnz = 6e+10); fp32 -> fp64 at iteration 1664; presolve removed 1752 rows, 530 cols"
+  },
+  "gate": {
+   "line": "PASS  (in-process, original model: primal 4.0e-07  dual 4.2e-09  gap 2.3e-10)",
+   "primal": 4.05e-07,
+   "dual": 4.2e-09,
+   "gap": 2.31e-10
+  },
+  "verifier": {
+   "verdict": "PASS",
+   "reader": "lpm.py",
+   "seconds": 2.506,
+   "objective": -109311.46888414251,
+   "primal_rel": 4.04559160088181e-07,
+   "dual_rel": 4.069594477883926e-09,
+   "gap_rel": 2.3091593810124462e-10,
+   "complementarity_abs": 7.200599875265901e-06,
+   "certificate": null,
+   "farkas_exact_L0": null,
+   "reasons": [],
+   "skipped": null
+  },
+  "known": {
+   "optimum": -109311.46887857676,
+   "sense": 1,
+   "generator": "generate_lp.py",
+   "periods": null,
+   "seed": 1,
+   "rel_err": 5.091085089636658e-11
+  },
+  "artifact": {
+   "solution_file": "apps/ui/.runs/jobs/f806e00026b7/solution.sol",
+   "sha256": "8839967b71dc7b5b166f1bc305dd5644ec3ab8903577f9c5f6efa43ef17eb1bd"
+  }
+ }
+}
