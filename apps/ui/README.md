@@ -18,16 +18,17 @@ Environment: `PS26119_BIN` (solver binary, default `build/ps26119`), `PS26119_PY
 |---|---|---|---|
 | 1 | Dashboard | headline results with their source CSV + commit, one-click scenarios, recent runs (kept on disk) with their certificates | `bench/results/*.csv`, runs |
 | 2 | Models | the model library, `ps26119 info` statistics, row/column type split, sparsity picture, test-LP generator | `ps26119 info`, the file |
-| 3 | Solve | engine / backend / precision / threads / limits, the exact CLI command, live progress, 15 result KPIs, residual and objective charts, solver log, primal and dual values | `ps26119 solve -vv` stderr + the solution file |
+| 3 | Solve | engine / backend / precision / threads / limits, the exact CLI command, live progress, 15 result KPIs, residual and objective charts, solver log, primal and dual values; after a run, the same model through HiGHS (tools/highs_ref.py) with the same verifier, side by side | `ps26119 solve -vv` stderr + the solution file |
 | 4 | Verification | the trust chain of the last run: engine verdict → in-process gate or certificate → rounding-proof bound → fingerprint → independent verifier; solver vs verify.py side by side | the solution file + `verify.py --json` |
 | 5 | Certificate | one projection-grade page per run with the final verdict; export as a self-contained HTML report (print it to PDF), "Present" mode | `/api/jobs/<id>/certificate` |
 | 6 | Scenarios | what-if planning on the refinery LP: price / crude / demand / CDU / FCC levers; cold vs warm-started re-solve (convergence overlay, Δ profit); sweep of one lever through K values in one `ps26119 batch` pass (optionally also one by one); marginal values of capacity and demand from the duals | `ps26119 solve --warm`, `ps26119 batch`, verify.py on every answer |
 | 7 | GPU | every configuration of the committed GPU run (CPU 1 thread / all cores / GPU × fp64 / mixed): time, iterations, objective, error vs known optimum, verify status, speed-ups, sanitizer, GPU-machine facts from its logs | `bench/results/scale-<gpu machine>-<hash>.csv`, `netlib-small-gpu-*.csv`, `bench/results/logs/<machine>-<hash>/` |
 | 8 | Benchmarks | Netlib per engine, certified infeasibility, GPU vs CPU with sanitizer status, large-LP scaling, MIPLIB | `bench/make_evidence.py` rules over `bench/results/` |
-| 9 | System check | demo preflight: binary (and whether it matches the checkout), verifier modules, demo models (generate the missing ones), evidence, disk | checked live |
+| 9 | vs HiGHS | ps26119 against HiGHS (dual simplex, interior point, PDLP) on Netlib and the large / refinery models under one rule: performance profile, solved counts, head-to-head scatter, heat-map table, Optimal claims rejected by the verifier, every row | `bench/results/compare-highs-<machine>-<hash>.csv` (`bench/compare_highs.py`) |
+| 0 | System check | demo preflight: binary (and whether it matches the checkout), verifier modules, demo models (generate the missing ones), evidence, disk | checked live |
 | — | Jury demo (`#/demo`, top bar) | full-screen, keyboard-driven walk: AFIRO → verification chain → Farkas certificate → MILP → refinery year → CPU vs GPU → final verification with one exported report | live solves + committed GPU evidence; runbook in `apps/ui/DEMO.md` |
 
-Keys 1–9 switch pages; ⌘/Ctrl+Enter starts a solve on the Solve page. Adding a page is one module
+Keys 1–9 and 0 switch pages; ⌘/Ctrl+Enter starts a solve on the Solve page. Adding a page is one module
 with `mount(root)` in `web/js/pages/` plus one line in the registry at the top of `web/js/app.js`.
 
 **Final verdict of a certificate** (`backend/certificate.py`): PASS only if the answer is
