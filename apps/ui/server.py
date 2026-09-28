@@ -21,7 +21,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from backend import evidence, generate, models, paths, runner, system  # noqa: E402
+from backend import evidence, generate, models, paths, runner, scenarios, system  # noqa: E402
 
 JOBS = runner.Jobs()
 
@@ -94,6 +94,10 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/model/sparsity":
                 p = self.model_arg()
                 return p and self.send_json(models.sparsity(p))
+            if route == "/api/scenarios":
+                return self.send_json({"levers": {k: {"label": v[0], "what": v[1], "range": v[2]} for k, v in scenarios.LEVERS.items()},
+                                       "models": scenarios.refinery_models(), "products": scenarios.PRODUCTS,
+                                       "max_sweep": scenarios.MAX_SWEEP})
             if route == "/api/evidence":
                 return self.send_json(evidence.collect())
             m = re.fullmatch(r"/api/jobs/([0-9a-f]{12})(/events)?", route)
@@ -165,6 +169,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self.error(400, err)
                 job = JOBS.start(paths.rel(model), opts)
                 return self.send_json({"job": job.id})
+            if route == "/api/scenario":
+                o, err = scenarios.validate(self.body_json())
+                if err:
+                    return self.error(400, err)
+                return self.send_json({"job": JOBS.add(scenarios.ScenarioJob(o)).id})
             if route == "/api/generate":
                 args, err = generate.validate(self.body_json())
                 if err:
@@ -173,6 +182,8 @@ class Handler(BaseHTTPRequestHandler):
             m = re.fullmatch(r"/api/jobs/([0-9a-f]{12})/cancel", route)
             if m:
                 job = JOBS.get(m[1])
+                if job and hasattr(job, "cancelled"):
+                    job.cancelled = True
                 if job and job.proc and job.proc.poll() is None:
                     job.proc.terminate()
                     job.emit("log", line="cancelled by the user")
