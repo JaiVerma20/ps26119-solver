@@ -10,8 +10,9 @@ import os
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 BIN = os.environ.get("PS26119_BIN", os.path.join(ROOT, "build", "ps26119"))
 PYTHON = os.environ.get("PS26119_PYTHON", "python3")
-RUNS = os.path.join(ROOT, "apps", "ui", ".runs")          # git-ignored: job outputs, uploads
-UPLOADS = os.path.join(RUNS, "uploads")
+# job outputs (git-ignored); PS26119_UI_RUNS moves them elsewhere (the test suite uses a temp dir)
+RUNS = os.environ.get("PS26119_UI_RUNS", os.path.join(ROOT, "apps", "ui", ".runs"))
+UPLOADS = os.path.join(ROOT, "apps", "ui", ".runs", "uploads")  # listed in MODEL_DIRS below
 WEB = os.path.join(ROOT, "apps", "ui", "web")
 
 # (group label, folder relative to ROOT, description)

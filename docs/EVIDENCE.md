@@ -27,6 +27,7 @@ Files used:
 - `bench/results/batch-macbook-air-m4-8fd5170.csv` (committed 2026-09-25)
 - `bench/results/batch-macbook-air-m4-ea97521.csv` (committed 2026-09-25)
 - `bench/results/batch-macbook-air-m4-f440782.csv` (committed 2026-09-27)
+- `bench/results/compare-highs-Darwin-arm64-90fc378.csv` (committed 2026-09-28)
 - `bench/results/infeasible-cut-r2hpdhg-macbook-air-m4-279fad6.csv` (committed 2026-09-27)
 - `bench/results/infeasible-cut-r2hpdhg-macbook-air-m4-b04f2d8.csv` (committed 2026-09-27)
 - `bench/results/infeasible-cut-r2hpdhg-macbook-air-m4-c935a78.csv` (committed 2026-09-27)
@@ -253,6 +254,33 @@ Source: `bench/results/scale-simplex-macbook-air-m4-d824f82.csv` — commit `d82
 | rand-10000-s1 | 10000 | 60024 | Optimal | 176752 | 545 | 2.24e-15 | PASS |
 | refinery-T12-s1 | 588 | 2065 | Optimal | 888 | 0.0395 | 0.00e+00 | PASS |
 | refinery-T365-s1 | 17885 | 63134 | Optimal | 33348 | 22.8 | 2.07e-15 | PASS |
+
+### 2d. ps26119 vs HiGHS, engine by engine
+
+Source: `bench/results/compare-highs-Darwin-arm64-90fc378.csv` — commit `90fc378`, Apple M4, ps26119 0.1.0 (git 90fc378) vs HiGHS 1.15.1. Solved = status Optimal AND tools/verify.py PASS AND within 1e-6 of the reference (HiGHS optimum for Netlib, known optimum for generated models) — the same rule and verifier for both solvers; time = the solve call only on both sides; 60 s per Netlib model, 300 s per large model.
+
+| engine | Netlib solved | large solved | 'Optimal' claims rejected |
+|---|---|---|---|
+| `ps26119 auto` | 93/93 | 6/6 | 0 of 99 |
+| `ps26119 simplex` | 92/93 | 2/6 | 0 of 94 |
+| `ps26119 r2hpdhg` | 83/93 | 6/6 | 0 of 89 |
+| `ps26119 r2hpdhg (all cores)` | 83/93 | 6/6 | 0 of 89 |
+| `highs simplex` | 93/93 | 4/6 | 0 of 97 |
+| `highs ipm` | 93/93 | 4/6 | 0 of 97 |
+| `highs pdlp` | 36/93 | 0/6 | 49 of 85 |
+
+Time to a verified optimum on the generated large models (s):
+
+| instance | rows | nnz | ps26119 auto | ps26119 simplex | ps26119 r2hpdhg | ps26119 r2hpdhg (all cores) | highs simplex | highs ipm | highs pdlp |
+|---|---|---|---|---|---|---|---|---|---|
+| refinery-T12-s1 | 588 | 2065 | 0.0344 | 0.0345 | 0.00844 | 0.00865 | 0.0125 | 0.0137 | NotSolved |
+| refinery-T365-s1 | 17885 | 63134 | 0.468 | 22.2 | 0.473 | 0.415 | 6.56 | 2.03 | NotSolved |
+| refinery-T2190-s1 | 107310 | 378859 | 3.27 | limit | 5.39 | 2.15 | 66.2 | 55.8 | NotSolved |
+| refinery-T8760-s1 | 429240 | 1515469 | 14.5 | limit | 14.6 | 10.4 | limit | limit | NotSolved |
+| rand-10000-s1 | 10000 | 60024 | 0.318 | limit | 0.312 | 0.297 | 56.9 | 4.34 | rejected |
+| rand-100000-s1 | 100000 | 600228 | 7.4 | limit | 7.45 | 3.06 | limit | limit | rejected |
+
+Reading: HiGHS's simplex and interior point solve all of Netlib and are faster than ours on most of it; on the largest generated models they reach the time limit. HiGHS PDLP's 'Optimal' claims that are rejected fail the verifier's worst-row feasibility test at 1e-6 (its stopping test is norm-based).
 
 
 ## 3. CPU vs GPU

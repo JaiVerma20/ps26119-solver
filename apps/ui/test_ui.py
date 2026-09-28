@@ -5,6 +5,7 @@ Run by ctest (ui.backend) with the built binary as argv[1]."""
 import json
 import os
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -14,6 +15,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 if len(sys.argv) > 1 and os.path.exists(sys.argv[1]):
     os.environ["PS26119_BIN"] = os.path.abspath(sys.argv.pop(1))
 os.environ.setdefault("PS26119_PYTHON", sys.executable)
+# keep test runs out of the user's run history (apps/ui/.runs/jobs)
+os.environ["PS26119_UI_RUNS"] = tempfile.mkdtemp(prefix="ps26119-ui-test-")
+import atexit  # noqa: E402
+import shutil  # noqa: E402
+atexit.register(shutil.rmtree, os.environ["PS26119_UI_RUNS"], True)
 sys.path.insert(0, HERE)
 
 import server  # noqa: E402
@@ -71,6 +77,11 @@ class Endpoints(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        # let every job finish (a job persists its job.json when it ends) before the temp run
+        # folder is removed at exit
+        deadline = time.time() + 120
+        while time.time() < deadline and any(not j.done for j in list(server.JOBS.jobs.values())):
+            time.sleep(0.2)
         cls.srv.shutdown()
         cls.srv.server_close()
 
@@ -92,6 +103,15 @@ class Endpoints(unittest.TestCase):
             self.assertIn(b"PS26119", r.read())
         with self.assertRaises(urllib.error.HTTPError):
             urllib.request.urlopen(self.base + "/../server.py", timeout=10)
+
+    def test_server_reports_when_its_code_changed_on_disk(self):
+        self.assertFalse(self.get("/api/system")["server_stale"])
+        saved = server.STARTED_CODE
+        try:  # as if a backend file had changed after start-up (git pull, branch switch)
+            server.STARTED_CODE = saved[:-1] + ((saved[-1][0], saved[-1][1] - 1),)
+            self.assertTrue(self.get("/api/system")["server_stale"])
+        finally:
+            server.STARTED_CODE = saved
 
     def test_system_and_model_info_come_from_the_solver(self):
         s = self.get("/api/system")
@@ -265,6 +285,19 @@ class Endpoints(unittest.TestCase):
             with self.assertRaises(urllib.error.HTTPError):
                 urllib.request.urlopen(f"{self.base}/api/report?{bad}", timeout=10)
 
+    def test_report_as_pdf_when_a_browser_is_available(self):
+        from backend import pdf
+        if not pdf.browser():
+            self.skipTest("no Chrome / Chromium on this machine (the HTML report is the fallback)")
+        self.assertTrue(self.get("/api/system")["pdf_export"])
+        jid = self.solve_and_wait({"path": "data/netlib_small/afiro.mps", "algorithm": "simplex"})
+        with urllib.request.urlopen(f"{self.base}/api/report?jobs={jid}&format=pdf&download=1&evidence=0", timeout=120) as r:
+            body = r.read()
+            self.assertEqual(r.headers.get("Content-Type"), "application/pdf")
+            self.assertIn(".pdf", r.headers.get("Content-Disposition", ""))
+        self.assertTrue(body.startswith(b"%PDF"))
+        self.assertGreater(len(body), 5000)
+
     def test_a_limit_or_claim_is_certified_only_as_what_it_is(self):
         jid = self.solve_and_wait({"path": "data/netlib_small/afiro.mps", "algorithm": "simplex", "time_limit": 1e-9})
         c = self.get(f"/api/jobs/{jid}/certificate")
@@ -308,6 +341,46 @@ class Endpoints(unittest.TestCase):
         self.assertTrue(all(i["state"] in ("ok", "info", "warn", "fixable", "fail") for i in r["items"]))
         self.assertTrue(any(k.startswith("model:") for k in ids))
 
+    def test_reference_run_through_highs_is_verified_like_ours(self):
+        code, j = self.post("/api/reference", {"path": "data/netlib_small/afiro.mps", "solver": "ipm"})
+        self.assertEqual(code, 200, j)
+        ev = self.wait(j["job"])
+        self.assertEqual(ev["result"]["status"], "Optimal")
+        self.assertEqual(ev["result"]["engine"], "highs-ipm")
+        self.assertAlmostEqual(ev["result"]["objective"], -464.75314286, places=6)
+        self.assertEqual(ev["verify"]["report"]["verdict"], "PASS")
+        for bad in ({"path": "data/netlib_small/afiro.mps", "solver": "gurobi"}, {"path": "../x.mps"},
+                    {"path": "data/netlib_small/afiro.mps", "time_limit": 0}):
+            self.assertIn(self.post("/api/reference", bad)[0], (400, 404), bad)
+        # reference runs are not ps26119 runs: no certificate, not in the run list
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            self.get(f"/api/jobs/{j['job']}/certificate")
+        self.assertEqual(cm.exception.code, 409)
+        self.assertNotIn(j["job"], [r["id"] for r in self.get("/api/runs")])
+
+    def test_coverage_is_parsed_from_the_status_matrix(self):
+        c = self.get("/api/coverage")
+        self.assertEqual(c["source"], "docs/SIH_STATUS.md")
+        self.assertGreaterEqual(len(c["rows"]), 15)
+        self.assertEqual(sum(c["counts"].values()), len(c["rows"]))  # every row has a known status word
+        self.assertTrue(all(r["status_word"] != "UNKNOWN" for r in c["rows"]))
+        self.assertTrue(any(r["requirement"].startswith("Comparison with real-world solvers") for r in c["rows"]))
+        from backend import coverage as cov  # a qualified DONE with a PARTIAL caveat counts as PARTIAL
+        self.assertEqual(cov.status_word("DONE on one laptop GPU (PARTIAL: no data-centre GPU yet)"), "PARTIAL")
+        self.assertEqual(cov.status_word("DONE (LP)"), "DONE")
+
+    def test_compare_endpoint_serves_the_committed_csv(self):
+        c = self.get("/api/compare")
+        self.assertIn("runs", c)
+        for run in c["runs"]:  # zero runs is valid until a comparison CSV is committed
+            self.assertRegex(run["source"]["file"], r"^compare-highs-.+-[0-9a-f]{7}\.csv$")
+            self.assertTrue({r["solver"] for r in run["rows"]} <= {"ps26119", "highs"})
+            for r in run["rows"]:
+                self.assertIn(r["solved"], ("yes", "no"))
+                if r["solved"] == "yes":  # the rule the page states: Optimal + verified + within 1e-6
+                    self.assertEqual((r["status"], r["verify"]), ("Optimal", "PASS"))
+                    self.assertLessEqual(r["rel_err_ref"], 1e-6)
+
     def test_web_modules_parse(self):
         import shutil
         import subprocess
@@ -317,9 +390,14 @@ class Endpoints(unittest.TestCase):
         web = os.path.join(HERE, "web", "js")
         files = [os.path.join(d, f) for d, _, fs in os.walk(web) for f in fs if f.endswith(".js")]
         self.assertGreater(len(files), 10)
-        for f in files:
-            p = subprocess.run([node, "--check", f], capture_output=True, text=True)
-            self.assertEqual(p.returncode, 0, f + ": " + p.stderr)
+        # a .js file may be parsed as CommonJS or ES module by `node --check` (Node's syntax
+        # detection); a copy named .mjs forces strict ES-module parsing — how the browser loads them
+        with tempfile.TemporaryDirectory() as tmp:
+            for f in files:
+                m = os.path.join(tmp, os.path.basename(f)[:-3] + ".mjs")
+                shutil.copyfile(f, m)
+                p = subprocess.run([node, "--check", m], capture_output=True, text=True)
+                self.assertEqual(p.returncode, 0, f + ": " + p.stderr)
 
     def test_evidence_matches_the_committed_csvs(self):
         e = self.get("/api/evidence")

@@ -2,6 +2,7 @@
 import { store } from "../store.js";
 import { h, fnum, fsec, fratio, fint, srcChip, statusBadge, passBadge, toast } from "../util.js";
 import { startSolve } from "../run.js";
+import { scatterChart } from "../charts.js";
 import { api } from "../api.js";
 
 // one-click scenarios: real models in the repository, real solves
@@ -24,6 +25,7 @@ export function mount(root) {
   const claims = h("div.grid.g4");
   const sysCard = h("div.hero-card");
   const recent = h("div.panel-b.tight");
+  const scaling = h("div.panel", { style: { marginTop: "14px" } });
 
   root.append(
     h("div.hero",
@@ -34,20 +36,20 @@ export function mount(root) {
         h("div.pills",
           h("span.badge.acc", "no third-party solver inside"), h("span.badge.ok", "certified Infeasible / Unbounded"),
           h("span.badge.acc", "CUDA r²HPDHG · mixed precision"), h("span.badge.mut", "deterministic · reproducible")),
-        h("svg.deco", { width: 260, height: 150, viewBox: "0 0 260 150", html:
-          '<path d="M10 140 L70 60 L120 110 L180 30 L250 70" stroke="#5ce1e6" stroke-opacity=".35" stroke-width="2" fill="none"/><path d="M10 140 L60 100 L120 125 L170 70 L250 95" stroke="#a78bfa" stroke-opacity=".25" stroke-width="2" fill="none"/>' })),
+),
       sysCard),
     h("div.page-head", { style: { marginTop: "4px" } }, h("div", h("div.eyebrow", "measured"), h("h1", "What it has proven"),
       h("p", "Recomputed on every load from the committed benchmark CSVs (the same rules as docs/EVIDENCE.md). Hover a source tag for commit, machine and date.")),
       h("div.actions", h("a.btn", { href: "#/bench" }, "all benchmarks →"))),
     claims,
+    scaling,
     h("div.page-head", { style: { marginTop: "22px" } }, h("div", h("div.eyebrow", "live"), h("h1", "Run a scenario"),
       h("p", "Real models from the repository, solved by the real binary on this machine, then independently verified."))),
     h("div.grid.g3", SCENARIOS.map((sc) => h("div.claim", { style: { cursor: "pointer" }, onclick: () => launch(sc) },
       h("div.t", sc.title), h("div.d", sc.sub),
       h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" } },
         h("span.src-chip", sc.path), h("span.acc.mono", "run ▸"))))),
-    h("div.panel", { style: { marginTop: "22px" } }, h("div.panel-h", "Recent runs in this session", h("span.right.dim", "kept in this browser tab")), recent),
+    h("div.panel", { style: { marginTop: "22px" } }, h("div.panel-h", "Recent runs", h("span.right.dim", "kept on disk by the server · open a certificate")), recent),
   );
 
   async function launch(sc) {
@@ -114,6 +116,29 @@ export function mount(root) {
     drawSystem();
   }
 
+  // model size against time to a verified 1e-8 optimum, from the committed scale CSVs
+  function drawScaling() {
+    const ev = store.evidence;
+    if (!ev?.scale_cpu) { scaling.replaceChildren(); return; }
+    const pts = [];
+    const best = {};
+    for (const r of ev.scale_cpu.rows) if (r.status === "Optimal" && r.s_1e8 && (!best[r.instance] || r.s_1e8 < best[r.instance].s_1e8)) best[r.instance] = r;
+    for (const r of Object.values(best)) pts.push({ x: r.nnz, y: r.s_1e8, color: "#5ce1e6", title: `${r.instance}: ${fsec(r.s_1e8)} on ${ev.scale_cpu.source.cpu} (${r.threads} thr, ${r.precision}), ${fint(r.rows)} rows` });
+    const g = ev.gpu?.[0];
+    for (const p of g?.pairs.filter((q) => q.precision === "fp64") || []) {
+      if (p.gpu_s) pts.push({ x: p.nnz, y: p.gpu_s, color: "#ffb547", title: `${p.instance}: GPU ${fsec(p.gpu_s)} (${g.gpu})` });
+      if (p.best_cpu_s) pts.push({ x: p.nnz, y: p.best_cpu_s, color: "#93a1b0", title: `${p.instance}: fastest CPU config ${fsec(p.best_cpu_s)} (${g.cpu}, ${p.best_cpu_threads} thr)` });
+    }
+    const pow = (e) => (e >= 6 ? `${10 ** (e - 6)}M` : e >= 3 ? `${10 ** (e - 3)}k` : String(10 ** e));
+    scaling.replaceChildren(
+      h("div.panel-h", "How far up it goes · nonzeros vs time to a verified 1e-8 optimum", h("span.right", srcChip(ev.scale_cpu.source), " ", g ? srcChip(g.source) : "")),
+      h("div.panel-b.tight", scatterChart(pts, { diag: false, connect: true, decadeLabel: pow, yDecadeLabel: (e) => (e >= 0 ? `${10 ** e} s` : `${10 ** e * 1000} ms`), xLabel: "nonzeros in the constraint matrix", yLabel: "seconds", height: 280 })),
+      h("div.legend", h("span", h("i", { style: { background: "#5ce1e6" } }), `CPU · ${ev.scale_cpu.source.cpu} (fastest configuration)`),
+        g ? h("span", h("i", { style: { background: "#93a1b0" } }), `CPU · ${g.cpu} (fastest configuration)`) : null,
+        g ? h("span", h("i", { style: { background: "#ffb547" } }), `GPU · ${g.gpu}`) : null),
+      h("div.note", "Generated LPs with an optimum known by construction (refinery structure with synthetic prices; random sparse), r²HPDHG to relative KKT 1e-8, answers checked against the known optimum and by the verifier where its size limit allows. Each colour is one machine; hover a point for the instance. The GPU and the grey CPU points are the same laptop."));
+  }
+
   // runs are kept on disk by the server (apps/ui/.runs/jobs/*/job.json): they survive restarts
   let lastDone = null;
   async function drawRecent() {
@@ -128,10 +153,10 @@ export function mount(root) {
   }
 
   const off = store.on((p) => {
-    if ("evidence" in p) drawClaims();
+    if ("evidence" in p) { drawClaims(); drawScaling(); }
     if ("system" in p) drawSystem();
     if ("run" in p && store.run?.done && store.run.job !== lastDone) { lastDone = store.run.job; setTimeout(drawRecent, 300); }
   });
-  drawSystem(); drawClaims(); drawRecent();
+  drawSystem(); drawClaims(); drawScaling(); drawRecent();
   return off;
 }

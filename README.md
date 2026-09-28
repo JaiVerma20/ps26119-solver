@@ -81,6 +81,14 @@ explorer with sparsity view, live solve with residual/objective charts, the veri
 of every run, and the benchmark evidence with its source CSVs; a full-screen **jury demo**
 (live solves + committed GPU evidence), per-run verification certificates exportable as a
 self-contained HTML report, and a demo preflight. See `apps/ui/README.md` and `apps/ui/DEMO.md`.
+The Solve page can also run the same model through HiGHS (dual simplex, interior point or PDLP)
+as a separate reference, judged by the same independent verifier.
+
+Comparison with a real-world solver: `python3 bench/compare_highs.py` runs Netlib and the
+generated refinery / random LPs through our engines and through HiGHS's three engines under one
+rule (Optimal + `tools/verify.py` PASS + within 1e-6 of the reference; time = the solve call on
+both sides) and writes `bench/results/compare-highs-<machine>-<hash>.csv`, shown on the UI's
+"vs HiGHS" page (performance profile, head-to-head, per-engine claims rejected by the verifier).
 
 Reproduce all CPU evidence from one commit: `PS26119_MACHINE=<name> scripts/reproduce.sh`
 (stages and timings in the script header), then `python3 bench/make_evidence.py`.

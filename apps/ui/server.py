@@ -21,9 +21,23 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from backend import certificate, evidence, generate, models, paths, preflight, report, runner, scenarios, system  # noqa: E402
+from backend import certificate, coverage, evidence, generate, models, paths, pdf, preflight, report, runner, scenarios, system  # noqa: E402
 
 JOBS = runner.Jobs()
+
+
+def _code_fingerprint() -> tuple:
+    """(file, mtime) of the server's own Python code. Pages are read from disk on every request but
+    this code is loaded once: after a `git pull` or a branch switch the page can be newer than the
+    API it calls. /api/system reports that, and the UI asks for a restart instead of showing empty
+    pages."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    files = [os.path.join(here, "server.py")] + sorted(
+        os.path.join(here, "backend", f) for f in os.listdir(os.path.join(here, "backend")) if f.endswith(".py"))
+    return tuple((f, os.path.getmtime(f)) for f in files if os.path.exists(f))
+
+
+STARTED_CODE = _code_fingerprint()
 
 
 def clean(o):
@@ -85,7 +99,7 @@ class Handler(BaseHTTPRequestHandler):
         route = urllib.parse.urlparse(self.path).path
         try:
             if route == "/api/system":
-                return self.send_json(system.probe())
+                return self.send_json({**system.probe(), "server_stale": _code_fingerprint() != STARTED_CODE})
             if route == "/api/models":
                 return self.send_json(models.catalog())
             if route == "/api/model/info":
@@ -100,6 +114,10 @@ class Handler(BaseHTTPRequestHandler):
                                        "max_sweep": scenarios.MAX_SWEEP})
             if route == "/api/evidence":
                 return self.send_json(evidence.collect())
+            if route == "/api/coverage":
+                return self.send_json(coverage.parse())
+            if route == "/api/compare":
+                return self.send_json(evidence.compare())
             if route == "/api/gpu":
                 return self.send_json(evidence.gpu_detail())
             if route == "/api/preflight":
@@ -137,13 +155,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self.error(404, f"no certificate for run {jid}")
             certs.append(c)
         title = q.get("title") or ("Verification certificate" if len(certs) == 1 else "Verification report")
-        body = report.render(certs, include_evidence=q.get("evidence", "1") != "0", title=title[:120]).encode()
+        html_ = report.render(certs, include_evidence=q.get("evidence", "1") != "0", title=title[:120])
+        as_pdf = q.get("format") == "pdf"
+        body = pdf.html_to_pdf(html_) if as_pdf else html_.encode()
         self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Type", "application/pdf" if as_pdf else "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         if q.get("download"):
-            name = "ps26119-" + ("-".join(c["model"]["name"] for c in certs[:3]) or "evidence") + ".html"
+            name = "ps26119-" + ("-".join(c["model"]["name"] for c in certs[:3]) or "evidence") + (".pdf" if as_pdf else ".html")
             self.send_header("Content-Disposition", f'attachment; filename="{re.sub(r"[^A-Za-z0-9._-]", "_", name)}"')
         self.end_headers()
         self.wfile.write(body)
@@ -205,6 +225,15 @@ class Handler(BaseHTTPRequestHandler):
                     return self.error(400, err)
                 job = JOBS.start(paths.rel(model), opts)
                 return self.send_json({"job": job.id})
+            if route == "/api/reference":
+                body = self.body_json()
+                model = paths.resolve_model(body.get("path", ""))
+                if not model:
+                    return self.error(404, "unknown model")
+                o, err = runner.validate_reference(body)
+                if err:
+                    return self.error(400, err)
+                return self.send_json({"job": JOBS.add(runner.ReferenceJob(paths.rel(model), o)).id})
             if route == "/api/scenario":
                 o, err = scenarios.validate(self.body_json())
                 if err:

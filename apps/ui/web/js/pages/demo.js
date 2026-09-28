@@ -37,6 +37,9 @@ const STEPS = [
   { id: "gpu", kind: "gpu", title: "The same engine on a GPU",
     lead: "r²HPDHG was designed for GPUs: one sparse matrix-vector product per iteration, no factorization. Measured on an NVIDIA laptop GPU against the fastest CPU configuration of the same machine, at the same 1e-8 tolerance; how each answer was checked is shown under it.",
     notes: ["Say: one consumer laptop GPU (RTX 4050); slower than the CPU on small models, faster on large ones.", "Every number here is read from the committed benchmark CSV named on screen."] },
+  { id: "compare", kind: "compare", title: "Against a real-world solver",
+    lead: "The PS asks for a comparison with real-world solvers. HiGHS — the open-source solver inside SciPy and JuMP — ran the same models, engine by engine, and the same independent verifier judged both. Where HiGHS is faster, it says so.",
+    notes: ["Every number here is read from the committed comparison CSV named on screen.", "HiGHS is a mature, heavily optimized solver: say where each wins; our point is verified answers at refinery scale."] },
   { id: "final", kind: "final", title: "Final verification",
     lead: "Every run of this demo, with its independent verdict. The certificates and the benchmark evidence export as one self-contained report.",
     notes: ["Offer the exported report to the jury.", "Reproduce everything from one commit: scripts/reproduce.sh (CPU), scripts/gpu_check.sh (GPU)."] },
@@ -45,16 +48,22 @@ const STEPS = [
 const compact = (n) => (n == null ? "—" : n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e5 ? `${Math.round(n / 1e3)}k` : fint(n));
 
 // kept across navigations while the server runs this tab
-const D = { step: 0, notes: false, results: {}, gpu: null, busy: false };
+const D = { step: 0, notes: false, results: {}, gpu: null, compare: null, busy: false };
 
 export function mount(root) {
   document.body.classList.add("demo-mode");
+  // #/demo?step=N opens a given step (rehearsal, or resuming after a browser restart)
+  const want = Number(new URLSearchParams(location.hash.split("?")[1] || "").get("step"));
+  if (Number.isInteger(want) && want >= 0) D.step = want;
   const stage = h("div.demo");
   root.append(stage);
   let raf = 0;
   const redraw = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; draw(); }); };
 
   if (!D.gpu) api.gpu().then((g) => { D.gpu = g; redraw(); }).catch(() => {});
+  if (!D.compare) api.compare().then((c) => { D.compare = c; redraw(); }).catch(() => {});
+  // steps whose evidence is not committed yet are skipped rather than shown empty
+  const visible = () => STEPS.filter((x) => x.kind !== "compare" || D.compare?.runs?.length);
 
   async function runStep(s) {
     if (s.kind !== "solve" && !(s.kind === "gpu" && store.system?.cuda_build)) return;
@@ -144,6 +153,28 @@ export function mount(root) {
         : h("div.dnote.dim", "This laptop has no CUDA GPU; the figures above are the committed, verified GPU run."));
   }
 
+  function compareView() {
+    const run = D.compare?.runs?.[0];
+    if (!run) return h("div.dhint", "no committed comparison yet");
+    const key = (r) => `${r.solver}·${r.engine}${r.solver === "ps26119" && String(r.threads) !== "1" ? "·mt" : ""}`;
+    const NAME = { "ps26119·auto": "ps26119 auto", "highs·simplex": "HiGHS dual simplex", "highs·ipm": "HiGHS interior point", "highs·pdlp": "HiGHS PDLP" };
+    const net = run.rows.filter((r) => r.set === "netlib");
+    const cnt = (k) => [new Set(net.map((r) => r.instance)).size, net.filter((r) => key(r) === k && r.solved === "yes").length];
+    const rej = (k) => run.rows.filter((r) => key(r) === k && r.status === "Optimal" && r.solved !== "yes").length;
+    const ref = run.rows.filter((r) => /T8760/.test(r.instance));
+    const kp = Object.keys(NAME).map((k) => { const [n, sv] = cnt(k); return big(NAME[k], `${sv}/${n}`, `Netlib solved · ${rej(k)} ‘Optimal’ claims rejected overall`, k.startsWith("ps26119") ? "okc" : ""); });
+    const rows = Object.keys(NAME).map((k) => ref.find((r) => key(r) === k)).filter(Boolean);
+    const best = Math.min(...rows.filter((r) => r.solved === "yes").map((r) => r.seconds));
+    const max = Math.max(...rows.map((r) => (r.solved === "yes" ? r.seconds : r.status === "TimeLimit" ? r.time_limit : r.seconds || 0)), 1e-3);
+    return h("div",
+      h("div.dkpis", { style: { gridTemplateColumns: `repeat(${kp.length}, minmax(0, 1fr))` } }, kp),
+      rows.length ? h("div.dcmp", { style: { marginTop: "16px" } }, h("div.dcmp-h", "Refinery year, hourly", h("span.dim", ` · ${fint(rows[0].rows)} rows · time to a verified optimum`)),
+        rows.map((r) => h("div.dbar", h("div.l", NAME[key(r)]), h("div.track", h(`div.fill.${r.solver === "ps26119" ? "cpu" : "gpu"}`, { style: { width: `${Math.max(2, 100 * (r.solved === "yes" ? r.seconds : r.status === "TimeLimit" ? r.time_limit : r.seconds) / max)}%`, opacity: r.solved === "yes" ? 1 : 0.35 } })),
+          h("div.t.mono", { style: { minWidth: "150px" } }, r.solved === "yes" ? fsec(r.seconds) + (r.seconds === best ? " ★" : "")
+            : r.status === "TimeLimit" ? `limit · ${fsec(r.time_limit)}` : `${r.status === "Optimal" ? "rejected" : "not solved"} · ${fsec(r.seconds)}`)))) : null,
+      h("div.dsrc.mono", `source: bench/results/${run.source.file} · commit ${run.source.git_hash} · ${run.solver_versions.join(" · ")} · same machine, same verifier, solve call timed on both sides`));
+  }
+
   function finalView() {
     const done = STEPS.filter((s) => s.kind === "solve").map((s) => ({ s, R: D.results[s.id] })).filter((x) => x.R?.cert);
     if (D.results["gpu-live"]?.cert) done.push({ s: { title: "GPU live run" }, R: D.results["gpu-live"] });
@@ -157,7 +188,8 @@ export function mount(root) {
       h("div.dfinal", stamp(all, all ? `✓ ALL ${done.length} RUNS CERTIFIED` : "SOME RUNS NOT CERTIFIED"),
         h("div", { style: { display: "flex", gap: "10px" } },
           h("a.btn.primary", { href: api.reportUrl(done.map((x) => x.R.job), { download: true, title: "Jury demo — verification report" }) }, "Export the report (HTML)"),
-          h("a.btn", { href: api.reportUrl(done.map((x) => x.R.job), { title: "Jury demo — verification report" }), target: "_blank" }, "Printable / PDF ↗"))));
+          store.system?.pdf_export ? h("a.btn", { href: api.reportUrl(done.map((x) => x.R.job), { download: true, format: "pdf", title: "Jury demo — verification report" }) }, "Download PDF") : null,
+          h("a.btn", { href: api.reportUrl(done.map((x) => x.R.job), { title: "Jury demo — verification report" }), target: "_blank" }, "Printable ↗"))));
   }
 
   function introView() {
@@ -174,21 +206,23 @@ export function mount(root) {
     return h("div",
       h("div.dkpis", { style: { gridTemplateColumns: `repeat(${cards.length}, minmax(0, 1fr))` } }, cards),
       h("div.dsrc.mono", "figures above: committed benchmark CSVs in bench/results/ (see Benchmarks and GPU pages for each source file and commit)"),
-      h("div.dagenda", STEPS.slice(1).map((x, i) => h("button.dag", { onclick: () => { D.step = i + 1; draw(); } },
-        h("span.n.mono", String(i + 1).padStart(2, "0")), h("span.t", x.title), h("span.k.mono", x.kind === "solve" ? "live solve" : x.kind === "gpu" ? "evidence" : x.kind === "chain" ? "verification" : "summary")))));
+      h("div.dagenda", visible().slice(1).map((x, i) => h("button.dag", { onclick: () => { D.step = i + 1; draw(); } },
+        h("span.n.mono", String(i + 1).padStart(2, "0")), h("span.t", x.title), h("span.k.mono", x.kind === "solve" ? "live solve" : x.kind === "gpu" || x.kind === "compare" ? "evidence" : x.kind === "chain" ? "verification" : "summary")))));
   }
 
   function draw() {
-    const s = STEPS[D.step];
-    const body = s.kind === "intro" ? introView() : s.kind === "solve" ? liveView(s) : s.kind === "chain" ? chainView(s) : s.kind === "gpu" ? gpuView(s) : finalView();
+    const V = visible();
+    // clamp for display only: the list can grow once the comparison evidence has loaded
+    const at = Math.min(D.step, V.length - 1), s = V[at];
+    const body = s.kind === "intro" ? introView() : s.kind === "solve" ? liveView(s) : s.kind === "chain" ? chainView(s) : s.kind === "gpu" ? gpuView(s) : s.kind === "compare" ? compareView() : finalView();
     stage.replaceChildren(
       h("div.demo-top",
         h("div.demo-brand", h("b", "PS26119"), h("span", "jury demo")),
-        h("div.demo-dots", STEPS.map((x, i) => h(`button.ddot${i === D.step ? ".on" : ""}${D.results[x.id]?.cert ? (D.results[x.id].cert.final.verdict === "PASS" ? ".pass" : ".fail") : ""}`,
+        h("div.demo-dots", V.map((x, i) => h(`button.ddot${i === at ? ".on" : ""}${D.results[x.id]?.cert ? (D.results[x.id].cert.final.verdict === "PASS" ? ".pass" : ".fail") : ""}`,
           { title: x.title, onclick: () => { D.step = i; draw(); } }, i === 0 ? "◆" : String(i)))),
         h("div.demo-actions", h("button.btn", { onclick: () => toggleFull() }, "Full screen (F)"), h("a.btn", { href: "#/dashboard" }, "Exit (Esc)"))),
       h("div.demo-body",
-        h("div.demo-step.mono", s.kind === "intro" ? "PS 26119 · SIH 2026 · MRPL" : `step ${D.step} of ${STEPS.length - 1}`),
+        h("div.demo-step.mono", s.kind === "intro" ? "PS 26119 · SIH 2026 · MRPL" : `step ${at} of ${V.length - 1}`),
         h("h1.demo-title", s.title),
         h("p.demo-lead", s.lead),
         h("div.demo-stage", body),
@@ -204,9 +238,11 @@ export function mount(root) {
     else document.documentElement.requestFullscreen?.().catch(() => {});
   }
   function key(e) {
-    if (e.target.matches("input, select, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
-    const s = STEPS[D.step];
-    if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { D.step = Math.min(STEPS.length - 1, D.step + 1); draw(); e.preventDefault(); }
+    if (e.target?.matches?.("input, select, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
+    const V = visible();
+    D.step = Math.min(D.step, V.length - 1);
+    const s = V[D.step];
+    if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { D.step = Math.min(V.length - 1, D.step + 1); draw(); e.preventDefault(); }
     else if (e.key === "ArrowLeft" || e.key === "PageUp") { D.step = Math.max(0, D.step - 1); draw(); e.preventDefault(); }
     else if (e.key === "Enter") { runStep(s); e.preventDefault(); }
     else if (e.key === "n" || e.key === "N") { D.notes = !D.notes; draw(); }

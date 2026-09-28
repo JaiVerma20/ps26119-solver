@@ -338,6 +338,47 @@ def gpu_vs_cpu(paths):
     return "\n".join(out)
 
 
+def compare_highs_section(path):
+    """bench/compare_highs.py: ps26119 and HiGHS engine by engine, one rule for both."""
+    rows = load(path)
+    r0 = rows[0]
+
+    def key(r):
+        mt = r["solver"] == "ps26119" and str(r["threads"]) != "1"
+        return f"{r['solver']} {r['engine']}" + (" (all cores)" if mt else "")
+    keys = list(dict.fromkeys(key(r) for r in rows))
+    sets = [("netlib", "Netlib"), ("scale", "generated large")]
+    body = []
+    for k in keys:
+        line = [f"`{k}`"]
+        for sid, _ in sets:
+            rs = [r for r in rows if key(r) == k and r["set"] == sid]
+            line.append(f"{sum(r['solved'] == 'yes' for r in rs)}/{len(rs)}" if rs else "–")
+        claims = [r for r in rows if key(r) == k and r["status"] == "Optimal"]
+        line.append(f"{sum(r['solved'] != 'yes' for r in claims)} of {len(claims)}")
+        body.append(line)
+    big = []
+    for inst in dict.fromkeys(r["instance"] for r in rows if r["set"] == "scale"):
+        rs = {key(r): r for r in rows if r["instance"] == inst}
+        any_r = next(iter(rs.values()))
+        big.append([inst, any_r["rows"], any_r["nnz"]] + [
+            (fnum(rs[k]["seconds"]) if rs[k]["solved"] == "yes" else
+             ("limit" if rs[k]["status"] == "TimeLimit" else "rejected" if rs[k]["status"] == "Optimal" else rs[k]["status"]))
+            if k in rs else "–" for k in keys])
+    return "\n".join([
+        f"Source: `{path}` — commit `{r0['git_hash']}`, {r0['cpu']}, {r0['solver_version'] if r0['solver'] == 'ps26119' else ''} "
+        f"vs {next(r['solver_version'] for r in rows if r['solver'] == 'highs')}. Solved = status Optimal AND tools/verify.py "
+        "PASS AND within 1e-6 of the reference (HiGHS optimum for Netlib, known optimum for generated models) — the same "
+        "rule and verifier for both solvers; time = the solve call only on both sides; 60 s per Netlib model, 300 s per "
+        "large model.", "",
+        table(["engine", "Netlib solved", "large solved", "'Optimal' claims rejected"], body), "",
+        "Time to a verified optimum on the generated large models (s):", "",
+        table(["instance", "rows", "nnz"] + keys, big), "",
+        "Reading: HiGHS's simplex and interior point solve all of Netlib and are faster than ours on most of it; on the "
+        "largest generated models they reach the time limit. HiGHS PDLP's 'Optimal' claims that are rejected fail the "
+        "verifier's worst-row feasibility test at 1e-6 (its stopping test is norm-based)."])
+
+
 def fulls_all_untagged_before(ablations, fulls_all):
     """Untagged full-Netlib runs from the same commits as the ablations (the 'off' baseline)."""
     hashes = {os.path.splitext(os.path.basename(p))[0].rsplit("-", 1)[1] for p in ablations}
@@ -443,6 +484,10 @@ def main():
                 f"Source: `{p}` — commit `{rows[0]['git_hash']}`. Why `auto` sends large models to r²HPDHG: the "
                 "primal simplex prices every column and computes the Devex row every iteration.", "",
                 table(["instance", "rows", "nnz", "status", "iterations", "s", "rel. err vs known opt", "verify"], body), ""]
+
+    comp = [p for p in paths if os.path.basename(p).startswith("compare-highs-")]
+    if comp:
+        doc += ["### 2d. ps26119 vs HiGHS, engine by engine", "", compare_highs_section(latest(comp, "compare-highs-")), ""]
 
     doc += ["", "## 3. CPU vs GPU", ""]
     if gpu_scales or net_gpu:

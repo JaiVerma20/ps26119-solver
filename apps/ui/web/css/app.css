@@ -342,3 +342,23 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin-right: 3p
 .toolbar { display: flex; align-items: center; gap: 10px; margin: -4px 0 14px; flex-wrap: wrap; } .toolbar .grow { flex: 1; }
 body.present .toolbar { position: fixed; right: 16px; bottom: 12px; z-index: 5; opacity: .25; margin: 0; } body.present .toolbar:hover { opacity: 1; }
 body.present .page-head { display: none; }
+details.panel > summary { cursor: pointer; list-style: none; } details.panel > summary::-webkit-details-marker { display: none; }
+details.panel > summary::before { content: "▸ "; color: var(--accent); } details.panel[open] > summary::before { content: "▾ "; }
+/* ------------------------------------------------------------------ PS coverage */
+.cov-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1100px) { .cov-grid { grid-template-columns: 1fr; } }
+.cov { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--text-3); border-radius: var(--r); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.cov.ok { border-left-color: var(--ok); } .cov.warn { border-left-color: var(--warn); } .cov.vio { border-left-color: var(--violet); } .cov.bad { border-left-color: var(--bad); }
+.cov-h { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.cov-t { font-weight: 600; font-size: 14px; }
+.cov-h .badge { white-space: normal; text-align: right; max-width: 55%; }
+.cov-kv { display: grid; grid-template-columns: 78px 1fr; gap: 4px 10px; margin: 0; font-size: 12px; }
+.cov-kv dt { font: 600 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); padding-top: 2px; }
+.cov-kv dd { margin: 0; color: var(--text-2); overflow-wrap: anywhere; } .cov-kv code { font: 11px var(--mono); color: var(--accent); }
+.cov-show { align-self: flex-start; font: 600 11px var(--mono); margin-top: auto; }
+.badge.vio { background: rgba(167,139,250,.12); color: var(--violet); border-color: rgba(167,139,250,.3); }
+.g-side > .grid { align-content: start; }  /* a tall sidebar must not stretch the main column's rows */
+.hs-label { font: 10px var(--mono); fill: var(--text-2); }
+.stale-banner { position: fixed; left: 0; right: 0; top: 0; z-index: 50; padding: 8px 16px; background: #3a2a06; color: var(--warn);
+  border-bottom: 1px solid rgba(255,181,71,.5); font-size: 13px; text-align: center; }
+.stale-banner code { font: 12px var(--mono); color: var(--text); }

@@ -14,6 +14,8 @@ export const api = {
   evidence: () => get("/api/evidence"),
   scenarios: () => get("/api/scenarios"),
   gpu: () => get("/api/gpu"),
+  compare: () => get("/api/compare"),
+  coverage: () => get("/api/coverage"),
   preflight: () => get("/api/preflight"),
   async prepare() {
     const r = await fetch("/api/preflight/prepare", { method: "POST" });
@@ -24,8 +26,8 @@ export const api = {
   runs: () => get("/api/runs"),
   certificate: (job) => get(`/api/jobs/${job}/certificate`),
   // the self-contained HTML report (certificates of these runs + optionally the evidence)
-  reportUrl: (jobs, { evidence = true, download = false, title = "" } = {}) =>
-    `/api/report?jobs=${jobs.join(",")}&evidence=${evidence ? 1 : 0}${download ? "&download=1" : ""}${title ? `&title=${encodeURIComponent(title)}` : ""}`,
+  reportUrl: (jobs, { evidence = true, download = false, title = "", format = "" } = {}) =>
+    `/api/report?jobs=${jobs.join(",")}&evidence=${evidence ? 1 : 0}${download ? "&download=1" : ""}${format ? `&format=${format}` : ""}${title ? `&title=${encodeURIComponent(title)}` : ""}`,
   async solve(opts) {
     const r = await fetch("/api/solve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(opts) });
     const j = await r.json();
@@ -37,6 +39,12 @@ export const api = {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || r.statusText);
     return j;
+  },
+  async reference(path, solver = "simplex", time_limit = 120) {
+    const r = await fetch("/api/reference", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path, solver, time_limit }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || r.statusText);
+    return j.job;
   },
   cancel: (job) => fetch(`/api/jobs/${job}/cancel`, { method: "POST" }),
   // live events of a job (server-sent events); returns a close() function

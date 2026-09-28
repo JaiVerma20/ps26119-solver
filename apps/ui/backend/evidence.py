@@ -14,6 +14,22 @@ import gpu_compare  # noqa: E402
 import make_evidence as me  # noqa: E402
 
 
+_cache: dict = {}
+
+
+def _cached(name: str, fn):
+    """Evidence is a pure function of the committed CSVs (and their commit dates): memoise it on the
+    list of committed CSVs with their modification times, so a new commit or an edited file is
+    picked up at once and repeated page loads cost nothing."""
+    key = (name, tuple((p, os.path.getmtime(os.path.join(paths.ROOT, p))) for p in me.committed_csvs()
+                       if os.path.exists(os.path.join(paths.ROOT, p))))
+    if key not in _cache:
+        if len(_cache) > 16:
+            _cache.clear()
+        _cache[key] = fn()
+    return _cache[key]
+
+
 def _src(p: str) -> dict:
     r0 = me.load(p)[0]
     return {"file": os.path.basename(p), "git_hash": r0.get("git_hash"), "machine": r0.get("machine"),
@@ -29,6 +45,10 @@ def _f(v):
 
 
 def collect() -> dict:
+    return _cached("collect", _collect)
+
+
+def _collect() -> dict:
     paths_ = me.committed_csvs()
     out: dict = {"netlib": [], "infeasible": [], "miplib": None, "scale_cpu": None, "gpu": [], "small_netlib": None}
 
@@ -144,6 +164,10 @@ def _log_facts(machine: str, git_hash: str) -> dict:
 
 
 def gpu_detail() -> dict:
+    return _cached("gpu_detail", _gpu_detail)
+
+
+def _gpu_detail() -> dict:
     """Every configuration of the newest GPU scale run per GPU machine (CPU 1 thread, CPU all
     cores, GPU; fp64 and mixed), its pairs (speed-ups as bench/gpu_compare.py defines them), the
     sanitizer status, facts from the committed logs, and the small-Netlib GPU run."""
@@ -194,3 +218,25 @@ def gpu_detail() -> dict:
             "pairs": base.get(os.path.basename(p), {}).get("pairs", []),
             "instances": sorted(instances.values(), key=lambda i: (i["family"] or "", i["nnz"])), "netlib": netlib})
     return {"machines": machines}
+
+
+def compare() -> dict:
+    return _cached("compare", _compare)
+
+
+def _compare() -> dict:
+    """The newest committed ps26119-vs-HiGHS run (bench/compare_highs.py), per machine: every row, as
+    written. Aggregates (solved counts, performance profiles, shifted geometric means) are computed
+    by the page from these rows, with the rule stated there."""
+    paths_ = [p for p in me.committed_csvs() if os.path.basename(p).startswith("compare-highs-")]
+    by_machine: dict = {}
+    for p in paths_:
+        by_machine.setdefault(me.load(p)[0].get("machine"), []).append(p)
+    out = []
+    for machine, ps in sorted(by_machine.items()):
+        p = me.latest(ps, "compare-highs-")
+        rows = me.load(p)
+        num = ("rows", "cols", "nnz", "iterations", "seconds", "objective", "rel_err_ref", "time_limit")
+        out.append({"machine": machine, "source": _src(p), "solver_versions": sorted({r["solver_version"] for r in rows}),
+                    "rows": [{**r, **{k: _f(r.get(k)) for k in num}} for r in rows]})
+    return {"runs": out}
