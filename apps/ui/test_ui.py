@@ -17,6 +17,9 @@ if len(sys.argv) > 1 and os.path.exists(sys.argv[1]):
 os.environ.setdefault("PS26119_PYTHON", sys.executable)
 # keep test runs out of the user's run history (apps/ui/.runs/jobs)
 os.environ["PS26119_UI_RUNS"] = tempfile.mkdtemp(prefix="ps26119-ui-test-")
+import atexit  # noqa: E402
+import shutil  # noqa: E402
+atexit.register(shutil.rmtree, os.environ["PS26119_UI_RUNS"], True)
 sys.path.insert(0, HERE)
 
 import server  # noqa: E402
@@ -74,6 +77,11 @@ class Endpoints(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        # let every job finish (a job persists its job.json when it ends) before the temp run
+        # folder is removed at exit
+        deadline = time.time() + 120
+        while time.time() < deadline and any(not j.done for j in list(server.JOBS.jobs.values())):
+            time.sleep(0.2)
         cls.srv.shutdown()
         cls.srv.server_close()
 
