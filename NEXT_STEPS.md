@@ -39,6 +39,13 @@ baselines, 198/198 tests on the CUDA build, compute-sanitizer memcheck + raceche
    the usual machine columns, and the raw `.nsys-rep` summary text beside it. The Benchmarks page
    will read this file (Jai wires it) — only measured numbers, same evidence rule as always.
 
+7. **Register your NVIDIA laptop as the self-hosted GPU runner** (label `gpu`): CI now runs on
+   self-hosted runners because GitHub-hosted minutes are blocked by billing. Once your machine is a
+   runner, anyone can start GPU validation from the Actions tab (workflow `gpu-check`, quick or full)
+   while it is online; CSVs and logs come back as an artifact. Steps: docs/CONTRIBUTING.md, "GPU
+   runner" (official runner linux-x64 in WSL2, `--labels ps26119,gpu`). Only GitHub runner software;
+   nothing else is installed.
+
 ## Ready for the PPT (done, on `main`)
 
 - **All CPU evidence from one commit** (`f440782`, `scripts/reproduce.sh`): `docs/EVIDENCE.md`
@@ -50,6 +57,11 @@ baselines, 198/198 tests on the CUDA build, compute-sanitizer memcheck + raceche
 
 ## Jai / integration (no NVIDIA needed)
 
+- CI: GitHub-hosted runners blocked by billing; CI runs on self-hosted runners on Jai's Mac
+  (PR #17: `scripts/ci_runners.sh`, `CI_RUNNER` variable, all four checks green). Keep the Mac
+  awake with the runners started when PRs need CI; `scripts/ci_local.sh` reproduces the jobs.
+- ps26119 vs HiGHS (the PS's real-world comparison): `bench/compare_highs.py`, UI page "vs HiGHS",
+  live HiGHS reference on the Solve page, jury-demo step; gap analysis in docs/COMPETITION.md.
 - Command Center (`apps/ui/`): PR #13 (shell + five pages), #14 (scenarios: warm-start what-if,
   batched sweeps, marginal values), then GPU page, verification certificate + HTML report, jury
   demo mode and preflight. Batch fingerprint fix: PR #15. Next: GPU kernel-profile panel once
