@@ -12,10 +12,10 @@ ARG RUNNER_SHA256=9b1dc70626422526e3c94767cf024896beb15da5342a3f4819bf2feac13e03
 
 ENV DEBIAN_FRONTEND=noninteractive
 # what the workflow needs beyond the runner: compilers (gcc for build-test, clang for the
-# sanitizers and the CUDA syntax check), git, python for actions/setup-python fallbacks
+# sanitizers — libclang-rt holds the ASan/UBSan/TSan runtimes — and the CUDA syntax check), git, python
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl git jq sudo unzip xz-utils zstd lsb-release tzdata \
-      build-essential clang lld binutils python3 python3-venv python3-pip libicu74 \
+      build-essential clang libclang-rt-18-dev lld llvm binutils python3 python3-venv python3-pip libicu74 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -s /bin/bash runner && echo "runner ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/runner

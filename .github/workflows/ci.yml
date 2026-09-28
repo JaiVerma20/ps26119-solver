@@ -32,8 +32,17 @@ jobs:
           fetch-depth: 0  # validate_results.py checks that every CSV's commit is in the history
 
       - uses: actions/setup-python@v5
+        if: vars.CI_RUNNER != 'self-hosted' || runner.os != 'macOS'
         with:
           python-version: "3.11"
+
+      # setup-python's macOS builds install under /Users/runner (GitHub's image layout), which a
+      # self-hosted Mac does not have: use the machine's Python 3.11 in a fresh virtual environment
+      - name: Python 3.11 (self-hosted macOS)
+        if: vars.CI_RUNNER == 'self-hosted' && runner.os == 'macOS'
+        run: |
+          python3.11 -m venv "/py311"
+          echo "/py311/bin" >> ""
 
       - name: Tools
         run: |
