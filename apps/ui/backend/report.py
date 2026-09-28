@@ -139,6 +139,27 @@ def evidence_html() -> str:
     if ev["miplib"]:
         mp = ev["miplib"]
         out.append(f'<h3>MILP · small MIPLIB 3 · {mp["solved"]}/{mp["total"]} proven optimal and verified</h3>' + src(mp["source"]))
+    for run in _evidence.compare()["runs"][:1]:
+        rows = run["rows"]
+
+        def key(r):
+            return f'{r["solver"]} {r["engine"]}' + (" (all cores)" if r["solver"] == "ps26119" and str(r["threads"]).split(".")[0] != "1" else "")
+        keys = list(dict.fromkeys(key(r) for r in rows))
+        out.append(f'<h3>Against a real-world solver · {e(" vs ".join(run["solver_versions"]))}</h3>'
+                   '<table><thead><tr><th>engine</th><th class=num>Netlib solved</th><th class=num>large solved</th>'
+                   '<th class=num>"Optimal" claims rejected</th></tr></thead><tbody>')
+        for k in keys:
+            cells = []
+            for sid in ("netlib", "scale"):
+                rs = [r for r in rows if key(r) == k and r["set"] == sid]
+                cells.append(f'{sum(r["solved"] == "yes" for r in rs)}/{len(rs)}' if rs else "–")
+            claims = [r for r in rows if key(r) == k and r["status"] == "Optimal"]
+            rej = sum(r["solved"] != "yes" for r in claims)
+            out.append(f'<tr><td class=mono>{e(k)}</td><td class=num>{cells[0]}</td><td class=num>{cells[1]}</td>'
+                       f'<td class=num>{rej} of {len(claims)}</td></tr>')
+        out.append("</tbody></table>" + src(run["source"]) +
+                   '<p class="note">Same models, same machine, one rule for both solvers: Optimal AND tools/verify.py PASS AND '
+                   'within 1e-6 of the reference; time = the solve call only. HiGHS runs as a separate reference.</p>')
     for mach in gd["machines"]:
         out.append(f'<h3>GPU vs CPU · {e(mach["gpu"])}</h3>'
                    f'<p class="note">{e(mach["gpu"])} · driver {e(mach["driver"])} · CUDA {e(mach["cuda"])} · CPU baseline {e(mach["cpu"])} '

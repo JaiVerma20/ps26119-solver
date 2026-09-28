@@ -7,7 +7,8 @@ export function mount(root) {
   const body = h("div.grid", { style: { gap: "14px" } });
   root.append(
     h("div.page-head", h("div", h("div.eyebrow", "08 · benchmarks"), h("h1", "Benchmark evidence"),
-      h("p", "Read live from the committed, hash-named CSVs in bench/results/ with the same rules as docs/EVIDENCE.md. Every table names its source; nothing here is typed in by hand. Reproduce: scripts/reproduce.sh (CPU) and scripts/gpu_check.sh (GPU)."))),
+      h("p", "Read live from the committed, hash-named CSVs in bench/results/ with the same rules as docs/EVIDENCE.md. Every table names its source; nothing here is typed in by hand. Reproduce: scripts/reproduce.sh (CPU) and scripts/gpu_check.sh (GPU).")),
+      h("div.actions", h("a.btn", { href: "#/compare" }, "vs HiGHS (real-world solver) →"), h("a.btn", { href: "#/gpu" }, "GPU detail →"))),
     body);
 
   function draw() {
