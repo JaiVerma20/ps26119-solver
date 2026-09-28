@@ -24,6 +24,19 @@ baselines, 198/198 tests on the CUDA build, compute-sanitizer memcheck + raceche
    row; updating d_j from the pivot row in phase 2 should save ~25% per iteration. Then
    Forrest–Tomlin + hypersparse FTRAN/BTRAN.
 
+5. **Live GPU demo with the Command Center** (only your laptop can do this): on the CUDA build run
+   `python3 apps/ui/server.py`, open http://127.0.0.1:8765 — the top bar must say "CUDA build" and
+   the Solve page then enables the GPU backend. Solve `bench/generated/refinery-T8760-s1.lpm`
+   (if missing: `python3 bench/generate_refinery_lp.py --periods 8760 --seed 1 --out bench/generated/refinery-T8760-s1.lpm`) with r²HPDHG on CPU (all cores) and
+   then on GPU, fp64 and mixed; check both runs end with verify PASS. Screen-record it (OBS,
+   1080p, ~2 min) as the backup video for the demo, and report anything that looks wrong on
+   Windows/WSL (paths, the browser, the GPU chip). Do not change `apps/ui/` — send notes to Jai.
+6. **GPU kernel profile for the PPT** (nsys / ncu on refinery-T8760-s1 and rand-1000000-s1,
+   fp64 and mixed): commit `bench/results/gpu_profile-<machine>-<git short hash>.csv` with
+   columns `instance,precision,kernel,calls,total_ms,pct_of_gpu_time,achieved_bandwidth_gbs` plus
+   the usual machine columns, and the raw `.nsys-rep` summary text beside it. The Benchmarks page
+   will read this file (Jai wires it) — only measured numbers, same evidence rule as always.
+
 ## Ready for the PPT (done, on `main`)
 
 - **All CPU evidence from one commit** (`f440782`, `scripts/reproduce.sh`): `docs/EVIDENCE.md`
@@ -34,6 +47,10 @@ baselines, 198/198 tests on the CUDA build, compute-sanitizer memcheck + raceche
 - Interfaces and guarantees: `docs/FORMATS.md`; limitations: `docs/LIMITATIONS.md`.
 
 ## Jai / integration (no NVIDIA needed)
+
+- Command Center (`apps/ui/`, PR on `feature/ui/command-center`): shell + five pages done;
+  next: warm-start / what-if page (`--warm`), batch scenarios page (`ps26119 batch`), run report
+  export, GPU profile panel once item 6 above lands, a guided demo mode for the jury.
 
 - Decide the licence (the repository has no LICENSE file; needed before any public release).
 - PPT: every slide number from `docs/EVIDENCE.md`. GPU: quote "vs the fastest CPU configuration

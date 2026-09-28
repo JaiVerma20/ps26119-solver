@@ -17,3 +17,6 @@ out/
 *.o
 *.obj
 .venv*/
+
+# Command Center run folders and uploads
+apps/ui/.runs/

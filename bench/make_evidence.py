@@ -168,7 +168,8 @@ def sanitizer_status(scale_csv):
         if not os.path.exists(f):
             out[tool] = "no log"
             continue
-        t = open(f, errors="replace").read()
+        with open(f, errors="replace") as fh:
+            t = fh.read()
         if "Failed to initialize" in t or "Device not supported" in t:
             out[tool] = "could not attach (NOT RUN)"
         elif "ERROR SUMMARY: 0 errors" in t or "RACECHECK SUMMARY: 0 hazards" in t:

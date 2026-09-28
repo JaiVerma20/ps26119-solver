@@ -47,6 +47,8 @@ if(Python3_Interpreter_FOUND)
   if(_no_highspy EQUAL 0)
     add_test(NAME tools.python COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/test_tools.py)
     add_test(NAME cli.contract COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_cli.py $<TARGET_FILE:ps26119_cli>)
+    # Command Center backend (apps/ui): log parsing, path safety, a real solve + verify over HTTP.
+    add_test(NAME ui.backend COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/apps/ui/test_ui.py $<TARGET_FILE:ps26119_cli>)
     if(TARGET ps26119_shared)
       add_test(NAME python.binding COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/python/test_python.py)
       set_tests_properties(python.binding PROPERTIES ENVIRONMENT "PS26119_LIB=$<TARGET_FILE:ps26119_shared>")
