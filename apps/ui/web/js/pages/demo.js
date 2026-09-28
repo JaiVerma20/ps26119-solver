@@ -38,7 +38,7 @@ const STEPS = [
     lead: "r²HPDHG was designed for GPUs: one sparse matrix-vector product per iteration, no factorization. Measured on an NVIDIA laptop GPU against the fastest CPU configuration of the same machine, at the same 1e-8 tolerance; how each answer was checked is shown under it.",
     notes: ["Say: one consumer laptop GPU (RTX 4050); slower than the CPU on small models, faster on large ones.", "Every number here is read from the committed benchmark CSV named on screen."] },
   { id: "compare", kind: "compare", title: "Against a real-world solver",
-    lead: "The PS asks for a comparison with real-world solvers. HiGHS — the open-source solver inside SciPy and JuMP — ran the same models, engine by engine, and the same independent verifier judged both. Where HiGHS is faster, it says so.",
+    lead: "The PS asks for a comparison with real-world solvers. HiGHS (inside SciPy and JuMP) and Google OR-Tools ran the same models, engine by engine, and the same independent verifier judged every answer. Where they are faster, it says so.",
     notes: ["Every number here is read from the committed comparison CSV named on screen.", "HiGHS is a mature, heavily optimized solver: say where each wins; our point is verified answers at refinery scale."] },
   { id: "final", kind: "final", title: "Final verification",
     lead: "Every run of this demo, with its independent verdict. The certificates and the benchmark evidence export as one self-contained report.",
@@ -157,7 +157,8 @@ export function mount(root) {
     const run = D.compare?.runs?.[0];
     if (!run) return h("div.dhint", "no committed comparison yet");
     const key = (r) => `${r.solver}·${r.engine}${r.solver === "ps26119" && String(r.threads) !== "1" ? "·mt" : ""}`;
-    const NAME = { "ps26119·auto": "ps26119 auto", "highs·simplex": "HiGHS dual simplex", "highs·ipm": "HiGHS interior point", "highs·pdlp": "HiGHS PDLP" };
+    const NAME = { "ps26119·auto": "ps26119 auto", "highs·simplex": "HiGHS dual simplex", "highs·ipm": "HiGHS interior point", "highs·pdlp": "HiGHS PDLP",
+      "ortools·glop": "OR-Tools GLOP", "ortools·pdlp": "OR-Tools PDLP" };
     const net = run.rows.filter((r) => r.set === "netlib");
     const cnt = (k) => [new Set(net.map((r) => r.instance)).size, net.filter((r) => key(r) === k && r.solved === "yes").length];
     const rej = (k) => run.rows.filter((r) => key(r) === k && r.status === "Optimal" && r.solved !== "yes").length;

@@ -47,5 +47,27 @@ class HighsReference(unittest.TestCase):
             highs_ref.solve_with_highs(AFIRO, os.path.join(tmp, "x.sol"), options={"no_such_option": 1})
 
 
+class OrToolsReference(unittest.TestCase):
+    """OR-Tools runs in its own process (it bundles a HiGHS that clashes with highspy's)."""
+
+    def test_glop_and_pdlp_write_verifiable_solutions(self):
+        import json
+        import subprocess
+        if subprocess.run([sys.executable, "-c", "import ortools"], capture_output=True).returncode != 0:
+            self.skipTest("OR-Tools not installed (optional reference)")
+        with tempfile.TemporaryDirectory() as tmp:
+            for eng in ("glop", "pdlp"):
+                sol = os.path.join(tmp, eng + ".sol")
+                p = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "ortools_ref.py"), AFIRO, sol, "--solver", eng,
+                                    "--json"], capture_output=True, text=True, timeout=300)
+                res = json.loads([ln for ln in p.stdout.splitlines() if ln.startswith("{")][-1])
+                self.assertEqual((res["status"], res["engine"]), ("Optimal", "ortools-" + eng))
+                self.assertAlmostEqual(res["objective"], -464.75314286, places=5)
+                rep = verify.verify(AFIRO, sol)
+                self.assertTrue(rep["model_match"])
+                if eng == "glop":  # a vertex at simplex accuracy; PDLP's own test is looser (recorded as a row)
+                    self.assertEqual(rep["verdict"], "PASS")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

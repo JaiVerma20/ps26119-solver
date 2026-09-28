@@ -228,13 +228,13 @@ def _compare() -> dict:
     """The newest committed ps26119-vs-HiGHS run (bench/compare_highs.py), per machine: every row, as
     written. Aggregates (solved counts, performance profiles, shifted geometric means) are computed
     by the page from these rows, with the rule stated there."""
-    paths_ = [p for p in me.committed_csvs() if os.path.basename(p).startswith("compare-highs-")]
+    paths_ = [p for p in me.committed_csvs() if os.path.basename(p).startswith("compare-")]
     by_machine: dict = {}
     for p in paths_:
         by_machine.setdefault(me.load(p)[0].get("machine"), []).append(p)
     out = []
     for machine, ps in sorted(by_machine.items()):
-        p = me.latest(ps, "compare-highs-")
+        p = me.latest(ps, "compare-")
         rows = me.load(p)
         num = ("rows", "cols", "nnz", "iterations", "seconds", "objective", "rel_err_ref", "time_limit")
         out.append({"machine": machine, "source": _src(p), "solver_versions": sorted({r["solver_version"] for r in rows}),
