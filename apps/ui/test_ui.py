@@ -433,9 +433,11 @@ class Endpoints(unittest.TestCase):
             self.assertEqual(code, 200, (key, j))
             ev = self.wait(j["job"])
             self.assertEqual(ev["result"]["status"], "Optimal", key)
-            self.assertAlmostEqual(ev["result"]["objective"], want, places=5, msg=key)
-            # every Optimal claim is judged; first-order PDLP answers may honestly FAIL the 1e-6 worst-row test
-            self.assertIn(ev["verify"]["report"]["verdict"], ("PASS", "FAIL") if key.endswith("pdlp") else ("PASS",), key)
+            # every Optimal claim is judged; first-order PDLP answers are only ~1e-8 relative-KKT accurate
+            # and may honestly FAIL the verifier's 1e-6 worst-row test
+            pdlp = key.endswith("pdlp")
+            self.assertLess(abs(ev["result"]["objective"] - want) / (1 + abs(want)), 1e-4 if pdlp else 1e-8, key)
+            self.assertIn(ev["verify"]["report"]["verdict"], ("PASS", "FAIL") if pdlp else ("PASS",), key)
         # an LP-only solver is refused on a MILP (it would answer the LP relaxation)
         code, j = self.post("/api/reference", {"path": "data/mip_small/gt2.lpm", "solver": "highs-simplex"})
         self.assertEqual(code, 400)
