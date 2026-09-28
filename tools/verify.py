@@ -471,7 +471,28 @@ def print_report(rep: dict) -> None:
     print(f"VERDICT    {rep['verdict']}" + ("" if not rep["reasons"] else "  — " + "; ".join(rep["reasons"])))
 
 
+def self_check() -> dict:
+    """Can this interpreter run the verifier? Reads a small committed model with each reader
+    (the independent MPS reader for .mps, lpm.py for .lpm) and hashes it. Used by the UI preflight,
+    so that apps/ never needs to know which third-party reader the verifier uses."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    out = {"ok": True, "python": sys.version.split()[0], "readers": {}}
+    for ext, rel in ((".mps", "data/netlib_small/afiro.mps"), (".lpm", "data/netlib_small/afiro.lpm")):
+        try:
+            m, reader = load_model(os.path.join(root, rel))
+            out["readers"][ext] = {"reader": reader, "model": rel, "fingerprint": fingerprint(m)}
+        except Exception as e:  # noqa: BLE001 — report why, never crash
+            out["ok"] = False
+            out["readers"][ext] = {"error": f"{type(e).__name__}: {e}", "model": rel}
+    return out
+
+
 def main(argv=None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if "--self-check" in argv:
+        rep = self_check()
+        print(json.dumps(rep))
+        return 0 if rep["ok"] else 1
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("model")
     ap.add_argument("solution")

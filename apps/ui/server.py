@@ -21,7 +21,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from backend import evidence, generate, models, paths, runner, scenarios, system  # noqa: E402
+from backend import certificate, evidence, generate, models, paths, preflight, report, runner, scenarios, system  # noqa: E402
 
 JOBS = runner.Jobs()
 
@@ -100,17 +100,53 @@ class Handler(BaseHTTPRequestHandler):
                                        "max_sweep": scenarios.MAX_SWEEP})
             if route == "/api/evidence":
                 return self.send_json(evidence.collect())
-            m = re.fullmatch(r"/api/jobs/([0-9a-f]{12})(/events)?", route)
+            if route == "/api/gpu":
+                return self.send_json(evidence.gpu_detail())
+            if route == "/api/preflight":
+                return self.send_json(preflight.run())
+            if route == "/api/runs":
+                return self.send_json(runner.list_runs())
+            if route == "/api/report":
+                return self.report()
+            m = re.fullmatch(r"/api/jobs/([0-9a-f]{12})(/events|/certificate)?", route)
             if m:
                 job = JOBS.get(m[1])
                 if not job:
                     return self.error(404, "unknown job")
+                if m[2] == "/certificate":
+                    c = certificate.build(job)
+                    return self.send_json(c) if c else self.error(409, "no certificate: not a finished solve run")
                 return self.stream(job) if m[2] else self.send_json({"events": job.events, "done": job.done})
             return self.static(route)
         except BrokenPipeError:
             pass
         except Exception as e:  # noqa: BLE001 — the UI must get an error, never a dead socket
             self.error(500, f"{type(e).__name__}: {e}")
+
+    def report(self):
+        """/api/report?jobs=a,b&evidence=1&download=1 — the self-contained HTML report."""
+        q = self.query()
+        ids = [j for j in q.get("jobs", "").split(",") if j]
+        if len(ids) > 20 or not all(re.fullmatch(r"[0-9a-f]{12}", j) for j in ids):
+            return self.error(400, "jobs: up to 20 run ids")
+        certs = []
+        for jid in ids:
+            job = JOBS.get(jid)
+            c = certificate.build(job) if job else None
+            if not c:
+                return self.error(404, f"no certificate for run {jid}")
+            certs.append(c)
+        title = q.get("title") or ("Verification certificate" if len(certs) == 1 else "Verification report")
+        body = report.render(certs, include_evidence=q.get("evidence", "1") != "0", title=title[:120]).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        if q.get("download"):
+            name = "ps26119-" + ("-".join(c["model"]["name"] for c in certs[:3]) or "evidence") + ".html"
+            self.send_header("Content-Disposition", f'attachment; filename="{re.sub(r"[^A-Za-z0-9._-]", "_", name)}"')
+        self.end_headers()
+        self.wfile.write(body)
 
     def static(self, route):
         rel = "index.html" if route in ("", "/") else route.lstrip("/")
@@ -174,6 +210,8 @@ class Handler(BaseHTTPRequestHandler):
                 if err:
                     return self.error(400, err)
                 return self.send_json({"job": JOBS.add(scenarios.ScenarioJob(o)).id})
+            if route == "/api/preflight/prepare":
+                return self.send_json({"generated": preflight.prepare(), **preflight.run()})
             if route == "/api/generate":
                 args, err = generate.validate(self.body_json())
                 if err:

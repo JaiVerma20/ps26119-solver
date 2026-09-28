@@ -78,7 +78,9 @@ safe to call from several threads at once.
 Command Center (local web UI over the same CLI, verifier and evidence CSVs; standard library
 only, no internet needed): `python3 apps/ui/server.py`, then open http://127.0.0.1:8765 — model
 explorer with sparsity view, live solve with residual/objective charts, the verification chain
-of every run, and the benchmark evidence with its source CSVs. See `apps/ui/README.md`.
+of every run, and the benchmark evidence with its source CSVs; a full-screen **jury demo**
+(live solves + committed GPU evidence), per-run verification certificates exportable as a
+self-contained HTML report, and a demo preflight. See `apps/ui/README.md` and `apps/ui/DEMO.md`.
 
 Reproduce all CPU evidence from one commit: `PS26119_MACHINE=<name> scripts/reproduce.sh`
 (stages and timings in the script header), then `python3 bench/make_evidence.py`.

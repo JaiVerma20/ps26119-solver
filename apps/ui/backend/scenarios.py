@@ -156,6 +156,8 @@ def marginal_values(T: int, y: list) -> dict:
 
 # ------------------------------------------------------------------------ the job
 class ScenarioJob(runner.Job):
+    kind = "scenario"
+
     def __init__(self, o: dict):
         super().__init__(paths.rel(o["base"]), o)
         self.cancelled = False

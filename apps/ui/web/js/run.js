@@ -4,6 +4,15 @@ import { store } from "./store.js";
 
 export const DEFAULT_OPTS = { algorithm: "auto", precision: "fp64", threads: 0, time_limit: 60, tol: "", presolve: true, gpu: false };
 
+const waiters = new Map();  // job -> [resolve]
+
+// resolves with the finished run (store.run of that job) — used by the jury demo
+export function whenDone(job) {
+  const r = store.run;
+  if (r && r.job === job && r.done) return Promise.resolve(r);
+  return new Promise((resolve) => waiters.set(job, [...(waiters.get(job) || []), resolve]));
+}
+
 export async function startSolve(path, opts) {
   if (store.run && !store.run.done) throw new Error("a solve is already running");
   const full = { ...DEFAULT_OPTS, ...opts, path };
@@ -32,6 +41,7 @@ export async function startSolve(path, opts) {
       }
     }
     store.set({ run: r });
+    if (r.done) { for (const f of waiters.get(job) || []) f(r); waiters.delete(job); }
   });
   return job;
 }

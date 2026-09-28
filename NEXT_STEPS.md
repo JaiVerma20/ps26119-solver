@@ -31,6 +31,8 @@ baselines, 198/198 tests on the CUDA build, compute-sanitizer memcheck + raceche
    then on GPU, fp64 and mixed; check both runs end with verify PASS. Screen-record it (OBS,
    1080p, ~2 min) as the backup video for the demo, and report anything that looks wrong on
    Windows/WSL (paths, the browser, the GPU chip). Do not change `apps/ui/` — send notes to Jai.
+   Also run the **Jury demo** (`#/demo`): on a CUDA build its GPU step (6) offers a live GPU solve
+   of the refinery year (Enter) and step 7 exports the report — record that path too.
 6. **GPU kernel profile for the PPT** (nsys / ncu on refinery-T8760-s1 and rand-1000000-s1,
    fp64 and mixed): commit `bench/results/gpu_profile-<machine>-<git short hash>.csv` with
    columns `instance,precision,kernel,calls,total_ms,pct_of_gpu_time,achieved_bandwidth_gbs` plus
@@ -48,9 +50,10 @@ baselines, 198/198 tests on the CUDA build, compute-sanitizer memcheck + raceche
 
 ## Jai / integration (no NVIDIA needed)
 
-- Command Center (`apps/ui/`, PR on `feature/ui/command-center`): shell + five pages done;
-  next: warm-start / what-if page (`--warm`), batch scenarios page (`ps26119 batch`), run report
-  export, GPU profile panel once item 6 above lands, a guided demo mode for the jury.
+- Command Center (`apps/ui/`): PR #13 (shell + five pages), #14 (scenarios: warm-start what-if,
+  batched sweeps, marginal values), then GPU page, verification certificate + HTML report, jury
+  demo mode and preflight. Batch fingerprint fix: PR #15. Next: GPU kernel-profile panel once
+  item 6 above lands.
 
 - Decide the licence (the repository has no LICENSE file; needed before any public release).
 - PPT: every slide number from `docs/EVIDENCE.md`. GPU: quote "vs the fastest CPU configuration

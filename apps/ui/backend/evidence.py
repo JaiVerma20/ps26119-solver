@@ -114,3 +114,83 @@ def collect() -> dict:
                            "cpu": r0.get("cpu"), "cpu_cores": r0.get("cpu_cores"),
                            "sanitizer": me.sanitizer_status(p), "pairs": pairs})
     return out
+
+
+def _log_facts(machine: str, git_hash: str) -> dict:
+    """Facts from the GPU run's committed log folder (bench/results/logs/<machine>-<hash>/)."""
+    folder = os.path.join(paths.ROOT, "bench", "results", "logs", f"{machine}-{git_hash}")
+    facts: dict = {"folder": os.path.relpath(folder, paths.ROOT) if os.path.isdir(folder) else None}
+    if not os.path.isdir(folder):
+        return facts
+    facts["files"] = sorted(os.listdir(folder))
+
+    def read(name):
+        p = os.path.join(folder, name)
+        if not os.path.exists(p):
+            return ""
+        with open(p, errors="replace") as f:
+            return f.read()
+    import re
+    # ctest prints "100% tests passed out of 198" or "97% tests passed, 3 tests failed out of 98"
+    m = re.search(r"\d+% tests passed(?:, (\d+) tests failed)? out of (\d+)", read("ctest.log"))
+    if m:
+        facts["ctest"] = {"passed": int(m[2]) - int(m[1] or 0), "total": int(m[2])}
+    m = re.search(r"^(NVIDIA[^,\n]+), ([\d.]+), (\d+) MiB, (\d+) MHz", read("gpu_check.log"), re.M)
+    if m:
+        facts["gpu_memory_mib"], facts["sm_clock_mhz"] = int(m[3]), int(m[4])
+    m = re.search(r"^Linux .*?(microsoft|WSL2)", read("gpu_check.log"), re.M | re.I)
+    facts["os"] = "Linux (WSL2)" if m else None
+    return facts
+
+
+def gpu_detail() -> dict:
+    """Every configuration of the newest GPU scale run per GPU machine (CPU 1 thread, CPU all
+    cores, GPU; fp64 and mixed), its pairs (speed-ups as bench/gpu_compare.py defines them), the
+    sanitizer status, facts from the committed logs, and the small-Netlib GPU run."""
+    paths_ = me.committed_csvs()
+    scales = [p for p in paths_ if os.path.basename(p).startswith("scale-") and not os.path.basename(p).startswith("scale-simplex-")]
+    gpu_scales = [p for p in scales if any(r.get("backend") == "gpu" for r in me.load(p))]
+    by_machine: dict = {}
+    for p in gpu_scales:
+        by_machine.setdefault(me.load(p)[0].get("machine"), []).append(p)
+    machines = []
+    base = {g["source"]["file"]: g for g in collect()["gpu"]}
+    for machine, ps in sorted(by_machine.items()):
+        p = me.latest(ps, "scale-")
+        rows = me.load(p)
+        r0 = rows[0]
+        instances: dict = {}
+        for r in rows:
+            inst = instances.setdefault(r["instance"], {"instance": r["instance"], "family": r.get("family"),
+                                                         "rows": int(r["rows"]), "cols": int(r["cols"]), "nnz": int(r["nnz"]),
+                                                         "known_optimum": _f(r.get("known_optimum")), "runs": []})
+            inst["runs"].append({
+                "backend": r["backend"], "threads": int(r["threads"]) if r.get("threads") else None,
+                "precision": r["precision"], "status": r["status"], "iterations": int(r["iterations"]),
+                "seconds": _f(r.get("seconds")), "s_1e4": _f(r.get("seconds_to_1e-4")), "s_1e8": _f(r.get("seconds_to_1e-8")),
+                "setup_seconds": _f(r.get("setup_seconds")), "ms_per_iteration": _f(r.get("ms_per_iteration")),
+                "objective": _f(r.get("objective")), "rel_err_known": _f(r.get("rel_err_known")),
+                "verify": r.get("verify"), "verify_primal_rel": _f(r.get("verify_primal_rel")),
+                "verify_dual_rel": _f(r.get("verify_dual_rel")), "verify_gap_rel": _f(r.get("verify_gap_rel")),
+                "message": r.get("message", "")})
+        net = [q for q in paths_ if os.path.basename(q).startswith("netlib-small-gpu-") and me.load(q)[0].get("machine") == machine]
+        netlib = None
+        if net:
+            q = me.latest(net, "netlib-small-gpu-")
+            nrows = me.load(q)
+            groups: dict = {}
+            for r in nrows:
+                g = groups.setdefault((r["engine"], r["precision"]), {"engine": r["engine"], "precision": r["precision"],
+                                                                      "verified": 0, "total": 0, "seconds": 0.0})
+                g["total"] += 1
+                g["verified"] += r["status"] == "Optimal" and r["verify"] == "PASS"
+                g["seconds"] += _f(r.get("seconds")) or 0.0
+            netlib = {"source": _src(q), "groups": list(groups.values()),
+                      "instances": sorted({r["instance"] for r in nrows})}
+        machines.append({
+            "machine": machine, "source": _src(p), "gpu": r0.get("gpu"), "driver": r0.get("driver"), "cuda": r0.get("cuda"),
+            "cpu": r0.get("cpu"), "cpu_cores": r0.get("cpu_cores"), "tolerance": r0.get("tolerance"),
+            "sanitizer": me.sanitizer_status(p), "logs": _log_facts(machine, r0.get("git_hash")),
+            "pairs": base.get(os.path.basename(p), {}).get("pairs", []),
+            "instances": sorted(instances.values(), key=lambda i: (i["family"] or "", i["nnz"])), "netlib": netlib})
+    return {"machines": machines}
