@@ -347,7 +347,8 @@ def compare_highs_section(path):
         mt = r["solver"] == "ps26119" and str(r["threads"]) != "1"
         return f"{r['solver']} {r['engine']}" + (" (all cores)" if mt else "")
     keys = list(dict.fromkeys(key(r) for r in rows))
-    sets = [("netlib", "Netlib"), ("scale", "generated large")]
+    sets = [(sid, lab) for sid, lab in (("netlib", "Netlib"), ("kennington", "Kennington"), ("scale", "generated large"))
+            if any(r["set"] == sid for r in rows)]
     body = []
     for k in keys:
         line = [f"`{k}`"]
@@ -358,7 +359,7 @@ def compare_highs_section(path):
         line.append(f"{sum(r['solved'] != 'yes' for r in claims)} of {len(claims)}")
         body.append(line)
     big = []
-    for inst in dict.fromkeys(r["instance"] for r in rows if r["set"] == "scale"):
+    for inst in dict.fromkeys(r["instance"] for r in rows if r["set"] in ("scale", "kennington")):
         rs = {key(r): r for r in rows if r["instance"] == inst}
         any_r = next(iter(rs.values()))
         big.append([inst, any_r["rows"], any_r["nnz"]] + [
@@ -371,8 +372,8 @@ def compare_highs_section(path):
         "PASS AND within 1e-6 of the reference (HiGHS optimum for Netlib, known optimum for generated models) — the same "
         "rule and verifier for both solvers; time = the solve call only on both sides; 60 s per Netlib model, 300 s per "
         "large model.", "",
-        table(["engine", "Netlib solved", "large solved", "'Optimal' claims rejected"], body), "",
-        "Time to a verified optimum on the generated large models (s):", "",
+        table(["engine"] + [f"{lab} solved" for _, lab in sets] + ["'Optimal' claims rejected"], body), "",
+        "Time to a verified optimum on the Kennington and generated large models (s):", "",
         table(["instance", "rows", "nnz"] + keys, big), "",
         "Reading: HiGHS's simplex and interior point solve all of Netlib and are faster than ours on most of it; on the "
         "largest generated models they reach the time limit. HiGHS PDLP's 'Optimal' claims that are rejected fail the "

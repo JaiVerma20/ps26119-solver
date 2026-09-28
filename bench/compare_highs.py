@@ -6,7 +6,8 @@ highspy, tooling only; never linked), engine by engine, on the same models and t
   HiGHS:    simplex (dual), ipm (interior point + crossover), pdlp           pdlp tolerance 1e-8
   OR-Tools: glop (Google's simplex), pdlp (Google's PDLP)  [--refs highs,ortools]   pdlp rel + abs 1e-8
 
-Models: the Netlib LP set (data/netlib/, tools/fetch_netlib.py) and the generated LPs with an
+Models: the Netlib LP set (data/netlib/, tools/fetch_netlib.py), the Kennington LPs
+(data/kennington/, tools/fetch_kennington.py; --set netlib,kennington,scale) and the generated LPs with an
 optimum known by construction (bench/generated: refinery T12 / T365 / T2190 / T8760, random 1e4 /
 1e5; --big adds random 1e6).
 
@@ -15,7 +16,7 @@ Rules, identical for both solvers:
     vs the wall time of Highs.run() (the model is passed in memory; presolve included);
   * solved = status Optimal AND tools/verify.py PASS (independent reader, same tolerances for both)
     AND |obj − ref| / (1 + |ref|) ≤ 1e-6, ref = HiGHS reference optimum from data/netlib/optima.csv
-    (Netlib) or the known optimum (generated models);
+    (Netlib), the published optimum (Kennington) or the known optimum (generated models);
   * a TimeLimit / failure is a row, never dropped.
 Honest limits: HiGHS runs with its defaults (serial simplex, serial IPM); its PDLP is the CPU
 cuPDLP-C port, whose stopping measure is not identical to ours even at the same 1e-8. One machine.
@@ -74,6 +75,15 @@ def instances(sets, only, big):
                 out.append({"set": "netlib", "name": m["name"], "path": os.path.join(ROOT, "data", "netlib", m["name"] + ".mps"),
                             "rows": m["rows"], "cols": m["cols"], "nnz": m["nnz"], "reference": m["highs_objective"],
                             "reference_kind": "HiGHS optimum (optima.csv)"})
+    if "kennington" in sets:
+        opt = os.path.join(ROOT, "data", "kennington", "optima.csv")
+        if not os.path.exists(opt):
+            sys.exit("data/kennington missing: run tools/fetch_kennington.py first")
+        with open(opt) as f:
+            for m in csv.DictReader(f):
+                out.append({"set": "kennington", "name": m["name"], "path": os.path.join(ROOT, "data", "kennington", m["name"] + ".mps"),
+                            "rows": m["rows"], "cols": m["cols"], "nnz": m["nnz"], "reference": m["published_optimum"],
+                            "reference_kind": "published optimum (netlib readme, ALPO, 8 digits)"})
     if "scale" in sets:
         names = SCALE + (["rand-1000000-s1"] if big else [])
         for n in names:
@@ -115,6 +125,7 @@ def main():
     ap.add_argument("--big", action="store_true")
     ap.add_argument("--time-limit", type=float, default=60)
     ap.add_argument("--scale-time-limit", type=float, default=300)
+    ap.add_argument("--kennington-time-limit", type=float, default=120)
     ap.add_argument("--refs", default="highs", help="reference solvers: highs, or highs,ortools")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
@@ -140,7 +151,7 @@ def main():
 
     with tempfile.TemporaryDirectory() as tmp:
         for m in instances(a.set.split(","), a.only, a.big):
-            tl = a.time_limit if m["set"] == "netlib" else a.scale_time_limit
+            tl = {"netlib": a.time_limit, "kennington": a.kennington_time_limit}.get(m["set"], a.scale_time_limit)
             base = {**info, "set": m["set"], "instance": m["name"], "rows": m["rows"], "cols": m["cols"], "nnz": m["nnz"],
                     "reference": m["reference"], "reference_kind": m["reference_kind"], "time_limit": tl}
             for eng, thr in OURS:

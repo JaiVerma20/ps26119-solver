@@ -67,7 +67,7 @@ export function mount(root) {
       h("div.kpi.span2", h("div.k", "shifted geometric mean time"), h("div.v", `${fsec(sg["ps26119·auto"])} / ${bestHighs ? fsec(sg[bestHighs]) : "—"}`), h("div.s", `ours auto / ${bestHighs ? LABEL[bestHighs] : ""} · shift ${SHIFT} s, unsolved = limit`)),
       h(`div.kpi.${claimsRejected["ps26119·auto"] === 0 ? "okc" : "badc"}`, h("div.k", "claims rejected · ours"), h("div.v", `${claimsRejected["ps26119·auto"] ?? 0}`), h("div.s", "ours auto — by the independent verifier or the reference")));
 
-    const setSeg = h("div.seg", { style: { maxWidth: "420px" } }, [["all", "all models"], ["netlib", "Netlib"], ["scale", "large / refinery"]].map(([v, l]) =>
+    const setSeg = h("div.seg", { style: { maxWidth: "520px" } }, [["all", "all models"], ["netlib", "Netlib"], ["kennington", "Kennington"], ["scale", "large / refinery"]].filter(([v]) => v === "all" || run.rows.some((r) => r.set === v)).map(([v, l]) =>
       h("button", { class: set === v ? "on" : null, onclick: () => { set = v; draw(); } }, l)));
 
     const profile = h("div.panel", { style: { gridColumn: "1 / -1" } },
@@ -93,9 +93,9 @@ export function mount(root) {
       h("div.note", `Below the diagonal (green) ours is faster: ${pts.filter((p) => p.a.seconds <= p.b.seconds).length} of ${pts.length}. HiGHS is a mature, heavily optimized simplex; the honest reading is where each wins.`));
 
     // large models: heat-map table
-    const scaleInsts = [...new Set(run.rows.filter((r) => r.set === "scale").map((r) => r.instance))];
+    const scaleInsts = [...new Set(run.rows.filter((r) => r.set === "scale" || r.set === "kennington").map((r) => r.instance))];
     const heat = scaleInsts.length ? h("div.panel", { style: { gridColumn: "1 / -1" } },
-      h("div.panel-h", "Large and refinery models · time to a verified optimum", h("span.right.dim", "green = fastest verified · — = not solved (limit or rejected)")),
+      h("div.panel-h", "Kennington, large and refinery models · time to a verified optimum", h("span.right.dim", "green = fastest verified · — = not solved (limit or rejected)")),
       h("div", { style: { overflowX: "auto" } }, h("table.t", h("thead", h("tr", h("th", "model"), h("th.num", "rows"), h("th.num", "nonzeros"), ...Object.keys(LABEL).map((k) => h("th.num", { title: LABEL[k] }, SHORT[k])))),
         h("tbody", scaleInsts.map((i) => {
           const rs = Object.fromEntries(run.rows.filter((r) => r.instance === i).map((r) => [keyOf(r), r]));
@@ -109,7 +109,7 @@ export function mount(root) {
             return h("td.num", { style: { background: q <= 1.0001 ? "rgba(61,220,151,.18)" : q <= 3 ? "rgba(92,225,230,.08)" : "transparent", color: q <= 1.0001 ? "var(--ok)" : null }, title: `${fratio(q)} of the fastest` }, fsec(r.seconds));
           }));
         })))),
-      h("div.note", "Generated models with an optimum known by construction (refinery structure, synthetic prices; random sparse). The reference is that known optimum, so no solver is judged against another.")) : null;
+      h("div.note", "Kennington: the 16 public military-airlift LPs (reference: published optimum). Generated models: an optimum known by construction (refinery structure, synthetic prices; random sparse). No solver is judged against another.")) : null;
 
     const table = h("details.panel", { style: { gridColumn: "1 / -1" } }, h("summary.panel-h", `Every run (${all.length} rows)`),
       h("div", { style: { overflowX: "auto", maxHeight: "480px" } }, h("table.t", h("thead", h("tr", ...["model", "engine", "status", "time", "iterations", "objective", "err vs ref", "verify", "solved"].map((x) => h("th", x)))),
