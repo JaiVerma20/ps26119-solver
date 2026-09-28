@@ -11,10 +11,15 @@ CXX=${CXX:-clang++}
 # Device pass: -U__FLOAT128__/__SIZEOF_FLOAT128__ — GCC 14's libstdc++ declares
 # numeric_limits<__float128> whenever the (host) target advertises __float128, which the sm_80
 # device target cannot compile (nvcc handles this itself).
+# arm64 Linux hosts: glibc's bits/math-vector.h declares typedefs of the SVE builtin types
+# (__SVFloat32_t, ...) for any clang >= 11; the NVPTX device target has no such types. Our .cu files
+# never use the vector-math declarations they serve, so the device pass gets placeholder spellings.
+sve=()
+[ "$(uname -m)" = aarch64 ] && [ "$(uname -s)" = Linux ] && sve=(-D__SVFloat32_t=float -D__SVFloat64_t=double -D__SVBool_t=int)
 for f in src/gpu/*.cu; do
   for pass in --cuda-host-only --cuda-device-only; do
     extra=()
-    [ "$pass" = --cuda-device-only ] && extra=(-U__FLOAT128__ -U__SIZEOF_FLOAT128__)
+    [ "$pass" = --cuda-device-only ] && extra=(-U__FLOAT128__ -U__SIZEOF_FLOAT128__ ${sve[@]+"${sve[@]}"})
     "$CXX" -x cuda -std=c++17 -fsyntax-only -nocudainc -nocudalib $pass --cuda-gpu-arch=sm_80 \
       -include cstdlib -Itools/cuda_stub -Iinclude -Isrc -DPS26119_HAVE_CUDA=1 ${extra[@]+"${extra[@]}"} "$f"
   done
