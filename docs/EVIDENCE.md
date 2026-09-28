@@ -28,6 +28,7 @@ Files used:
 - `bench/results/batch-macbook-air-m4-ea97521.csv` (committed 2026-09-25)
 - `bench/results/batch-macbook-air-m4-f440782.csv` (committed 2026-09-27)
 - `bench/results/compare-highs-Darwin-arm64-90fc378.csv` (committed 2026-09-28)
+- `bench/results/compare-highs-ortools-macbook-air-m4-ad28954.csv` (committed 2026-09-28)
 - `bench/results/infeasible-cut-r2hpdhg-macbook-air-m4-279fad6.csv` (committed 2026-09-27)
 - `bench/results/infeasible-cut-r2hpdhg-macbook-air-m4-b04f2d8.csv` (committed 2026-09-27)
 - `bench/results/infeasible-cut-r2hpdhg-macbook-air-m4-c935a78.csv` (committed 2026-09-27)
@@ -257,9 +258,51 @@ Source: `bench/results/scale-simplex-macbook-air-m4-d824f82.csv` — commit `d82
 
 ### 2d. ps26119 vs real-world solvers (HiGHS, OR-Tools), engine by engine
 
-Source: `bench/results/compare-highs-Darwin-arm64-90fc378.csv` — commit `90fc378`, Apple M4, ps26119 0.1.0 (git 90fc378) vs HiGHS 1.15.1. Solved = status Optimal AND tools/verify.py PASS AND within 1e-6 of the reference (HiGHS optimum for Netlib, known optimum for generated models) — the same rule and verifier for both solvers; time = the solve call only on both sides; 60 s per Netlib model, 300 s per large model.
+Source: `bench/results/compare-highs-ortools-macbook-air-m4-ad28954.csv` — commit `ad28954`, Apple M4, ps26119 0.1.0 (git ad28954) vs HiGHS 1.15.1, OR-Tools 9.15.6755. Solved = status Optimal AND tools/verify.py PASS AND within 1e-6 of the reference (HiGHS optimum for Netlib, the published optimum for Kennington, the known optimum for generated models) — the same rule and verifier for every solver; time = the solve call only on every side; time limit per model: Netlib 60 s, Kennington 120 s, generated large 300 s.
 
-| engine | Netlib solved | large solved | 'Optimal' claims rejected |
+| engine | Netlib solved | Kennington solved | generated large solved | 'Optimal' claims rejected |
+|---|---|---|---|---|
+| `ps26119 auto` | 93/93 | 16/16 | 3/3 | 0 of 112 |
+| `ps26119 simplex` | 92/93 | 14/16 | 2/3 | 0 of 108 |
+| `ps26119 r2hpdhg` | 84/93 | 16/16 | 3/3 | 0 of 103 |
+| `ps26119 r2hpdhg (all cores)` | 84/93 | 16/16 | 3/3 | 0 of 103 |
+| `highs simplex` | 93/93 | 16/16 | 3/3 | 0 of 112 |
+| `highs ipm` | 93/93 | 16/16 | 3/3 | 0 of 112 |
+| `highs pdlp` | 36/93 | 1/16 | 0/3 | 59 of 96 |
+| `ortools glop` | 93/93 | 16/16 | 3/3 | 0 of 112 |
+| `ortools pdlp` | 53/93 | 4/16 | 0/3 | 43 of 100 |
+
+Time to a verified optimum on the Kennington and generated large models (s):
+
+| instance | rows | nnz | ps26119 auto | ps26119 simplex | ps26119 r2hpdhg | ps26119 r2hpdhg (all cores) | highs simplex | highs ipm | highs pdlp | ortools glop | ortools pdlp |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| cre-a | 3516 | 14987 | 0.645 | 0.644 | 2.27 | 2.28 | 0.0584 | 0.239 | rejected | 0.11 | rejected |
+| cre-b | 9648 | 256095 | 79.4 | limit | 79.3 | 84.6 | 1.1 | 2.11 | rejected | 0.978 | rejected |
+| cre-c | 3068 | 13244 | 0.553 | 0.545 | 1.44 | 1.45 | 0.0547 | 0.203 | rejected | 0.106 | 1.93 |
+| cre-d | 8926 | 242646 | 17.4 | 85.6 | 17.5 | 18.1 | 0.58 | 1.63 | rejected | 0.654 | rejected |
+| ken-07 | 2426 | 8404 | 0.173 | 0.171 | 0.0417 | 0.0413 | 0.0219 | 0.028 | rejected | 0.0221 | rejected |
+| ken-11 | 14694 | 49058 | 0.97 | 8.14 | 0.975 | 1.16 | 0.218 | 0.37 | rejected | 0.549 | rejected |
+| ken-13 | 28632 | 97246 | 5.54 | 61.9 | 5.53 | 4.85 | 0.693 | 1.34 | rejected | 3.2 | rejected |
+| ken-18 | 105127 | 358171 | 26.9 | limit | 27 | 22.5 | 3.16 | 7.18 | rejected | 39 | NotSolved |
+| osa-07 | 1118 | 143694 | 0.37 | 0.371 | 3.88 | 4.31 | 0.237 | 0.307 | 0.667 | 0.075 | 1.91 |
+| osa-14 | 2337 | 314760 | 15.4 | 1.65 | 15.5 | 14.8 | 0.892 | 0.782 | rejected | 0.178 | 6.86 |
+| osa-30 | 4350 | 600138 | 34.4 | 5.35 | 34.5 | 27.5 | 4.05 | 1.61 | rejected | 0.879 | 24.3 |
+| osa-60 | 10280 | 1397793 | 71 | 33.2 | 71.4 | 61.8 | 17.9 | 5.07 | rejected | 3.23 | rejected |
+| pds-02 | 2953 | 16390 | 0.0881 | 0.0862 | 0.0877 | 0.0878 | 0.0388 | 0.0433 | NotSolved | 0.0191 | rejected |
+| pds-06 | 9881 | 62524 | 0.566 | 1.48 | 0.571 | 0.67 | 0.15 | 0.225 | NotSolved | 0.108 | rejected |
+| pds-10 | 16558 | 106436 | 1.28 | 6.74 | 1.27 | 1.08 | 0.268 | 0.526 | NotSolved | 0.255 | rejected |
+| pds-20 | 33874 | 230200 | 10.4 | 81.6 | 10.3 | 6.42 | 0.817 | 2.11 | NotSolved | 1.43 | rejected |
+| refinery-T12-s1 | 588 | 2065 | 0.0181 | 0.0184 | 0.00473 | 0.00439 | 0.00653 | 0.00718 | NotSolved | 0.00275 | rejected |
+| refinery-T365-s1 | 17885 | 63134 | 0.247 | 11.6 | 0.246 | 0.289 | 3.52 | 1.18 | NotSolved | 0.19 | rejected |
+| refinery-T2190-s1 | 107310 | 378859 | 1.76 | limit | 1.69 | 1.03 | 35.1 | 28.5 | NotSolved | 3.25 | rejected |
+
+Reading: the reference simplex and interior-point engines solve (almost) every model and are faster than ours on most Netlib and Kennington models; on the largest generated refinery models they are slower or reach the time limit. The PDLP engines' rejected 'Optimal' claims fail the verifier's worst-row feasibility test at 1e-6 (their stopping tests are norm-based).
+
+#### Earlier run: commit `90fc378` (HiGHS)
+
+Source: `bench/results/compare-highs-Darwin-arm64-90fc378.csv` — commit `90fc378`, Apple M4, ps26119 0.1.0 (git 90fc378) vs HiGHS 1.15.1. Solved = status Optimal AND tools/verify.py PASS AND within 1e-6 of the reference (HiGHS optimum for Netlib, the published optimum for Kennington, the known optimum for generated models) — the same rule and verifier for every solver; time = the solve call only on every side; time limit per model: Netlib 60 s, generated large 300 s.
+
+| engine | Netlib solved | generated large solved | 'Optimal' claims rejected |
 |---|---|---|---|
 | `ps26119 auto` | 93/93 | 6/6 | 0 of 99 |
 | `ps26119 simplex` | 92/93 | 2/6 | 0 of 94 |
@@ -269,7 +312,7 @@ Source: `bench/results/compare-highs-Darwin-arm64-90fc378.csv` — commit `90fc3
 | `highs ipm` | 93/93 | 4/6 | 0 of 97 |
 | `highs pdlp` | 36/93 | 0/6 | 49 of 85 |
 
-Time to a verified optimum on the generated large models (s):
+Time to a verified optimum on the Kennington and generated large models (s):
 
 | instance | rows | nnz | ps26119 auto | ps26119 simplex | ps26119 r2hpdhg | ps26119 r2hpdhg (all cores) | highs simplex | highs ipm | highs pdlp |
 |---|---|---|---|---|---|---|---|---|---|
@@ -280,7 +323,7 @@ Time to a verified optimum on the generated large models (s):
 | rand-10000-s1 | 10000 | 60024 | 0.318 | limit | 0.312 | 0.297 | 56.9 | 4.34 | rejected |
 | rand-100000-s1 | 100000 | 600228 | 7.4 | limit | 7.45 | 3.06 | limit | limit | rejected |
 
-Reading: HiGHS's simplex and interior point solve all of Netlib and are faster than ours on most of it; on the largest generated models they reach the time limit. HiGHS PDLP's 'Optimal' claims that are rejected fail the verifier's worst-row feasibility test at 1e-6 (its stopping test is norm-based).
+Reading: the reference simplex and interior-point engines solve (almost) every model and are faster than ours on most Netlib and Kennington models; on the largest generated refinery models they are slower or reach the time limit. The PDLP engines' rejected 'Optimal' claims fail the verifier's worst-row feasibility test at 1e-6 (their stopping tests are norm-based).
 
 
 ## 3. CPU vs GPU

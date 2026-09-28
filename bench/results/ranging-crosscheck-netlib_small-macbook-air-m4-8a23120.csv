@@ -1,0 +1,11 @@
+git_hash,machine,cpu,date,highs_version,set,instance,rows,cols,status,same_x,degenerate_basics,costs_compared,costs_agree,rows_compared,rows_agree,max_cost_diff,max_row_diff,note
+8a23120,macbook-air-m4,Apple M4,2026-09-28T21:23:48,1.15.1,netlib_small,adlittle,56,97,compared,no,1,97,82,46,29,inf,2.57e+01,different optimal x (alternative optimum): ranges are basis-dependent
+8a23120,macbook-air-m4,Apple M4,2026-09-28T21:23:48,1.15.1,netlib_small,afiro,27,32,compared,yes,9,32,19,13,13,6.96e-01,0.00e+00,"same x, primal-degenerate vertex: the two bases may differ"
+8a23120,macbook-air-m4,Apple M4,2026-09-28T21:23:48,1.15.1,netlib_small,blend,74,83,compared,yes,6,83,78,57,57,1.07e+00,0.00e+00,"same x, primal-degenerate vertex: the two bases may differ"
+8a23120,macbook-air-m4,Apple M4,2026-09-28T21:23:48,1.15.1,netlib_small,kb2,43,41,compared,yes,0,41,41,27,27,0.00e+00,0.00e+00,
+8a23120,macbook-air-m4,Apple M4,2026-09-28T21:23:48,1.15.1,netlib_small,recipe,91,180,compared,yes,67,180,154,32,28,inf,2.00e+01,"same x, primal-degenerate vertex: the two bases may differ"
+8a23120,macbook-air-m4,Apple M4,2026-09-28T21:23:48,1.15.1,netlib_small,sc105,105,103,compared,yes,13,103,88,91,86,inf,1.91e+01,"same x, primal-degenerate vertex: the two bases may differ"
+8a23120,macbook-air-m4,Apple M4,2026-09-28T21:23:48,1.15.1,netlib_small,sc50a,50,48,compared,yes,5,48,46,44,43,inf,1.72e+01,"same x, primal-degenerate vertex: the two bases may differ"
+8a23120,macbook-air-m4,Apple M4,2026-09-28T21:23:48,1.15.1,netlib_small,sc50b,50,48,compared,yes,2,48,48,48,48,0.00e+00,0.00e+00,
+8a23120,macbook-air-m4,Apple M4,2026-09-28T21:23:48,1.15.1,netlib_small,share2b,96,79,compared,no,10,79,69,49,12,inf,1.53e+01,different optimal x (alternative optimum): ranges are basis-dependent
+8a23120,macbook-air-m4,Apple M4,2026-09-28T21:23:48,1.15.1,netlib_small,stocfor1,117,111,compared,yes,10,111,100,76,70,inf,8.91e+00,"same x, primal-degenerate vertex: the two bases may differ"
