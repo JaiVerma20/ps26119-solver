@@ -94,7 +94,7 @@ store.on((patch) => {
 
 window.addEventListener("hashchange", route);
 window.addEventListener("keydown", (e) => {
-  if (e.target.matches("input, select, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.target?.matches?.("input, select, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
   const n = e.key === "0" ? 10 : Number(e.key);  // 1–9, 0 = tenth page
   if (n >= 1 && n <= PAGES.length) location.hash = `#/${PAGES[n - 1][0]}`;
 });

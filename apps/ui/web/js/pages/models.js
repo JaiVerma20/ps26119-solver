@@ -5,8 +5,8 @@ import { h, fint, fnum, fbytes, toast } from "../util.js";
 
 export function mount(root) {
   let groups = [], filter = "";
-  const list = h("div.mlist");
-  const detail = h("div.grid", { style: { gap: "12px" } });
+  const list = h("div.mlist", { style: { maxHeight: "calc(100vh - 330px)", minHeight: "240px", overflowY: "auto" } });
+  const detail = h("div.grid", { style: { gap: "12px", alignContent: "start" } });
   const search = h("input.input.search", { placeholder: "filter models…", oninput: (e) => { filter = e.target.value.toLowerCase(); drawList(); } });
 
   root.append(

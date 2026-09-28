@@ -212,17 +212,17 @@ export function mount(root) {
 
   function draw() {
     const V = visible();
-    D.step = Math.min(D.step, V.length - 1);
-    const s = V[D.step];
+    // clamp for display only: the list can grow once the comparison evidence has loaded
+    const at = Math.min(D.step, V.length - 1), s = V[at];
     const body = s.kind === "intro" ? introView() : s.kind === "solve" ? liveView(s) : s.kind === "chain" ? chainView(s) : s.kind === "gpu" ? gpuView(s) : s.kind === "compare" ? compareView() : finalView();
     stage.replaceChildren(
       h("div.demo-top",
         h("div.demo-brand", h("b", "PS26119"), h("span", "jury demo")),
-        h("div.demo-dots", V.map((x, i) => h(`button.ddot${i === D.step ? ".on" : ""}${D.results[x.id]?.cert ? (D.results[x.id].cert.final.verdict === "PASS" ? ".pass" : ".fail") : ""}`,
+        h("div.demo-dots", V.map((x, i) => h(`button.ddot${i === at ? ".on" : ""}${D.results[x.id]?.cert ? (D.results[x.id].cert.final.verdict === "PASS" ? ".pass" : ".fail") : ""}`,
           { title: x.title, onclick: () => { D.step = i; draw(); } }, i === 0 ? "◆" : String(i)))),
         h("div.demo-actions", h("button.btn", { onclick: () => toggleFull() }, "Full screen (F)"), h("a.btn", { href: "#/dashboard" }, "Exit (Esc)"))),
       h("div.demo-body",
-        h("div.demo-step.mono", s.kind === "intro" ? "PS 26119 · SIH 2026 · MRPL" : `step ${D.step} of ${V.length - 1}`),
+        h("div.demo-step.mono", s.kind === "intro" ? "PS 26119 · SIH 2026 · MRPL" : `step ${at} of ${V.length - 1}`),
         h("h1.demo-title", s.title),
         h("p.demo-lead", s.lead),
         h("div.demo-stage", body),
@@ -238,8 +238,10 @@ export function mount(root) {
     else document.documentElement.requestFullscreen?.().catch(() => {});
   }
   function key(e) {
-    if (e.target.matches("input, select, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
- const V = visible(), s = V[D.step];
+    if (e.target?.matches?.("input, select, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
+    const V = visible();
+    D.step = Math.min(D.step, V.length - 1);
+    const s = V[D.step];
     if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { D.step = Math.min(V.length - 1, D.step + 1); draw(); e.preventDefault(); }
     else if (e.key === "ArrowLeft" || e.key === "PageUp") { D.step = Math.max(0, D.step - 1); draw(); e.preventDefault(); }
     else if (e.key === "Enter") { runStep(s); e.preventDefault(); }

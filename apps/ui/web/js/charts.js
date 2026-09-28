@@ -15,7 +15,18 @@ function niceTicks(lo, hi, n = 5) {
   for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-12 * Math.abs(hi); v += step) out.push(v);
   return out;
 }
-const fmtTick = (v) => (v === 0 ? "0" : Math.abs(v) >= 1e4 || Math.abs(v) < 1e-2 ? v.toExponential(0) : String(+v.toPrecision(3)));
+// tick labels with enough digits to tell neighbouring ticks apart (step = tick spacing)
+function fmtTick(v, step) {
+  if (v === 0) return "0";
+  const a = Math.abs(v);
+  if (step && a >= 1e4) {
+    const [div, unit] = a >= 1e9 ? [1e9, "G"] : a >= 1e6 ? [1e6, "M"] : [1e3, "k"];
+    const dec = Math.max(0, Math.min(4, Math.ceil(-Math.log10(step / div) - 1e-9)));
+    return `${(v / div).toFixed(dec)}${unit}`;
+  }
+  if (a >= 1e4 || a < 1e-2) return v.toExponential(step ? Math.max(0, Math.min(4, Math.ceil(Math.log10(a / step) - 1e-9))) : 0);
+  return String(+v.toPrecision(step ? Math.max(3, Math.ceil(Math.log10(a / step)) + 1) : 3));
+}
 
 /** series: [{name, color, points:[[x,y],...], dash}] ; opts: {logY, xLabel, yLabel, height} */
 export function lineChart(series, opts = {}) {
@@ -41,12 +52,14 @@ export function lineChart(series, opts = {}) {
   const g = s("g", { class: "axis" });
   const yt = opts.logY ? Array.from({ length: y1 - y0 + 1 }, (_, i) => 10 ** (y0 + i)).filter((_, i, a) => a.length <= 9 || i % 2 === 0)
     : niceTicks(y0, y1, 4);
+  const ystep = yt.length > 1 ? Math.abs(yt[1] - yt[0]) : 0;
   for (const v of yt) {
     const y = Y(v);
     g.append(s("line", { x1: L, x2: W - R, y1: y, y2: y, class: "gridl" }));
-    g.append(s("text", { x: L - 6, y: y + 3, "text-anchor": "end" }, opts.logY ? `1e${Math.round(Math.log10(v))}` : fmtTick(v)));
+    g.append(s("text", { x: L - 6, y: y + 3, "text-anchor": "end" }, opts.logY ? `1e${Math.round(Math.log10(v))}` : fmtTick(v, ystep)));
   }
-  for (const v of niceTicks(x0, x1, 6)) g.append(s("text", { x: X(v), y: H - 9, "text-anchor": "middle" }, fmtTick(v)));
+  const xt = niceTicks(x0, x1, 6), xstep = xt.length > 1 ? xt[1] - xt[0] : 0;
+  for (const v of xt) g.append(s("text", { x: X(v), y: H - 9, "text-anchor": "middle" }, fmtTick(v, xstep)));
   g.append(s("line", { x1: L, x2: W - R, y1: H - B, y2: H - B }));
   if (opts.xLabel) g.append(s("text", { x: W - R, y: H - 9, "text-anchor": "end" }, opts.xLabel));
   if (opts.threshold != null && (!opts.logY || opts.threshold > 0)) {
@@ -163,5 +176,41 @@ export function scatterChart(points, opts = {}) {
     if (p.title) c.append(s("title", {}, p.title));
     svg.append(c);
   }
+  return svg;
+}
+
+/** Heat strips: rows [{label, values:[number per period]}], one cell per period (or per bin of
+ * periods when there are more than maxCells: the cell shows the bin's MAXIMUM, stated in the note).
+ * Colour = value / global max (0 = background). */
+export function heatStrip(rows, opts = {}) {
+  const W = 640, L = opts.labelW || 110, R = 10, rowH = opts.rowH || 22, gap = 6, T = 4, B = 22;
+  const n = Math.max(...rows.map((r) => r.values.length), 1), maxCells = opts.maxCells || 365;
+  const bin = Math.ceil(n / maxCells), cells = Math.ceil(n / bin);
+  const H = T + rows.length * (rowH + gap) + B;
+  const svg = s("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, style: `height:${H}px`, preserveAspectRatio: "none", role: "img" });
+  const binned = rows.map((r) => Array.from({ length: cells }, (_, c) => Math.max(...r.values.slice(c * bin, (c + 1) * bin).map((v) => Math.abs(v) || 0))));
+  const vmax = Math.max(...binned.flat(), 1e-12);
+  const cw = (W - L - R) / cells;
+  const [r0, g0, b0] = [11, 15, 20], [r1, g1, b1] = opts.rgb || [92, 225, 230];
+  binned.forEach((vals, k) => {
+    const y = T + k * (rowH + gap);
+    svg.append(s("text", { x: L - 6, y: y + rowH / 2 + 4, "text-anchor": "end", class: "hs-label" }, rows[k].label));
+    vals.forEach((v, c) => {
+      if (!v) return;
+      const t = Math.sqrt(v / vmax);  // sqrt: small bottlenecks stay visible
+      const col = `rgb(${Math.round(r0 + t * (r1 - r0))},${Math.round(g0 + t * (g1 - g0))},${Math.round(b0 + t * (b1 - b0))})`;
+      const rect = s("rect", { x: (L + c * cw).toFixed(2), y, width: Math.max(cw, 0.6).toFixed(2), height: rowH, fill: col });
+      rect.append(s("title", {}, `${rows[k].label} · period ${bin > 1 ? `${c * bin + 1}–${Math.min(n, (c + 1) * bin)}` : c + 1}: ${v.toPrecision(4)}`));
+      svg.append(rect);
+    });
+    svg.append(s("rect", { x: L, y, width: W - L - R, height: rowH, fill: "none", stroke: "#1c2530" }));
+  });
+  const g = s("g", { class: "axis" });
+  for (const f of [0, 0.25, 0.5, 0.75, 1]) {
+    const p = Math.max(1, Math.round(f * n));
+    g.append(s("text", { x: L + (f * (W - L - R)), y: H - 6, "text-anchor": f === 0 ? "start" : f === 1 ? "end" : "middle" }, `${p}`));
+  }
+  svg.append(g);
+  svg.dataset.bin = bin; svg.dataset.vmax = vmax;
   return svg;
 }

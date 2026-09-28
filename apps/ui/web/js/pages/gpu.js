@@ -44,7 +44,7 @@ export function mount(root) {
 
     const kpis = h("div.kpis",
       best ? h("div.kpi.hl.big.span2", h("div.k", "best GPU speed-up vs fastest CPU"), h("div.v", fratio(best.ratio_vs_best)), h("div.s", `${best.instance} · fp64 · ${fsec(best.gpu_s)} vs ${fsec(best.best_cpu_s)}`)) : null,
-      ref ? h("div.kpi.hl", h("div.k", "refinery year · hourly"), h("div.v", fratio(ref.ratio_vs_best)), h("div.s", `GPU ${fsec(ref.gpu_s)} · best CPU ${fsec(ref.best_cpu_s)} (${ref.best_cpu_threads} thr)`)) : null,
+      ref ? h("div.kpi.hl", h("div.k", "refinery year"), h("div.v", fratio(ref.ratio_vs_best)), h("div.s", `GPU ${fsec(ref.gpu_s)} · best CPU ${fsec(ref.best_cpu_s)} (${ref.best_cpu_threads} thr)`)) : null,
       h("div.kpi", h("div.k", "runs Optimal"), h("div.v", `${optimal}/${allRuns.length}`), h("div.s", `${verified} verify.py PASS · ${allRuns.filter((r) => r.verify === "skipped").length} not re-read (above verify.py's size limit)`)),
       net ? h("div.kpi", h("div.k", "small Netlib on GPU"), h("div.v", `${netOk}/${netTot}`), h("div.s", "verified PASS (r²HPDHG + PDLP, fp64 + mixed)")) : null,
       h(`div.kpi.${M.sanitizer.memcheck === "clean" && M.sanitizer.racecheck === "clean" ? "okc" : ""}`, h("div.k", "compute-sanitizer"), h("div.v", M.sanitizer.memcheck === "clean" && M.sanitizer.racecheck === "clean" ? "clean" : "see logs"), h("div.s", `memcheck ${M.sanitizer.memcheck} · racecheck ${M.sanitizer.racecheck}`)),

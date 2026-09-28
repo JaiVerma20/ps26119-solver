@@ -357,3 +357,5 @@ details.panel > summary::before { content: "▸ "; color: var(--accent); } detai
 .cov-kv dd { margin: 0; color: var(--text-2); overflow-wrap: anywhere; } .cov-kv code { font: 11px var(--mono); color: var(--accent); }
 .cov-show { align-self: flex-start; font: 600 11px var(--mono); margin-top: auto; }
 .badge.vio { background: rgba(167,139,250,.12); color: var(--violet); border-color: rgba(167,139,250,.3); }
+.g-side > .grid { align-content: start; }  /* a tall sidebar must not stretch the main column's rows */
+.hs-label { font: 10px var(--mono); fill: var(--text-2); }

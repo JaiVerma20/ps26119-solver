@@ -86,9 +86,10 @@ def solution_summary(path: str, max_vector: int = 2000) -> dict:
     }
     names_c = getattr(s, "col_names", None) or []
     names_r = getattr(s, "row_names", None) or []
-    res["columns"] = [{"i": j, "name": names_c[j] if j < len(names_c) else f"x{j}", "x": s.x[j], "z": s.z[j]}
+    # generated models carry no names (empty strings in the file): show x<j> / r<i> instead
+    res["columns"] = [{"i": j, "name": (names_c[j] if j < len(names_c) else "") or f"x{j}", "x": s.x[j], "z": s.z[j]}
                       for j in range(min(len(s.x), max_vector))]
-    res["rows"] = [{"i": i, "name": names_r[i] if i < len(names_r) else f"r{i}", "activity": s.row_activity[i],
+    res["rows"] = [{"i": i, "name": (names_r[i] if i < len(names_r) else "") or f"r{i}", "activity": s.row_activity[i],
                     "y": s.y[i]} for i in range(min(len(s.y), max_vector))]
     res["vectors_truncated"] = len(s.x) > max_vector or len(s.y) > max_vector
     return res
