@@ -21,7 +21,9 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from backend import certificate, coverage, evidence, generate, models, paths, pdf, preflight, report, runner, scenarios, system  # noqa: E402
+from backend import certificate, coverage, evidence, generate, lptext, models, paths, pdf, preflight, report, runner, scenarios, system  # noqa: E402
+
+from lpm import write_lpm  # noqa: E402  (tools/ is on the path via backend.runner; pure Python)
 
 JOBS = runner.Jobs()
 
@@ -120,6 +122,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(evidence.compare())
             if route == "/api/gpu":
                 return self.send_json(evidence.gpu_detail())
+            if route == "/api/model/examples":
+                return self.send_json({"examples": lptext.EXAMPLES})
+            if route == "/api/references":
+                return self.send_json({"references": runner.reference_list()})
             if route == "/api/preflight":
                 return self.send_json(preflight.run())
             if route == "/api/runs":
@@ -134,7 +140,8 @@ class Handler(BaseHTTPRequestHandler):
                 if m[2] == "/certificate":
                     c = certificate.build(job)
                     return self.send_json(c) if c else self.error(409, "no certificate: not a finished solve run")
-                return self.stream(job) if m[2] else self.send_json({"events": job.events, "done": job.done})
+                return self.stream(job) if m[2] else self.send_json({"events": job.events, "done": job.done, "kind": job.kind,
+                                                                     "model": job.model_rel, "opts": job.opts})
             return self.static(route)
         except BrokenPipeError:
             pass
@@ -233,6 +240,9 @@ class Handler(BaseHTTPRequestHandler):
                 o, err = runner.validate_reference(body)
                 if err:
                     return self.error(400, err)
+                split = models.info(model).get("columns_split") or [0, 0, 0]
+                if (split[1] + split[2]) > 0 and not runner.REFERENCES[o["solver"]][5]:
+                    return self.error(400, f"{runner.REFERENCES[o['solver']][0]} solves LPs only; this model has integer columns")
                 return self.send_json({"job": JOBS.add(runner.ReferenceJob(paths.rel(model), o)).id})
             if route == "/api/scenario":
                 o, err = scenarios.validate(self.body_json())
@@ -255,6 +265,25 @@ class Handler(BaseHTTPRequestHandler):
                     job.proc.terminate()
                     job.emit("log", line="cancelled by the user")
                 return self.send_json({"ok": True})
+            if route == "/api/model/text":
+                # a model typed on the Solve page (algebraic text or the grid) → .lpm in the uploads
+                body = self.body_json()
+                name = str(body.get("name") or "typed").strip()
+                if not re.fullmatch(r"[A-Za-z0-9_-]{1,60}", name):
+                    return self.error(400, "model name must be 1-60 characters [A-Za-z0-9_-]")
+                text = str(body.get("text") or "")
+                if not text.strip() or len(text) > 2_000_000:
+                    return self.error(400, "empty or too long (max 2 MB of text)")
+                try:
+                    model = lptext.parse(text, name)
+                except lptext.LpTextError as e:
+                    return self.send_json({"error": str(e), "line": e.line}, 400)
+                os.makedirs(paths.UPLOADS, exist_ok=True)
+                dest = os.path.join(paths.UPLOADS, name + ".lpm")
+                write_lpm(model, dest, source="typed on the Solve page (apps/ui/backend/lptext.py)")
+                with open(os.path.join(paths.UPLOADS, name + ".lp.txt"), "w") as f:
+                    f.write(text)
+                return self.send_json({"path": paths.rel(dest), **lptext.summary(model)})
             if route == "/api/upload":
                 name = os.path.basename(self.query().get("name", ""))
                 if not re.fullmatch(r"[A-Za-z0-9._-]{1,120}", name) or not name.endswith(paths.MODEL_EXT):

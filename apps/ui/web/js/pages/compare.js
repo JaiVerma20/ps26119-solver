@@ -8,29 +8,31 @@ import { barChart, profileChart, scatterChart } from "../charts.js";
 const LABEL = {
   "ps26119·auto": "ps26119 · auto", "ps26119·simplex": "ps26119 · simplex", "ps26119·r2hpdhg": "ps26119 · r²HPDHG",
   "ps26119·r2hpdhg·mt": "ps26119 · r²HPDHG all cores", "highs·simplex": "HiGHS · dual simplex", "highs·ipm": "HiGHS · interior point",
-  "highs·pdlp": "HiGHS · PDLP",
+  "highs·pdlp": "HiGHS · PDLP", "ortools·glop": "OR-Tools · GLOP simplex", "ortools·pdlp": "OR-Tools · PDLP",
+  "scip·lp": "SCIP · SoPlex LP", "coin·clp": "COIN-OR CLP · dual simplex",
 };
 const COLOR = {
   "ps26119·auto": "#5ce1e6", "ps26119·simplex": "#2aa8b0", "ps26119·r2hpdhg": "#3ddc97", "ps26119·r2hpdhg·mt": "#a7f3d0",
-  "highs·simplex": "#ffb547", "highs·ipm": "#ff8a5c", "highs·pdlp": "#a78bfa",
+  "highs·simplex": "#ffb547", "highs·ipm": "#ff8a5c", "highs·pdlp": "#a78bfa", "ortools·glop": "#f472b6", "ortools·pdlp": "#c084fc",
+  "scip·lp": "#34d399", "coin·clp": "#fb7185",
 };
-const DASH = { "highs·simplex": "6 3", "highs·ipm": "6 3", "highs·pdlp": "6 3" };
+const DASH = { "highs·simplex": "6 3", "highs·ipm": "6 3", "highs·pdlp": "6 3", "ortools·glop": "2 3", "ortools·pdlp": "2 3", "scip·lp": "8 2 2 2", "coin·clp": "8 2 2 2" };
 const keyOf = (r) => `${r.solver}·${r.engine}${r.solver === "ps26119" && r.threads !== 1 && r.threads !== "1" ? "·mt" : ""}`;
 const SHIFT = 1; // seconds, for the shifted geometric mean
 const SHORT = { "ps26119·auto": "ours auto", "ps26119·simplex": "ours simplex", "ps26119·r2hpdhg": "ours r²HPDHG", "ps26119·r2hpdhg·mt": "ours r²HPDHG mt",
-  "highs·simplex": "HiGHS simplex", "highs·ipm": "HiGHS IPM", "highs·pdlp": "HiGHS PDLP" };
+  "highs·simplex": "HiGHS simplex", "highs·ipm": "HiGHS IPM", "highs·pdlp": "HiGHS PDLP", "ortools·glop": "GLOP", "ortools·pdlp": "OR-T PDLP", "scip·lp": "SCIP", "coin·clp": "CLP" };
 
 export function mount(root) {
-  let data = null, set = "all";
+  let data = null, set = "all", runIdx = 0;
   const body = h("div.grid", { style: { gap: "14px" } });
   root.append(
-    h("div.page-head", h("div", h("div.eyebrow", "10 · real-world solvers"), h("h1", "ps26119 vs HiGHS"),
-      h("p", "The PS asks for comparison with real-world solvers. HiGHS — the open-source solver inside SciPy and JuMP — is run on the same models, engine by engine: its dual simplex, its interior point and its PDLP (the CPU cuPDLP-C port, the same algorithm family as our r²HPDHG). Both sides are timed on the solve call only and judged by the same rule: Optimal AND the independent verifier passes AND within 1e-6 of the reference optimum."))),
+    h("div.page-head", h("div", h("div.eyebrow", "10 · real-world solvers"), h("h1#cmp-title", "ps26119 vs real-world solvers"),
+      h("p", "The PS asks for comparison with real-world solvers. HiGHS (the open-source solver inside SciPy and JuMP: dual simplex, interior point, PDLP), Google OR-Tools (GLOP simplex and Google's own PDLP — the reference implementation of the algorithm family of our r²HPDHG) and, where the committed run has them, SCIP and COIN-OR CLP run the same models, engine by engine. Every side is timed on the solve call only and judged by the same rule: Optimal AND the independent verifier passes AND within 1e-6 of the reference optimum. Any single model can also be raced live against all of them on the Solve page."))),
     body);
 
   function draw() {
     if (!data) { body.replaceChildren(h("div.panel", h("div.empty", "reading the comparison…"))); return; }
-    const run = data.runs[0];
+    const run = data.runs[Math.min(runIdx, data.runs.length - 1)];  // newest committed run first
     if (!run) {
       body.replaceChildren(h("div.panel", h("div.empty", "no committed comparison yet — run bench/compare_highs.py and commit its CSV")));
       return;
@@ -48,7 +50,8 @@ export function mount(root) {
       return t.length ? Math.exp(t.reduce((a, x) => a + Math.log(x + SHIFT), 0) / t.length) - SHIFT : null;
     };
     const sg = Object.fromEntries(keys.map((k) => [k, sgm(k)]));
-    const bestHighs = keys.filter((k) => k.startsWith("highs")).reduce((a, k) => (!a || count[k] > count[a] ? k : a), null);
+    // the strongest reference engine (most solved; ties: faster shifted geometric mean)
+    const bestHighs = keys.filter((k) => !k.startsWith("ps26119")).reduce((a, k) => (!a || count[k] > count[a] || (count[k] === count[a] && sg[k] < sg[a]) ? k : a), null);
 
     // performance profile over instances some solver solved
     const solvable = insts.filter((i) => keys.some((k) => solved(byInst[i][k])));
@@ -61,12 +64,15 @@ export function mount(root) {
 
     const kpis = h("div.kpis",
       h("div.kpi.hl.big", h("div.k", "ps26119 auto · solved"), h("div.v", `${count["ps26119·auto"] ?? 0}/${insts.length}`), h("div.s", "Optimal + verified + matches the reference")),
-      bestHighs ? h("div.kpi.big", h("div.k", "HiGHS best · solved"), h("div.v", `${count[bestHighs]}/${insts.length}`), h("div.s", LABEL[bestHighs])) : null,
+      bestHighs ? h("div.kpi.big", h("div.k", "best reference · solved"), h("div.v", `${count[bestHighs]}/${insts.length}`), h("div.s", LABEL[bestHighs])) : null,
       h("div.kpi", h("div.k", "within 2× of fastest"), h("div.v", `${within("ps26119·auto", 2)} / ${bestHighs ? within(bestHighs, 2) : "—"}`), h("div.s", `ours auto / ${bestHighs ? LABEL[bestHighs] : "HiGHS"} · of ${solvable.length}`)),
       h("div.kpi.span2", h("div.k", "shifted geometric mean time"), h("div.v", `${fsec(sg["ps26119·auto"])} / ${bestHighs ? fsec(sg[bestHighs]) : "—"}`), h("div.s", `ours auto / ${bestHighs ? LABEL[bestHighs] : ""} · shift ${SHIFT} s, unsolved = limit`)),
       h(`div.kpi.${claimsRejected["ps26119·auto"] === 0 ? "okc" : "badc"}`, h("div.k", "claims rejected · ours"), h("div.v", `${claimsRejected["ps26119·auto"] ?? 0}`), h("div.s", "ours auto — by the independent verifier or the reference")));
 
-    const setSeg = h("div.seg", { style: { maxWidth: "420px" } }, [["all", "all models"], ["netlib", "Netlib"], ["scale", "large / refinery"]].map(([v, l]) =>
+    const runSel = data.runs.length > 1 ? h("select.input", { style: { width: "auto" }, onchange: (e) => { runIdx = +e.target.value; set = "all"; draw(); } },
+      data.runs.map((x, i) => h("option", { value: i, selected: i === runIdx || null },
+        `${x.source.date || ""} · ${x.machine} · ${[...new Set(x.rows.filter((r) => r.solver !== "ps26119").map((r) => r.solver))].join(" + ")} · ${x.source.git_hash}`))) : null;
+    const setSeg = h("div.seg", { style: { maxWidth: "520px" } }, [["all", "all models"], ["netlib", "Netlib"], ["kennington", "Kennington"], ["scale", "large / refinery"]].filter(([v]) => v === "all" || run.rows.some((r) => r.set === v)).map(([v, l]) =>
       h("button", { class: set === v ? "on" : null, onclick: () => { set = v; draw(); } }, l)));
 
     const profile = h("div.panel", { style: { gridColumn: "1 / -1" } },
@@ -82,7 +88,7 @@ export function mount(root) {
     const rej = h("div.panel", h("div.panel-h", "When a solver says ‘Optimal’ but is not"),
       h("table.t", h("thead", h("tr", h("th", "engine"), h("th.num", "Optimal claims"), h("th.num", "rejected"), h("th", "why it matters"))),
         h("tbody", keys.map((k) => { const claims = insts.filter((i) => byInst[i][k]?.status === "Optimal").length;
-          return h("tr", h("td.mono", LABEL[k]), h("td.num", claims), h("td.num", { class: claimsRejected[k] ? "warn" : "ok" }, claimsRejected[k]), h("td.dim", k.startsWith("ps26119") ? "ours: the in-process gate withdraws Optimal when the original model is violated" : "HiGHS's own stopping test; checked here by our verifier")); }))),
+          return h("tr", h("td.mono", LABEL[k]), h("td.num", claims), h("td.num", { class: claimsRejected[k] ? "warn" : "ok" }, claimsRejected[k]), h("td.dim", k.startsWith("ps26119") ? "ours: the in-process gate withdraws Optimal when the original model is violated" : "its own stopping test; checked here by our verifier")); }))),
       h("div.note", "A rejected claim is an answer its own solver called optimal that violates the original model beyond 1e-6 (worst row, relative) or misses the reference optimum. First-order methods with norm-based stopping tests are the usual source."));
 
     const pts = insts.map((i) => ({ i, a: byInst[i]["ps26119·auto"], b: byInst[i]["highs·simplex"] })).filter(({ a, b }) => solved(a) && solved(b));
@@ -92,9 +98,9 @@ export function mount(root) {
       h("div.note", `Below the diagonal (green) ours is faster: ${pts.filter((p) => p.a.seconds <= p.b.seconds).length} of ${pts.length}. HiGHS is a mature, heavily optimized simplex; the honest reading is where each wins.`));
 
     // large models: heat-map table
-    const scaleInsts = [...new Set(run.rows.filter((r) => r.set === "scale").map((r) => r.instance))];
+    const scaleInsts = [...new Set(run.rows.filter((r) => r.set === "scale" || r.set === "kennington").map((r) => r.instance))];
     const heat = scaleInsts.length ? h("div.panel", { style: { gridColumn: "1 / -1" } },
-      h("div.panel-h", "Large and refinery models · time to a verified optimum", h("span.right.dim", "green = fastest verified · — = not solved (limit or rejected)")),
+      h("div.panel-h", "Kennington, large and refinery models · time to a verified optimum", h("span.right.dim", "green = fastest verified · — = not solved (limit or rejected)")),
       h("div", { style: { overflowX: "auto" } }, h("table.t", h("thead", h("tr", h("th", "model"), h("th.num", "rows"), h("th.num", "nonzeros"), ...Object.keys(LABEL).map((k) => h("th.num", { title: LABEL[k] }, SHORT[k])))),
         h("tbody", scaleInsts.map((i) => {
           const rs = Object.fromEntries(run.rows.filter((r) => r.instance === i).map((r) => [keyOf(r), r]));
@@ -108,7 +114,7 @@ export function mount(root) {
             return h("td.num", { style: { background: q <= 1.0001 ? "rgba(61,220,151,.18)" : q <= 3 ? "rgba(92,225,230,.08)" : "transparent", color: q <= 1.0001 ? "var(--ok)" : null }, title: `${fratio(q)} of the fastest` }, fsec(r.seconds));
           }));
         })))),
-      h("div.note", "Generated models with an optimum known by construction (refinery structure, synthetic prices; random sparse). The reference is that known optimum, so no solver is judged against another.")) : null;
+      h("div.note", "Kennington: the 16 public military-airlift LPs (reference: published optimum). Generated models: an optimum known by construction (refinery structure, synthetic prices; random sparse). No solver is judged against another.")) : null;
 
     const table = h("details.panel", { style: { gridColumn: "1 / -1" } }, h("summary.panel-h", `Every run (${all.length} rows)`),
       h("div", { style: { overflowX: "auto", maxHeight: "480px" } }, h("table.t", h("thead", h("tr", ...["model", "engine", "status", "time", "iterations", "objective", "err vs ref", "verify", "solved"].map((x) => h("th", x)))),
@@ -116,8 +122,8 @@ export function mount(root) {
           h("td.num", fnum(r.objective, 11)), h("td.num", fexp(r.rel_err_ref)), h("td.mono", r.verify), h("td", { class: r.solved === "yes" ? "ok" : "dim" }, r.solved)))))));
 
     body.replaceChildren(...[
-      h("div.panel", h("div.panel-b", { style: { display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" } }, setSeg,
-        h("span.dim", `${run.solver_versions.join(" · ")} · ${run.source.cpu} · ${run.rows[0]?.cpu_cores || "?"} cores`), h("span", { style: { marginLeft: "auto" } }, srcChip(run.source)))),
+      h("div.panel", h("div.panel-b", { style: { display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" } }, runSel, setSeg,
+        h("span.dim", `${run.solver_versions.join(" · ")} · ${run.source.cpu} · ${run.rows[0]?.cpu_cores || "?"} cores`), h("span", { style: { marginLeft: "auto", display: "flex", gap: "6px" } }, (run.sources || [run.source]).map((x) => srcChip(x))))),
       kpis, profile, h("div.grid.g2", bars, scatter), rej, heat, table].filter(Boolean));
   }
 

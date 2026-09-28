@@ -39,6 +39,8 @@ def solve_with_highs(model_path: str, out_path: str, time_limit: float = 0.0, op
     lp.a_matrix_.value_ = np.asarray(m.value, float)
     lp.offset_ = m.obj_offset
     lp.sense_ = highspy.ObjSense.kMaximize if m.sense == -1 else highspy.ObjSense.kMinimize
+    if any(m.is_integer):  # a MILP stays a MILP (HiGHS branch and cut), never its LP relaxation
+        lp.integrality_ = [highspy.HighsVarType.kInteger if v else highspy.HighsVarType.kContinuous for v in m.is_integer]
     h.passModel(lp)
     t0 = time.perf_counter()
     h.run()

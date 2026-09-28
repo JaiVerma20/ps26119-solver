@@ -24,7 +24,8 @@ MODEL_DIRS = [
     ("Generated (large)", "bench/generated", "generated LPs with known optimum: refinery planning, random sparse"),
     ("Netlib (all 93)", "data/netlib", "full Netlib LP set (fetched by tools/fetch_netlib.py)"),
     ("MIPLIB 3", "data/miplib3", "small MIPLIB 3 (fetched by tools/fetch_miplib3.py)"),
-    ("Uploaded", "apps/ui/.runs/uploads", "models uploaded through the UI"),
+    ("Kennington", "data/kennington", "16 large Kennington LPs (fetched by tools/fetch_kennington.py)"),
+    ("Your models", "apps/ui/.runs/uploads", "models uploaded or written on the Solve page"),
 ]
 MODEL_EXT = (".mps", ".lpm")
 

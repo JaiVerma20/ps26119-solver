@@ -39,6 +39,9 @@ main{padding:0;max-width:none}.cert{border-color:#9aa8b6}h2{break-after:avoid}}
 """
 
 
+SETS = (("netlib", "Netlib"), ("kennington", "Kennington"), ("scale", "large"))
+
+
 def e(v) -> str:
     return html.escape("" if v is None else str(v))
 
@@ -146,16 +149,18 @@ def evidence_html() -> str:
             return f'{r["solver"]} {r["engine"]}' + (" (all cores)" if r["solver"] == "ps26119" and str(r["threads"]).split(".")[0] != "1" else "")
         keys = list(dict.fromkeys(key(r) for r in rows))
         out.append(f'<h3>Against a real-world solver · {e(" vs ".join(run["solver_versions"]))}</h3>'
-                   '<table><thead><tr><th>engine</th><th class=num>Netlib solved</th><th class=num>large solved</th>'
+                   '<table><thead><tr><th>engine</th>' + "".join(f"<th class=num>{lab} solved</th>" for sid, lab in SETS
+                                                                if any(r["set"] == sid for r in rows)) +
                    '<th class=num>"Optimal" claims rejected</th></tr></thead><tbody>')
+        present = [sid for sid, _ in SETS if any(r["set"] == sid for r in rows)]
         for k in keys:
             cells = []
-            for sid in ("netlib", "scale"):
+            for sid in present:
                 rs = [r for r in rows if key(r) == k and r["set"] == sid]
                 cells.append(f'{sum(r["solved"] == "yes" for r in rs)}/{len(rs)}' if rs else "–")
             claims = [r for r in rows if key(r) == k and r["status"] == "Optimal"]
             rej = sum(r["solved"] != "yes" for r in claims)
-            out.append(f'<tr><td class=mono>{e(k)}</td><td class=num>{cells[0]}</td><td class=num>{cells[1]}</td>'
+            out.append(f'<tr><td class=mono>{e(k)}</td>' + "".join(f"<td class=num>{c}</td>" for c in cells) +
                        f'<td class=num>{rej} of {len(claims)}</td></tr>')
         out.append("</tbody></table>" + src(run["source"]) +
                    '<p class="note">Same models, same machine, one rule for both solvers: Optimal AND tools/verify.py PASS AND '

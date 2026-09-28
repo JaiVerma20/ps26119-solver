@@ -15,6 +15,7 @@ export function h(tag, attrs, ...children) {
     if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
     else if (k === "html") el.innerHTML = v;
     else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+    else if (k === "class") String(v).split(/\s+/).forEach((c) => c && el.classList.add(c));  // added to the tag's classes
     else el.setAttribute(k, v === true ? "" : v);
   }
   append(el, children);

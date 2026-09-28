@@ -148,7 +148,7 @@ export function mount(root) {
     recent.replaceChildren(h("table.t", h("thead", h("tr", h("th", "when"), h("th", "model"), h("th", "status"), h("th", "engine"),
       h("th.num", "rows"), h("th.num", "objective"), h("th.num", "time"), h("th", "independent verify"), h("th", ""))),
       h("tbody", runs.map((r) => h("tr", h("td.mono.dim", new Date(r.created * 1000).toLocaleTimeString()), h("td.mono", r.model.split("/").pop()),
-        h("td", statusBadge(r.status)), h("td.mono", r.engine || "—"), h("td.num", fint(r.rows)), h("td.num", fnum(r.objective, 10)), h("td.num", fsec(r.seconds)),
+        h("td", r.status ? statusBadge(r.status) : r.error ? h("span.badge.bad", { title: r.error }, "error") : statusBadge(r.status)), h("td.mono", r.engine || (r.error ? h("span.dim", { title: r.error }, r.error.slice(0, 48)) : "—")), h("td.num", fint(r.rows)), h("td.num", fnum(r.objective, 10)), h("td.num", fsec(r.seconds)),
         h("td", passBadge(r.verdict)), h("td", r.status ? h("a", { href: `#/certificate?job=${r.id}` }, "certificate ▸") : ""))))));
   }
 

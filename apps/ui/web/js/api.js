@@ -17,6 +17,14 @@ export const api = {
   compare: () => get("/api/compare"),
   coverage: () => get("/api/coverage"),
   preflight: () => get("/api/preflight"),
+  references: () => get("/api/references"),
+  modelExamples: () => get("/api/model/examples"),
+  async modelText(name, text) {
+    const r = await fetch("/api/model/text", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, text }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || r.statusText);
+    return j;
+  },
   async prepare() {
     const r = await fetch("/api/preflight/prepare", { method: "POST" });
     const j = await r.json();
@@ -25,6 +33,7 @@ export const api = {
   },
   runs: () => get("/api/runs"),
   certificate: (job) => get(`/api/jobs/${job}/certificate`),
+  job: (job) => get(`/api/jobs/${job}`),
   // the self-contained HTML report (certificates of these runs + optionally the evidence)
   reportUrl: (jobs, { evidence = true, download = false, title = "", format = "" } = {}) =>
     `/api/report?jobs=${jobs.join(",")}&evidence=${evidence ? 1 : 0}${download ? "&download=1" : ""}${format ? `&format=${format}` : ""}${title ? `&title=${encodeURIComponent(title)}` : ""}`,

@@ -3,6 +3,7 @@
 hygiene, a real end-to-end solve + independent verification over HTTP, and the evidence endpoint.
 Run by ctest (ui.backend) with the built binary as argv[1]."""
 import json
+import math
 import os
 import sys
 import tempfile
@@ -52,6 +53,28 @@ class Parsing(unittest.TestCase):
         for bad in ({"algorithm": "cplex"}, {"precision": "fp16"}, {"threads": -1}, {"time_limit": 0},
                     {"time_limit": "abc"}, {"tol": -1}):
             self.assertIsNotNone(runner.validate_options(bad)[1], bad)
+
+    def test_typed_models_become_the_model_contract(self):
+        from backend import lptext
+        m = lptext.parse(lptext.EXAMPLES["wyndor"], "wyndor")
+        self.assertEqual((m.sense, m.num_rows, m.num_cols, m.obj), (-1, 3, 2, [3.0, 5.0]))
+        self.assertEqual((m.row_lower, m.row_upper), ([-math.inf] * 3, [4.0, 12.0, 18.0]))
+        self.assertEqual((m.col_start, m.row_index, m.value), ([0, 2, 4], [0, 2, 1, 2], [1.0, 3.0, 2.0, 2.0]))
+        self.assertEqual((m.row_names, m.col_names), (["plant1", "plant2", "plant3"], ["doors", "windows"]))
+        # both sides, ranged rows, constants, bounds, integers, lp_solve style
+        m = lptext.parse("min: 3*x + 2.5e1 y - 7;\n -5 <= x - y <= 5;\n x + 2 <= 3 y;\n int y;\n", "t")
+        self.assertEqual((m.obj, m.obj_offset), ([3.0, 25.0], -7.0))
+        self.assertEqual((m.row_lower, m.row_upper), ([-5.0, -math.inf], [5.0, -2.0]))
+        self.assertEqual(m.value, [1.0, 1.0, -1.0, -3.0])
+        self.assertEqual(m.is_integer, [0, 1])
+        m = lptext.parse("max a\nst\n 10 >= a + b\nbounds\n a <= 4; -inf <= b <= 2; c free\nbinary d\nend", "t")
+        self.assertEqual((m.col_lower, m.col_upper), ([0.0, -math.inf, -math.inf, 0.0], [4.0, 2.0, math.inf, 1.0]))
+        self.assertEqual(m.is_integer, [0, 0, 0, 1])
+        for bad, line in (("st x <= 1", 1), ("max x\nst\n x <= y <= 3", 3), ("max x\nst\n x 3 y <= 3", 3),
+                          ("max x\nst\n c: x <= 1\n c: x <= 2", 4), ("max x\nst\n 5 <= x <= 3", 3), ("max x", 1)):
+            with self.assertRaises(lptext.LpTextError, msg=bad) as cm:
+                lptext.parse(bad)
+            self.assertEqual(cm.exception.line, line, bad)
 
     def test_json_never_contains_nan_or_infinity(self):
         # an Infeasible objective is NaN; JSON.parse in the browser rejects NaN and drops the event
@@ -140,6 +163,29 @@ class Endpoints(unittest.TestCase):
         self.assertEqual((ev["result"]["rows"], ev["result"]["cols"], ev["result"]["nnz"]), (27, 32, 83))
         self.assertTrue(ev["result"]["check_line"].startswith("PASS"))
         self.assertEqual(ev["verify"]["report"]["verdict"], "PASS")
+
+    def test_sensitivity_ranging_reaches_the_page(self):
+        code, j = self.post("/api/solve", {"path": "data/netlib_small/afiro.mps", "algorithm": "simplex", "ranging": True})
+        self.assertEqual(code, 200)
+        for _ in range(600):
+            d = self.get(f"/api/jobs/{j['job']}")
+            if d["done"]:
+                break
+            time.sleep(0.1)
+        ev = {e["type"]: e for e in d["events"]}
+        self.assertNotIn("error", ev, ev.get("error"))
+        rg = ev["result"]["ranging"]
+        self.assertTrue(rg["ok"], rg)
+        self.assertEqual((rg["n_costs"], rg["n_rows"]), (32, 27))
+        # binding rows first, by |dual|; basic columns first
+        st = [r["status"] != "not_binding" for r in rg["rows"]]
+        self.assertEqual(st, sorted(st, reverse=True))
+        duals = [abs(r["dual"]) for r in rg["rows"] if r["status"] != "not_binding"]
+        self.assertEqual(duals, sorted(duals, reverse=True))
+        self.assertEqual(rg["costs"][0]["status"], "basic")
+        # a refusal reaches the page with the CLI's reason
+        refused = runner.ranging_summary(os.path.join(os.environ["PS26119_UI_RUNS"], "none.csv"), "ranging    refused: ranging needs an Optimal solution\n")
+        self.assertEqual(refused, {"ok": False, "message": "ranging needs an Optimal solution"})
 
     def test_infeasible_result_survives_json_and_carries_its_certificate(self):
         code, j = self.post("/api/solve", {"path": "data/examples/infeasible.mps", "algorithm": "simplex"})
@@ -358,6 +404,45 @@ class Endpoints(unittest.TestCase):
         self.assertEqual(cm.exception.code, 409)
         self.assertNotIn(j["job"], [r["id"] for r in self.get("/api/runs")])
 
+    def test_a_typed_model_is_saved_solved_and_verified(self):
+        for ext in (".lpm", ".lp.txt"):  # the uploads folder is the user's: leave nothing behind
+            self.addCleanup(lambda p=os.path.join(paths.UPLOADS, "ui_test_typed" + ext): os.path.exists(p) and os.remove(p))
+        code, r = self.post("/api/model/text", {"name": "ui_test_typed", "text": self.get("/api/model/examples")["examples"]["blend"]})
+        self.assertEqual(code, 200, r)
+        self.assertEqual((r["rows"], r["cols"], r["sense"]), (4, 4, "minimize"))
+        self.assertTrue(r["path"].endswith("ui_test_typed.lpm"))
+        code, j = self.post("/api/solve", {"path": r["path"], "algorithm": "simplex"})
+        self.assertEqual(code, 200, j)
+        ev = self.wait(j["job"])
+        self.assertEqual(ev["result"]["solution"]["status"], "Optimal")
+        self.assertEqual(ev["verify"]["report"]["verdict"], "PASS")
+        code, e = self.post("/api/model/text", {"name": "ui_test_typed", "text": "max x\nst\n x 3 y <= 3\n"})
+        self.assertEqual((code, e["line"]), (400, 3))
+        self.assertEqual(self.post("/api/model/text", {"name": "../evil", "text": "max x\nst\n x <= 1"})[0], 400)
+
+    def test_every_installed_reference_solver_is_verified_like_ours(self):
+        refs = {r["key"]: r for r in self.get("/api/references")["references"]}
+        self.assertTrue({"highs-simplex", "ortools-glop", "scip", "coin-clp", "coin-cbc"} <= set(refs))
+        self.assertTrue(refs["highs-simplex"]["available"])  # highspy is a hard dependency of the tools
+        for key, r in refs.items():
+            if not r["available"]:
+                self.assertEqual(self.post("/api/reference", {"path": "data/netlib_small/afiro.mps", "solver": key})[0], 400)
+                continue
+            model, want = ("data/netlib_small/afiro.mps", -464.75314286) if r["lp"] else ("data/mip_small/gt2.lpm", 21166.0)
+            code, j = self.post("/api/reference", {"path": model, "solver": key, "time_limit": 60})
+            self.assertEqual(code, 200, (key, j))
+            ev = self.wait(j["job"])
+            self.assertEqual(ev["result"]["status"], "Optimal", key)
+            # every Optimal claim is judged; first-order PDLP answers are only ~1e-8 relative-KKT accurate
+            # and may honestly FAIL the verifier's 1e-6 worst-row test
+            pdlp = key.endswith("pdlp")
+            self.assertLess(abs(ev["result"]["objective"] - want) / (1 + abs(want)), 1e-4 if pdlp else 1e-8, key)
+            self.assertIn(ev["verify"]["report"]["verdict"], ("PASS", "FAIL") if pdlp else ("PASS",), key)
+        # an LP-only solver is refused on a MILP (it would answer the LP relaxation)
+        code, j = self.post("/api/reference", {"path": "data/mip_small/gt2.lpm", "solver": "highs-simplex"})
+        self.assertEqual(code, 400)
+        self.assertIn("LPs only", j["error"])
+
     def test_coverage_is_parsed_from_the_status_matrix(self):
         c = self.get("/api/coverage")
         self.assertEqual(c["source"], "docs/SIH_STATUS.md")
@@ -373,8 +458,8 @@ class Endpoints(unittest.TestCase):
         c = self.get("/api/compare")
         self.assertIn("runs", c)
         for run in c["runs"]:  # zero runs is valid until a comparison CSV is committed
-            self.assertRegex(run["source"]["file"], r"^compare-highs-.+-[0-9a-f]{7}\.csv$")
-            self.assertTrue({r["solver"] for r in run["rows"]} <= {"ps26119", "highs"})
+            self.assertRegex(run["source"]["file"], r"^compare-(highs|ortools|scip|coin)(-(ortools|scip|coin))*-.+-[0-9a-f]{7}\.csv$")
+            self.assertTrue({r["solver"] for r in run["rows"]} <= {"ps26119", "highs", "ortools", "scip", "coin"})
             for r in run["rows"]:
                 self.assertIn(r["solved"], ("yes", "no"))
                 if r["solved"] == "yes":  # the rule the page states: Optimal + verified + within 1e-6

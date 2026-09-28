@@ -26,6 +26,7 @@
 #include "io/solution_reader.h"
 #include "io/solution_writer.h"
 #include "ps26119/batch.h"
+#include "ps26119/ranging.h"
 #include "ps26119/solve.h"
 #include "ps26119/version.h"
 #include "ps26119_build_info.h"
@@ -35,6 +36,8 @@
 using namespace ps26119;
 
 namespace {
+
+bool write_ranging(const std::string& path, const Model& model, const RangingResult& rg);  // below
 
 void usage(std::FILE* f) {
   std::fprintf(f,
@@ -59,6 +62,8 @@ void usage(std::FILE* f) {
                "  --tol <eps>                            relative KKT tolerance, first-order engines (default 1e-8)\n"
                "  --time-limit <seconds>   --iteration-limit <n>\n"
                "  --out <file>                           write the solution file (tools/verify.py reads it)\n"
+               "  --ranging <file>                       cost and right-hand-side ranging at the optimal vertex (CSV;\n"
+               "                                         LPs solved by the simplex / oracle)\n"
                "  --warm <file>                          warm start from a previous solution file (same model shape)\n"
                "  --warm-weight                          with --warm: also reuse its primal weight (faster on some\n"
                "                                         re-solves, slower on others; see bench/warm_start.py)\n"
@@ -179,6 +184,7 @@ int cmd_inspect(const std::string& what, int argc, char** argv) {
 
 int cmd_solve(int argc, char** argv) {
   std::string path, out, warm;
+  std::string ranging_out;  // --ranging: cost / rhs ranging CSV (optimal LP at a vertex)
   bool warm_weight = false;
   auto positive = [](const char* flag, const char* s, double& v) { v = parse_number(flag, s, true); };
   Options opt;
@@ -225,6 +231,8 @@ int cmd_solve(int argc, char** argv) {
       opt.engine_params.push_back(parse_set(next()));
     } else if (a == "--out") {
       out = next();
+    } else if (a == "--ranging") {
+      ranging_out = next();
     } else if (a == "-v") {
       opt.verbosity = 1;
     } else if (a == "-vv") {
@@ -245,6 +253,10 @@ int cmd_solve(int argc, char** argv) {
   }
   if (!out.empty() && !output_writable(out)) {
     std::fprintf(stderr, "cannot write the solution file '%s'\n", out.c_str());
+    return kExitWriteError;
+  }
+  if (!ranging_out.empty() && !output_writable(ranging_out)) {
+    std::fprintf(stderr, "cannot write the ranging file '%s'\n", ranging_out.c_str());
     return kExitWriteError;
   }
 
@@ -310,7 +322,45 @@ int cmd_solve(int argc, char** argv) {
       return kExitWriteError;
     }
   }
+  if (!ranging_out.empty()) {
+    const RangingResult rg = compute_ranging(model, sol);
+    if (!rg.ok) {
+      std::printf("ranging    refused: %s\n", rg.message.c_str());
+    } else if (!write_ranging(ranging_out, model, rg)) {
+      std::fprintf(stderr, "cannot write the ranging file '%s'\n", ranging_out.c_str());
+      return kExitWriteError;
+    } else {
+      std::printf("ranging    %zu costs, %zu rows -> %s%s%s\n", rg.cols.size(), rg.rows.size(), ranging_out.c_str(),
+                  rg.message.empty() ? "" : "  (", rg.message.empty() ? "" : (rg.message + ")").c_str());
+    }
+  }
   return exit_code(sol.status);
+}
+
+// a name as one CSV field: quoted (with doubled quotes) when it holds a comma, a quote or a blank
+std::string csv_field(const std::string& s) {
+  if (s.find_first_of(",\" \t") == std::string::npos) return s;
+  std::string q = "\"";
+  for (char ch : s) q += ch == '"' ? std::string("\"\"") : std::string(1, ch);
+  return q + "\"";
+}
+
+// --ranging: one CSV row per objective coefficient and per row (see include/ps26119/ranging.h)
+bool write_ranging(const std::string& path, const Model& model, const RangingResult& rg) {
+  std::FILE* f = std::fopen(path.c_str(), "w");
+  if (!f) return false;
+  std::fprintf(f, "kind,index,name,value,status,lower,upper,dual_or_reduced_cost\n");
+  for (const CostRange& c : rg.cols) {
+    const std::string nm = c.col < static_cast<int>(model.col_names.size()) ? csv_field(model.col_names[c.col]) : "";
+    std::fprintf(f, "cost,%d,%s,%.17g,%s,%.17g,%.17g,%.17g\n", c.col, nm.c_str(), c.cost, c.basic ? "basic" : "nonbasic", c.lower,
+                 c.upper, c.reduced_cost);
+  }
+  for (const RhsRange& r : rg.rows) {
+    const std::string nm = r.row < static_cast<int>(model.row_names.size()) ? csv_field(model.row_names[r.row]) : "";
+    const char* st = r.binding > 0 ? "upper_binding" : r.binding < 0 ? "lower_binding" : "not_binding";
+    std::fprintf(f, "rhs,%d,%s,%.17g,%s,%.17g,%.17g,%.17g\n", r.row, nm.c_str(), r.bound, st, r.lower, r.upper, r.dual);
+  }
+  return std::fclose(f) == 0;
 }
 
 int cmd_batch(int argc, char** argv) {

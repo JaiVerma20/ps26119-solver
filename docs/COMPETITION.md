@@ -48,12 +48,12 @@ Earlier survey: `docs/RESEARCH.md` §2.
 
 | priority | item | owner | status |
 |---|---|---|---|
-| 1 | ps26119 vs HiGHS, engine by engine, all of Netlib + refinery models, same verifier | Jai | `bench/compare_highs.py` + UI page "vs HiGHS" |
+| 1 | ps26119 vs HiGHS and OR-Tools, engine by engine, Netlib + Kennington + refinery models, same verifier; live SCIP / CLP / CBC | Jai | done: `bench/compare_highs.py`, UI "vs solvers" page, Solve-page live comparison |
 | 2 | Datacenter-GPU run (A100 / L4 / university server) of `scripts/gpu_check.sh` | Shivanshu | NEXT_STEPS item 2 |
 | 3 | Simplex speed: incremental dual update, then Forrest–Tomlin + hypersparse FTRAN/BTRAN | Shivanshu | NEXT_STEPS item 4 |
-| 4 | Sensitivity ranging (cost + RHS) from the final basis — planners ask for it | team | not started (new code in `src/`, needs agreement) |
+| 4 | Sensitivity ranging (cost + RHS) from the final basis — planners ask for it | team | done: `solve --ranging`, `src/core/ranging.cpp`, UI Ranging tab (re-solve property test + `bench/ranging_crosscheck.py` vs HiGHS) |
 | 5 | Crossover from the PDHG iterate to a vertex (exact duals, ranging for large models) | Jai | M3 (CLAUDE.md §11) |
-| 6 | Mittelmann LP subset + Kennington, reported with failures | Jai | not started |
+| 6 | Mittelmann LP subset + Kennington, reported with failures | Jai | Kennington done (16/16, EVIDENCE §2d); Mittelmann not started |
 | 7 | MILP: cuts (Gomory / MIR) and a primal heuristic | team | prototype today (12/14 small MIPLIB 3) |
 | 8 | QP (the PS lists QP) | team | not started |
 

@@ -362,3 +362,24 @@ details.panel > summary::before { content: "▸ "; color: var(--accent); } detai
 .stale-banner { position: fixed; left: 0; right: 0; top: 0; z-index: 50; padding: 8px 16px; background: #3a2a06; color: var(--warn);
   border-bottom: 1px solid rgba(255,181,71,.5); font-size: 13px; text-align: center; }
 .stale-banner code { font: 12px var(--mono); color: var(--text); }
+
+/* ------------------------------------------------------------------ live comparison: solver picker */
+.pick { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 13px; cursor: pointer;
+  background: var(--bg-2); border: 1px solid var(--line-2); font: 11px var(--mono); color: var(--text-2); white-space: nowrap; }
+.pick .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
+.pick.on { border-color: var(--accent-2); color: var(--text); background: var(--accent-dim); }
+.pick:disabled { opacity: .35; cursor: not-allowed; }
+.picks { display: flex; flex-wrap: wrap; gap: 6px; }
+tr.ours td { background: rgba(92,225,230,.05); }
+
+/* ------------------------------------------------------------------ write your own model */
+.editor-ta { color: var(--text); background: #06080b; width: 100%; height: auto; min-height: 260px; padding: 10px 12px; line-height: 1.55; font-size: 12.5px; resize: vertical; tab-size: 2; }
+.editor-status { font: 11.5px var(--mono); }
+.t.grid-ed { width: auto; }
+.grid-ed td, .grid-ed th { padding: 3px 4px; }
+.grid-ed .cell { height: 26px; width: 84px; padding: 0 6px; font-size: 12px; }
+.grid-ed select.cell { width: 96px; }
+.grid-ed tr.obj td { background: rgba(92,225,230,.05); }
+.grid-ed tr.bnd td { background: rgba(255,255,255,.015); }
+.grid-ed button.x { background: none; border: 0; color: var(--text-3); cursor: pointer; font-size: 13px; padding: 0 3px; }
+.grid-ed button.x:hover { color: var(--bad); }

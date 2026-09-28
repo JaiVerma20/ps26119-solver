@@ -12,7 +12,7 @@ const SHOW = [
   [/duals/i, "#/solve", "solve · solution table"], [/infeasible/i, "#/demo?step=3", "live Farkas certificate"],
   [/robust/i, "#/verify", "verification chain"], [/large-scale/i, "#/demo?step=5", "live refinery year"],
   [/GPU/i, "#/gpu", "GPU evidence"], [/MILP/i, "#/demo?step=4", "live MILP"], [/what-if|scenario/i, "#/scenarios", "what-if planning"],
-  [/comparison with real-world/i, "#/compare", "vs HiGHS"], [/user interface/i, "#/demo", "jury demo"],
+  [/comparison with real-world/i, "#/compare", "vs solvers"], [/user interface/i, "#/demo", "jury demo"],
   [/reproducible/i, "#/bench", "benchmark evidence"], [/not built on/i, "#/preflight", "system check"],
 ];
 

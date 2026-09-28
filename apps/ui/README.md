@@ -10,6 +10,9 @@ python3 apps/ui/server.py              # → http://127.0.0.1:8765   (--port N, 
 Python 3.10+, standard library only. The browser page loads nothing from the internet (no CDN,
 no fonts), so the demo works offline. `tools/verify.py` needs `highspy` to re-read `.mps` files;
 without it, verification of `.mps` models reports an error and the solve itself is unaffected.
+The live comparison uses whichever reference packages are installed for that interpreter
+(`highspy`, `ortools`, `pyscipopt`, `cylp`; see docs/THIRD_PARTY.md) and shows the others as not
+installed. Gurobi and CPLEX (size-limited free pip editions) are planned, not yet wired in.
 Environment: `PS26119_BIN` (solver binary, default `build/ps26119`), `PS26119_PYTHON`
 (interpreter for verify.py), `PS26119_UI_LOG=1` (request log).
 
@@ -19,13 +22,13 @@ Environment: `PS26119_BIN` (solver binary, default `build/ps26119`), `PS26119_PY
 | 1 | Dashboard | headline results with their source CSV + commit, one-click scenarios, recent runs (kept on disk) with their certificates | `bench/results/*.csv`, runs |
 | 2 | PS coverage | every requirement of PS 26119: status, implementation, test, evidence, remaining work, and a “show me” link to the screen that demonstrates it | parsed live from `docs/SIH_STATUS.md` |
 | 3 | Models | the model library, `ps26119 info` statistics, row/column type split, sparsity picture, test-LP generator | `ps26119 info`, the file |
-| 4 | Solve | engine / backend / precision / threads / limits, the exact CLI command, live progress, 15 result KPIs, residual and objective charts, solver log, primal and dual values; after a run, the same model through HiGHS (tools/highs_ref.py) with the same verifier, side by side | `ps26119 solve -vv` stderr + the solution file |
+| 4 | Solve | engine / backend / precision / threads / limits, the exact CLI command, live progress, 15 result KPIs, residual and objective charts, solver log, primal and dual values, sensitivity ranging (range chart, binding and slack rows); **write your own model** (algebraic text in CPLEX-LP or lp_solve style, or a table grid — parsed by our own `backend/lptext.py` into a `.lpm`); **live comparison**: after a run, the same model through every installed real-world solver — HiGHS (simplex, IPM, PDLP, MIP), OR-Tools (GLOP, PDLP), SCIP, COIN-OR CLP / CBC — one after another, each Optimal answer judged by the same verifier | `ps26119 solve -vv` stderr + the solution file; `tools/*_ref.py` |
 | 5 | Verification | the trust chain of the last run: engine verdict → in-process gate or certificate → rounding-proof bound → fingerprint → independent verifier; solver vs verify.py side by side | the solution file + `verify.py --json` |
 | 6 | Certificate | one projection-grade page per run with the final verdict; export as a self-contained HTML report (print it to PDF), "Present" mode | `/api/jobs/<id>/certificate` |
 | 7 | Scenarios | what-if planning on the refinery LP: price / crude / demand / CDU / FCC levers; cold vs warm-started re-solve (convergence overlay, Δ profit); sweep of one lever through K values in one `ps26119 batch` pass (optionally also one by one); marginal values of capacity and demand from the duals | `ps26119 solve --warm`, `ps26119 batch`, verify.py on every answer |
 | 8 | GPU | every configuration of the committed GPU run (CPU 1 thread / all cores / GPU × fp64 / mixed): time, iterations, objective, error vs known optimum, verify status, speed-ups, sanitizer, GPU-machine facts from its logs | `bench/results/scale-<gpu machine>-<hash>.csv`, `netlib-small-gpu-*.csv`, `bench/results/logs/<machine>-<hash>/` |
 | 9 | Benchmarks | Netlib per engine, certified infeasibility, GPU vs CPU with sanitizer status, large-LP scaling, MIPLIB | `bench/make_evidence.py` rules over `bench/results/` |
-| 0 | vs HiGHS | ps26119 against HiGHS (dual simplex, interior point, PDLP) on Netlib and the large / refinery models under one rule: performance profile, solved counts, head-to-head scatter, heat-map table, Optimal claims rejected by the verifier, every row | `bench/results/compare-highs-<machine>-<hash>.csv` (`bench/compare_highs.py`) |
+| 0 | vs real-world solvers | ps26119 against HiGHS (dual simplex, interior point, PDLP) and OR-Tools (GLOP, PDLP) — SCIP and CLP when the CSV has them — on Netlib, Kennington and the large / refinery models under one rule: performance profile, solved counts, head-to-head scatter, heat-map table, Optimal claims rejected by the verifier, every row | `bench/results/compare-<refs>-<machine>-<hash>.csv` (`bench/compare_highs.py`) |
 | — | System check | demo preflight: binary (and whether it matches the checkout), verifier modules, demo models (generate the missing ones), evidence, disk | checked live |
 | — | Jury demo (`#/demo`, top bar) | full-screen, keyboard-driven walk: AFIRO → verification chain → Farkas certificate → MILP → refinery year → CPU vs GPU → final verification with one exported report | live solves + committed GPU evidence; runbook in `apps/ui/DEMO.md` |
 

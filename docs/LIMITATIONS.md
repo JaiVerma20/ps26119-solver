@@ -25,8 +25,11 @@ Status words: **VERIFIED** (tested + benchmarked with a committed CSV), **IMPLEM
 - **Primal simplex** (VERIFIED on Netlib): full pricing, Devex row recomputed every
   iteration, product-form updates, no hypersparse FTRAN/BTRAN, no Forrest–Tomlin: fine up to
   a few thousand rows, slow beyond ~10⁴ rows (refinery T=365 and rand-10000 in EVIDENCE §2c);
-  dfl001 (6,071 rows) is not solved within 60 s. No basis input/output → **no warm start**, no
-  ranging. Infeasible / Unbounded verdicts carry a Farkas vector / ray that the gate checks on
+  dfl001 (6,071 rows) is not solved within 60 s. No basis input/output → **no warm start**.
+  Sensitivity ranging (`solve --ranging`) reconstructs the basis from the optimal vertex and
+  refuses interior (first-order) answers, non-vertex points and models above 25,000 rows (one
+  FTRAN + one BTRAN per row / basic column, no hypersparsity); ranges are basis-dependent at a
+  degenerate vertex, as in every solver. Infeasible / Unbounded verdicts carry a Farkas vector / ray that the gate checks on
   the original model (DECISIONS #31); a verdict whose certificate fails becomes NumericalError.
   Certificates on free columns are often only tolerance-checked (not rounding-proof).
 - **r²HPDHG / PDLP** (VERIFIED on CPU): first-order accuracy (relative KKT 1e-8, per-row
