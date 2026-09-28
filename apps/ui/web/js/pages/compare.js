@@ -17,6 +17,8 @@ const COLOR = {
 const DASH = { "highs·simplex": "6 3", "highs·ipm": "6 3", "highs·pdlp": "6 3" };
 const keyOf = (r) => `${r.solver}·${r.engine}${r.solver === "ps26119" && r.threads !== 1 && r.threads !== "1" ? "·mt" : ""}`;
 const SHIFT = 1; // seconds, for the shifted geometric mean
+const SHORT = { "ps26119·auto": "ours auto", "ps26119·simplex": "ours simplex", "ps26119·r2hpdhg": "ours r²HPDHG", "ps26119·r2hpdhg·mt": "ours r²HPDHG mt",
+  "highs·simplex": "HiGHS simplex", "highs·ipm": "HiGHS IPM", "highs·pdlp": "HiGHS PDLP" };
 
 export function mount(root) {
   let data = null, set = "all";
@@ -59,17 +61,17 @@ export function mount(root) {
 
     const kpis = h("div.kpis",
       h("div.kpi.hl.big", h("div.k", "ps26119 auto · solved"), h("div.v", `${count["ps26119·auto"] ?? 0}/${insts.length}`), h("div.s", "Optimal + verified + matches the reference")),
-      bestHighs ? h("div.kpi.big", h("div.k", `best HiGHS engine · solved`), h("div.v", `${count[bestHighs]}/${insts.length}`), h("div.s", LABEL[bestHighs])) : null,
-      h("div.kpi", h("div.k", "fastest within 2× · ours / HiGHS"), h("div.v", `${within("ps26119·auto", 2)} / ${bestHighs ? within(bestHighs, 2) : "—"}`), h("div.s", `of ${solvable.length} solvable models (profile at τ = 2)`)),
-      h("div.kpi", h("div.k", "shifted geo-mean time"), h("div.v", `${fsec(sg["ps26119·auto"])} / ${bestHighs ? fsec(sg[bestHighs]) : "—"}`), h("div.s", `ours auto / ${bestHighs ? LABEL[bestHighs] : ""} · shift ${SHIFT} s, unsolved = limit`)),
-      h(`div.kpi.${claimsRejected["ps26119·auto"] === 0 ? "okc" : "badc"}`, h("div.k", "‘Optimal’ claims rejected"), h("div.v", `${claimsRejected["ps26119·auto"] ?? 0}`), h("div.s", "ours auto — by the independent verifier or the reference")));
+      bestHighs ? h("div.kpi.big", h("div.k", "HiGHS best · solved"), h("div.v", `${count[bestHighs]}/${insts.length}`), h("div.s", LABEL[bestHighs])) : null,
+      h("div.kpi", h("div.k", "within 2× of fastest"), h("div.v", `${within("ps26119·auto", 2)} / ${bestHighs ? within(bestHighs, 2) : "—"}`), h("div.s", `ours auto / ${bestHighs ? LABEL[bestHighs] : "HiGHS"} · of ${solvable.length}`)),
+      h("div.kpi.span2", h("div.k", "shifted geometric mean time"), h("div.v", `${fsec(sg["ps26119·auto"])} / ${bestHighs ? fsec(sg[bestHighs]) : "—"}`), h("div.s", `ours auto / ${bestHighs ? LABEL[bestHighs] : ""} · shift ${SHIFT} s, unsolved = limit`)),
+      h(`div.kpi.${claimsRejected["ps26119·auto"] === 0 ? "okc" : "badc"}`, h("div.k", "claims rejected · ours"), h("div.v", `${claimsRejected["ps26119·auto"] ?? 0}`), h("div.s", "ours auto — by the independent verifier or the reference")));
 
     const setSeg = h("div.seg", { style: { maxWidth: "420px" } }, [["all", "all models"], ["netlib", "Netlib"], ["scale", "large / refinery"]].map(([v, l]) =>
       h("button", { class: set === v ? "on" : null, onclick: () => { set = v; draw(); } }, l)));
 
     const profile = h("div.panel", { style: { gridColumn: "1 / -1" } },
-      h("div.panel-h", "Performance profile (Dolan–Moré)", h("span.right.dim", `${solvable.length} models solved by at least one engine`)),
-      h("div.panel-b.tight", profileChart(keys.map((k) => ({ name: LABEL[k], color: COLOR[k], dash: DASH[k], ratios: ratios[k] })), { tauMax: 2 ** 12 })),
+      h("div.panel-h", "Performance profile (Dolan–Moré)", h("span.right.dim", `x: τ, within this factor of the fastest (log₂) · y: share of the ${solvable.length} solvable models`)),
+      h("div.panel-b.tight", profileChart(keys.map((k) => ({ name: LABEL[k], color: COLOR[k], dash: DASH[k], ratios: ratios[k] })), { tauMax: 2 ** 12, xLabel: "" })),
       h("div.legend", keys.map((k) => h("span", h("i", { style: { background: COLOR[k], height: "3px" } }), `${LABEL[k]} · ${count[k]}/${insts.length}`))),
       h("div.note", "Read it like this: at τ = 1 the curve shows how often an engine was the fastest; further right, how often it finished within τ × the fastest time; the height at the right edge is the share it solved at all. Higher is better. Unsolved = never reaches the curve."));
 
@@ -93,7 +95,7 @@ export function mount(root) {
     const scaleInsts = [...new Set(run.rows.filter((r) => r.set === "scale").map((r) => r.instance))];
     const heat = scaleInsts.length ? h("div.panel", { style: { gridColumn: "1 / -1" } },
       h("div.panel-h", "Large and refinery models · time to a verified optimum", h("span.right.dim", "green = fastest verified · — = not solved (limit or rejected)")),
-      h("div", { style: { overflowX: "auto" } }, h("table.t", h("thead", h("tr", h("th", "model"), h("th.num", "rows"), h("th.num", "nonzeros"), ...Object.keys(LABEL).map((k) => h("th.num", LABEL[k])))),
+      h("div", { style: { overflowX: "auto" } }, h("table.t", h("thead", h("tr", h("th", "model"), h("th.num", "rows"), h("th.num", "nonzeros"), ...Object.keys(LABEL).map((k) => h("th.num", { title: LABEL[k] }, SHORT[k])))),
         h("tbody", scaleInsts.map((i) => {
           const rs = Object.fromEntries(run.rows.filter((r) => r.instance === i).map((r) => [keyOf(r), r]));
           const r0 = Object.values(rs)[0];
@@ -101,7 +103,7 @@ export function mount(root) {
           return h("tr", h("td.mono", i), h("td.num", fint(r0.rows)), h("td.num", fint(r0.nnz)), ...Object.keys(LABEL).map((k) => {
             const r = rs[k];
             if (!r) return h("td.num.dim", "—");
-            if (!solved(r)) return h("td.num.dim", { title: `${r.status} · verify ${r.verify} · ${r.message || ""}` }, r.status === "Optimal" ? "rejected" : r.status === "TimeLimit" ? "limit" : r.status);
+            if (!solved(r)) return h("td.num.dim", { title: `${r.status} · verify ${r.verify} · ${r.message || ""}` }, r.status === "Optimal" ? "rejected" : r.status === "TimeLimit" ? "limit" : r.status === "NotSolved" ? "not solved" : r.status);
             const q = r.seconds / best;
             return h("td.num", { style: { background: q <= 1.0001 ? "rgba(61,220,151,.18)" : q <= 3 ? "rgba(92,225,230,.08)" : "transparent", color: q <= 1.0001 ? "var(--ok)" : null }, title: `${fratio(q)} of the fastest` }, fsec(r.seconds));
           }));

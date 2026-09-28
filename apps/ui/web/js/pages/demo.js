@@ -52,6 +52,9 @@ const D = { step: 0, notes: false, results: {}, gpu: null, compare: null, busy: 
 
 export function mount(root) {
   document.body.classList.add("demo-mode");
+  // #/demo?step=N opens a given step (rehearsal, or resuming after a browser restart)
+  const want = Number(new URLSearchParams(location.hash.split("?")[1] || "").get("step"));
+  if (Number.isInteger(want) && want >= 0) D.step = want;
   const stage = h("div.demo");
   root.append(stage);
   let raf = 0;
@@ -162,12 +165,13 @@ export function mount(root) {
     const kp = Object.keys(NAME).map((k) => { const [n, sv] = cnt(k); return big(NAME[k], `${sv}/${n}`, `Netlib solved · ${rej(k)} ‘Optimal’ claims rejected overall`, k.startsWith("ps26119") ? "okc" : ""); });
     const rows = Object.keys(NAME).map((k) => ref.find((r) => key(r) === k)).filter(Boolean);
     const best = Math.min(...rows.filter((r) => r.solved === "yes").map((r) => r.seconds));
-    const max = Math.max(...rows.map((r) => (r.solved === "yes" ? r.seconds : r.time_limit || 0)), 1e-3);
+    const max = Math.max(...rows.map((r) => (r.solved === "yes" ? r.seconds : r.status === "TimeLimit" ? r.time_limit : r.seconds || 0)), 1e-3);
     return h("div",
       h("div.dkpis", { style: { gridTemplateColumns: `repeat(${kp.length}, minmax(0, 1fr))` } }, kp),
       rows.length ? h("div.dcmp", { style: { marginTop: "16px" } }, h("div.dcmp-h", "Refinery year, hourly", h("span.dim", ` · ${fint(rows[0].rows)} rows · time to a verified optimum`)),
-        rows.map((r) => h("div.dbar", h("div.l", NAME[key(r)]), h("div.track", h(`div.fill.${r.solver === "ps26119" ? "cpu" : "gpu"}`, { style: { width: `${Math.max(2, 100 * (r.solved === "yes" ? r.seconds : r.time_limit) / max)}%`, opacity: r.solved === "yes" ? 1 : 0.35 } })),
-          h("div.t.mono", r.solved === "yes" ? fsec(r.seconds) + (r.seconds === best ? " ★" : "") : r.status === "Optimal" ? "rejected" : r.status)))) : null,
+        rows.map((r) => h("div.dbar", h("div.l", NAME[key(r)]), h("div.track", h(`div.fill.${r.solver === "ps26119" ? "cpu" : "gpu"}`, { style: { width: `${Math.max(2, 100 * (r.solved === "yes" ? r.seconds : r.status === "TimeLimit" ? r.time_limit : r.seconds) / max)}%`, opacity: r.solved === "yes" ? 1 : 0.35 } })),
+          h("div.t.mono", { style: { minWidth: "150px" } }, r.solved === "yes" ? fsec(r.seconds) + (r.seconds === best ? " ★" : "")
+            : r.status === "TimeLimit" ? `limit · ${fsec(r.time_limit)}` : `${r.status === "Optimal" ? "rejected" : "not solved"} · ${fsec(r.seconds)}`)))) : null,
       h("div.dsrc.mono", `source: bench/results/${run.source.file} · commit ${run.source.git_hash} · ${run.solver_versions.join(" · ")} · same machine, same verifier, solve call timed on both sides`));
   }
 

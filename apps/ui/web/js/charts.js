@@ -110,7 +110,7 @@ export function profileChart(series, opts = {}) {
   }
   for (let e = 0; 2 ** e <= tauMax; e += Math.log2(tauMax) > 8 ? 2 : 1)
     g.append(s("text", { x: lx(2 ** e), y: H - 11, "text-anchor": "middle" }, 2 ** e >= 1024 ? `2^${e}` : String(2 ** e)));
-  g.append(s("text", { x: W - R, y: H - 1, "text-anchor": "end" }, opts.xLabel || "τ — within this factor of the fastest"));
+  if (opts.xLabel !== "") g.append(s("text", { x: W - R, y: H - 1, "text-anchor": "end" }, opts.xLabel || "τ — within this factor of the fastest"));
   g.append(s("line", { x1: L, x2: W - R, y1: H - B, y2: H - B }));
   svg.append(g);
   for (const se of series) {
