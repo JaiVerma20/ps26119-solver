@@ -15,7 +15,7 @@ For slides: each number is recomputed from the newest committed CSV of its kind,
 | Infeasible LPs (Netlib + objective cut), `simplex`: certified by gate AND verifier | **91/93** (72 in exact rational arithmetic) | `infeasible-cut-simplex-macbook-air-m4-f440782.csv` |
 | Infeasible LPs (Netlib + objective cut), `r2hpdhg`: certified by gate AND verifier | **70/93** (55 in exact rational arithmetic) | `infeasible-cut-r2hpdhg-macbook-air-m4-f440782.csv` |
 | Small MIPLIB 3, branch-and-bound, 300 s: proven optimal, verified | **12/14** | `miplib3-macbook-air-m4-f440782.csv` |
-| `refinery-T8760-s1` (429240 rows, 1515469 nnz), r²HPDHG to 1e-8, CPU (Apple M4) | 1 thread 15.2 s (fp64); best 11 s (10 thr, mixed); error vs known optimum 1.20e-13, verify PASS | `scale-macbook-air-m4-f440782.csv` |
+| `refinery-T8760-s1` (429240 rows, 1515469 nnz), r²HPDHG to 1e-8, CPU (Apple M4) | 1 thread 7.78 s (fp64); best 4.54 s (10 thr, mixed); error vs known optimum 1.20e-13, verify PASS | `scale-macbook-air-m4-7638995.csv` |
 | `rand-1000000-s1` (1000000 rows, 6002453 nnz), r²HPDHG to 1e-8, CPU (Apple M4) | 1 thread 570 s (mixed); best 380 s (10 thr, mixed); error vs known optimum 1.23e-11, verify skipped | `scale-macbook-air-m4-f440782.csv` |
 | GPU `NVIDIA GeForce RTX 4050 Laptop GPU`, refinery year, fp64 | 3.03× vs the fastest CPU configuration | `scale-rtx4050-laptop-183c59c.csv` |
 | GPU `NVIDIA GeForce RTX 4050 Laptop GPU`, refinery year, mixed | 2.43× vs the fastest CPU configuration | `scale-rtx4050-laptop-183c59c.csv` |
@@ -77,7 +77,9 @@ Files used:
 - `bench/results/netlib-small-fc3f29c.csv` (committed 2026-09-26)
 - `bench/results/netlib-small-gpu-183c59c.csv` (committed 2026-09-27)
 - `bench/results/netlib-small-gpu-82d376c.csv` (committed 2026-09-27)
+- `bench/results/ranging-crosscheck-netlib_small-macbook-air-m4-8a23120.csv` (committed 2026-09-28)
 - `bench/results/scale-macbook-air-m4-62a13f2.csv` (committed 2026-09-24)
+- `bench/results/scale-macbook-air-m4-7638995.csv` (committed )
 - `bench/results/scale-macbook-air-m4-8fd5170.csv` (committed 2026-09-25)
 - `bench/results/scale-macbook-air-m4-d824f82.csv` (committed 2026-09-26)
 - `bench/results/scale-macbook-air-m4-ea97521.csv` (committed 2026-09-25)
@@ -86,6 +88,7 @@ Files used:
 - `bench/results/scale-rtx4050-laptop-183c59c.csv` (committed 2026-09-27)
 - `bench/results/scale-rtx4050-laptop-82d376c.csv` (committed 2026-09-27)
 - `bench/results/scale-simplex-macbook-air-m4-d824f82.csv` (committed 2026-09-26)
+- `bench/results/ui-gpu-runs-rtx4050-laptop-ac60baa.csv` (committed 2026-09-29)
 - `bench/results/warm-start-macbook-air-m4-8fd5170.csv` (committed 2026-09-25)
 - `bench/results/warm-start-macbook-air-m4-bd4e174.csv` (committed 2026-09-25)
 - `bench/results/warm-start-macbook-air-m4-d699097.csv` (committed 2026-09-25)
@@ -202,36 +205,32 @@ Decisions: geometric-mean scaling is adaptive (docs/DECISIONS.md #17); presolve 
 
 ## 2. Scaling on generated LPs with known optimum (CPU)
 
-Source: `bench/results/scale-macbook-air-m4-f440782.csv` — machine `macbook-air-m4` (Apple M4; GPU: none), commit `f440782`.
+Source: `bench/results/scale-macbook-air-m4-7638995.csv` — machine `macbook-air-m4` (Apple M4; GPU: none), commit `7638995`.
 
 | instance | rows | nnz | engine | backend | threads | prec | status | iterations | s to 1e-4 | s to 1e-8 | ms/iter | rel. err vs known opt | verify |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| rand-10000-s1 | 10000 | 60024 | r2hpdhg | cpu | 1 | fp64 | Optimal | 1536 | 0.0931 | 0.312 | 0.183 | 6.34e-10 | PASS |
-| rand-10000-s1 | 10000 | 60024 | r2hpdhg | cpu | 1 | mixed | Optimal | 1536 | 0.0921 | 0.3 | 0.175 | 1.84e-10 | PASS |
-| rand-10000-s1 | 10000 | 60024 | r2hpdhg | cpu | 10 | fp64 | Optimal | 1536 | 0.0886 | 0.314 | 0.184 | 6.34e-10 | PASS |
-| rand-10000-s1 | 10000 | 60024 | r2hpdhg | cpu | 10 | mixed | Optimal | 1536 | 0.0755 | 0.266 | 0.154 | 1.84e-10 | PASS |
-| rand-100000-s1 | 100000 | 600228 | r2hpdhg | cpu | 1 | fp64 | Optimal | 2496 | 1.49 | 7.55 | 2.91 | 2.44e-10 | PASS |
-| rand-100000-s1 | 100000 | 600228 | r2hpdhg | cpu | 1 | mixed | Optimal | 2944 | 1.36 | 8.33 | 2.73 | 5.14e-11 | PASS |
-| rand-100000-s1 | 100000 | 600228 | r2hpdhg | cpu | 10 | fp64 | Optimal | 2496 | 0.595 | 3.47 | 1.34 | 2.44e-10 | PASS |
-| rand-100000-s1 | 100000 | 600228 | r2hpdhg | cpu | 10 | mixed | Optimal | 2944 | 0.469 | 3.52 | 1.15 | 5.14e-11 | PASS |
-| rand-1000000-s1 | 1000000 | 6002453 | r2hpdhg | cpu | 1 | fp64 | TimeLimit | 16730 | 21.2 | – | 35.8 | 6.53e-11 | skipped |
-| rand-1000000-s1 | 1000000 | 6002453 | r2hpdhg | cpu | 1 | mixed | Optimal | 16576 | 18.1 | 570 | 34.1 | 1.23e-11 | skipped |
-| rand-1000000-s1 | 1000000 | 6002453 | r2hpdhg | cpu | 10 | fp64 | Optimal | 17600 | 12.8 | 403 | 22.7 | 1.42e-11 | skipped |
-| rand-1000000-s1 | 1000000 | 6002453 | r2hpdhg | cpu | 10 | mixed | Optimal | 16576 | 9.9 | 380 | 22.7 | 1.23e-11 | skipped |
-| refinery-T12-s1 | 588 | 2065 | r2hpdhg | cpu | 1 | fp64 | Optimal | 1088 | 0.00489 | 0.0085 | 0.0062 | 3.20e-11 | PASS |
-| refinery-T12-s1 | 588 | 2065 | r2hpdhg | cpu | 1 | mixed | Optimal | 2240 | 0.0045 | 0.0132 | 0.0051 | 3.83e-10 | PASS |
-| refinery-T12-s1 | 588 | 2065 | r2hpdhg | cpu | 10 | fp64 | Optimal | 1088 | 0.00501 | 0.0086 | 0.0063 | 3.20e-11 | PASS |
-| refinery-T12-s1 | 588 | 2065 | r2hpdhg | cpu | 10 | mixed | Optimal | 2240 | 0.0047 | 0.0133 | 0.0051 | 3.83e-10 | PASS |
-| refinery-T365-s1 | 17885 | 63134 | r2hpdhg | cpu | 1 | fp64 | Optimal | 1984 | 0.212 | 0.479 | 0.19 | 8.22e-12 | PASS |
-| refinery-T365-s1 | 17885 | 63134 | r2hpdhg | cpu | 1 | mixed | Optimal | 2304 | 0.192 | 0.473 | 0.161 | 3.18e-12 | PASS |
-| refinery-T365-s1 | 17885 | 63134 | r2hpdhg | cpu | 10 | fp64 | Optimal | 1984 | 0.175 | 0.439 | 0.179 | 8.22e-12 | PASS |
-| refinery-T365-s1 | 17885 | 63134 | r2hpdhg | cpu | 10 | mixed | Optimal | 2304 | 0.153 | 0.381 | 0.129 | 3.18e-12 | PASS |
-| refinery-T8760-s1 | 429240 | 1515469 | r2hpdhg | cpu | 1 | fp64 | Optimal | 2880 | 4.77 | 15.2 | 4.67 | 1.49e-13 | PASS |
-| refinery-T8760-s1 | 429240 | 1515469 | r2hpdhg | cpu | 1 | mixed | Optimal | 3136 | 4.44 | 15.3 | 4.33 | 1.20e-13 | PASS |
-| refinery-T8760-s1 | 429240 | 1515469 | r2hpdhg | cpu | 10 | fp64 | Optimal | 2880 | 3.79 | 12.5 | 3.87 | 1.49e-13 | PASS |
-| refinery-T8760-s1 | 429240 | 1515469 | r2hpdhg | cpu | 10 | mixed | Optimal | 3136 | 2.97 | 11 | 3.07 | 1.20e-13 | PASS |
+| rand-10000-s1 | 10000 | 60024 | r2hpdhg | cpu | 1 | fp64 | Optimal | 1536 | 0.0437 | 0.15 | 0.0882 | 6.34e-10 | PASS |
+| rand-10000-s1 | 10000 | 60024 | r2hpdhg | cpu | 1 | mixed | Optimal | 1536 | 0.0426 | 0.143 | 0.0821 | 1.84e-10 | PASS |
+| rand-10000-s1 | 10000 | 60024 | r2hpdhg | cpu | 10 | fp64 | Optimal | 1536 | 0.0578 | 0.193 | 0.113 | 6.34e-10 | PASS |
+| rand-10000-s1 | 10000 | 60024 | r2hpdhg | cpu | 10 | mixed | Optimal | 1536 | 0.05 | 0.169 | 0.0975 | 1.84e-10 | PASS |
+| rand-100000-s1 | 100000 | 600228 | r2hpdhg | cpu | 1 | fp64 | Optimal | 2496 | 0.747 | 3.82 | 1.48 | 2.44e-10 | PASS |
+| rand-100000-s1 | 100000 | 600228 | r2hpdhg | cpu | 1 | mixed | Optimal | 2944 | 0.686 | 4.24 | 1.4 | 5.14e-11 | PASS |
+| rand-100000-s1 | 100000 | 600228 | r2hpdhg | cpu | 10 | fp64 | Optimal | 2496 | 0.305 | 1.56 | 0.598 | 2.44e-10 | PASS |
+| rand-100000-s1 | 100000 | 600228 | r2hpdhg | cpu | 10 | mixed | Optimal | 2944 | 0.247 | 1.61 | 0.524 | 5.14e-11 | PASS |
+| refinery-T12-s1 | 588 | 2065 | r2hpdhg | cpu | 1 | fp64 | Optimal | 1088 | 0.00251 | 0.0043 | 0.0032 | 3.20e-11 | PASS |
+| refinery-T12-s1 | 588 | 2065 | r2hpdhg | cpu | 1 | mixed | Optimal | 2240 | 0.00237 | 0.0068 | 0.0026 | 3.83e-10 | PASS |
+| refinery-T12-s1 | 588 | 2065 | r2hpdhg | cpu | 10 | fp64 | Optimal | 1088 | 0.0025 | 0.0044 | 0.0032 | 3.20e-11 | PASS |
+| refinery-T12-s1 | 588 | 2065 | r2hpdhg | cpu | 10 | mixed | Optimal | 2240 | 0.00235 | 0.0069 | 0.0027 | 3.83e-10 | PASS |
+| refinery-T365-s1 | 17885 | 63134 | r2hpdhg | cpu | 1 | fp64 | Optimal | 1984 | 0.109 | 0.247 | 0.0982 | 8.22e-12 | PASS |
+| refinery-T365-s1 | 17885 | 63134 | r2hpdhg | cpu | 1 | mixed | Optimal | 2304 | 0.0994 | 0.246 | 0.0841 | 3.18e-12 | PASS |
+| refinery-T365-s1 | 17885 | 63134 | r2hpdhg | cpu | 10 | fp64 | Optimal | 1984 | 0.129 | 0.29 | 0.115 | 8.22e-12 | PASS |
+| refinery-T365-s1 | 17885 | 63134 | r2hpdhg | cpu | 10 | mixed | Optimal | 2304 | 0.117 | 0.282 | 0.0954 | 3.18e-12 | PASS |
+| refinery-T8760-s1 | 429240 | 1515469 | r2hpdhg | cpu | 1 | fp64 | Optimal | 2880 | 2.48 | 7.78 | 2.38 | 1.49e-13 | PASS |
+| refinery-T8760-s1 | 429240 | 1515469 | r2hpdhg | cpu | 1 | mixed | Optimal | 3136 | 2.35 | 8.05 | 2.29 | 1.20e-13 | PASS |
+| refinery-T8760-s1 | 429240 | 1515469 | r2hpdhg | cpu | 10 | fp64 | Optimal | 2880 | 1.68 | 5.56 | 1.71 | 1.49e-13 | PASS |
+| refinery-T8760-s1 | 429240 | 1515469 | r2hpdhg | cpu | 10 | mixed | Optimal | 3136 | 1.27 | 4.54 | 1.25 | 1.20e-13 | PASS |
 
-![scaling chart](../bench/results/scale-macbook-air-m4-f440782.png)
+![scaling chart](../bench/results/scale-macbook-air-m4-7638995.png)
 
 ### 2b. Reference: HiGHS on the same instances
 
@@ -400,10 +399,10 @@ Hourly year, T = 8760 periods: 429240 rows, 516840 columns, 1515469 nonzeros (ge
 | engine | backend | threads | prec | status | iterations | s to 1e-4 | s to 1e-8 | rel. err vs known opt | verify | source |
 |---|---|---|---|---|---|---|---|---|---|---|
 | highs | cpu | – | fp64 | TimeLimit | – | – | – | – | reference | `scale-macbook-air-m4-62a13f2.csv` |
-| r2hpdhg | cpu | 1 | fp64 | Optimal | 2880 | 4.77 | 15.2 | 1.49e-13 | PASS | `scale-macbook-air-m4-f440782.csv` |
-| r2hpdhg | cpu | 1 | mixed | Optimal | 3136 | 4.44 | 15.3 | 1.20e-13 | PASS | `scale-macbook-air-m4-f440782.csv` |
-| r2hpdhg | cpu | 10 | fp64 | Optimal | 2880 | 3.79 | 12.5 | 1.49e-13 | PASS | `scale-macbook-air-m4-f440782.csv` |
-| r2hpdhg | cpu | 10 | mixed | Optimal | 3136 | 2.97 | 11 | 1.20e-13 | PASS | `scale-macbook-air-m4-f440782.csv` |
+| r2hpdhg | cpu | 1 | fp64 | Optimal | 2880 | 2.48 | 7.78 | 1.49e-13 | PASS | `scale-macbook-air-m4-7638995.csv` |
+| r2hpdhg | cpu | 1 | mixed | Optimal | 3136 | 2.35 | 8.05 | 1.20e-13 | PASS | `scale-macbook-air-m4-7638995.csv` |
+| r2hpdhg | cpu | 10 | fp64 | Optimal | 2880 | 1.68 | 5.56 | 1.49e-13 | PASS | `scale-macbook-air-m4-7638995.csv` |
+| r2hpdhg | cpu | 10 | mixed | Optimal | 3136 | 1.27 | 4.54 | 1.20e-13 | PASS | `scale-macbook-air-m4-7638995.csv` |
 | r2hpdhg | cpu | 1 | fp64 | Optimal | 2880 | 8.03 | 26.5 | 1.49e-13 | PASS | `scale-rtx4050-laptop-183c59c.csv` |
 | r2hpdhg | cpu | 1 | mixed | Optimal | 2752 | 6.64 | 21.3 | 7.90e-13 | PASS | `scale-rtx4050-laptop-183c59c.csv` |
 | r2hpdhg | cpu | 12 | fp64 | Optimal | 2880 | 5.71 | 18.7 | 1.49e-13 | PASS | `scale-rtx4050-laptop-183c59c.csv` |
