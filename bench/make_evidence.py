@@ -236,9 +236,13 @@ def headline(paths, cpu_scales, gpu_scales):
         rows.append([f"Small MIPLIB 3, branch-and-bound, {mr[0].get('time_limit') or '300'} s: proven optimal, verified",
                      f"**{len(ok)}/{len(mr)}**", src(mp)])
     if cpu_scales:
-        p = latest(cpu_scales, "scale-")
-        sr = load(p)
         for inst in ("refinery-T8760-s1", "rand-1000000-s1"):
+            # the newest CPU run that measured this model (a later run may cover fewer sizes)
+            with_inst = [q for q in cpu_scales if any(x["instance"] == inst for x in load(q))]
+            if not with_inst:
+                continue
+            p = latest(with_inst, "scale-")
+            sr = load(p)
             opt = [x for x in sr if x["instance"] == inst and x["status"] == "Optimal" and x.get("seconds_to_1e-8")]
             if not opt:
                 continue

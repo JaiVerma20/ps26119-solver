@@ -361,7 +361,7 @@ export function mount(root) {
     const costs = rg.costs.slice(0, 150);
     const chartRows = costs.filter((x) => x.status === "basic" && x.value).slice(0, 12).map((x) => ({ label: x.name, value: x.value, lower: x.lower, upper: x.upper }));
     const nb = rg.rows.filter((x) => x.status !== "not_binding").length;
-    const sub = (t) => h("div.panel-b.tight", { style: { paddingBottom: "0" } }, h("div.field", h("span", t)));
+    const sub = (t) => h("div.panel-b", { style: { padding: "14px 16px 0" } }, h("div.field", { style: { marginBottom: "6px" } }, h("span", t)));
     return [
       chartRows.length ? sub(`how far the largest costs of the plan's basic columns may move before the plan changes`) : null,
       chartRows.length ? h("div.panel-b.tight", rangeChart(chartRows)) : null,
