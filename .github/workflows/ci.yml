@@ -41,8 +41,8 @@ jobs:
       - name: Python 3.11 (self-hosted macOS)
         if: vars.CI_RUNNER == 'self-hosted' && runner.os == 'macOS'
         run: |
-          python3.11 -m venv "/py311"
-          echo "/py311/bin" >> ""
+          python3.11 -m venv "$RUNNER_TEMP/py311"
+          echo "$RUNNER_TEMP/py311/bin" >> "$GITHUB_PATH"
 
       - name: Tools
         run: |
