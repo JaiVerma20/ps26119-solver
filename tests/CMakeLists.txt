@@ -55,6 +55,7 @@ if(Python3_Interpreter_FOUND)
     endif()
     add_test(NAME bench.generators COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/bench/test_generators.py)
     add_test(NAME bench.gpu_compare COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/bench/test_gpu_compare.py)
+    add_test(NAME bench.compare_highs COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/bench/test_compare_highs.py)
     add_test(NAME bench.validate_results COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/bench/test_validate_results.py)
     # Random LPs written as MPS: reader + engines (incl. infeasible/unbounded detection) vs
     # SciPy/HiGHS as an external reference (tooling only; needs scipy).

@@ -100,6 +100,8 @@ class Handler(BaseHTTPRequestHandler):
                                        "max_sweep": scenarios.MAX_SWEEP})
             if route == "/api/evidence":
                 return self.send_json(evidence.collect())
+            if route == "/api/compare":
+                return self.send_json(evidence.compare())
             if route == "/api/gpu":
                 return self.send_json(evidence.gpu_detail())
             if route == "/api/preflight":

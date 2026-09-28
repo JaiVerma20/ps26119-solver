@@ -308,6 +308,18 @@ class Endpoints(unittest.TestCase):
         self.assertTrue(all(i["state"] in ("ok", "info", "warn", "fixable", "fail") for i in r["items"]))
         self.assertTrue(any(k.startswith("model:") for k in ids))
 
+    def test_compare_endpoint_serves_the_committed_csv(self):
+        c = self.get("/api/compare")
+        self.assertIn("runs", c)
+        for run in c["runs"]:  # zero runs is valid until a comparison CSV is committed
+            self.assertRegex(run["source"]["file"], r"^compare-highs-.+-[0-9a-f]{7}\.csv$")
+            self.assertTrue({r["solver"] for r in run["rows"]} <= {"ps26119", "highs"})
+            for r in run["rows"]:
+                self.assertIn(r["solved"], ("yes", "no"))
+                if r["solved"] == "yes":  # the rule the page states: Optimal + verified + within 1e-6
+                    self.assertEqual((r["status"], r["verify"]), ("Optimal", "PASS"))
+                    self.assertLessEqual(r["rel_err_ref"], 1e-6)
+
     def test_web_modules_parse(self):
         import shutil
         import subprocess

@@ -94,3 +94,62 @@ export function barChart(rows, opts = {}) {
   }
   return svg;
 }
+
+/** Dolan–Moré performance profile. series: [{name, color, dash, ratios:[r ≥ 1 or Infinity per problem]}].
+ * ρ(τ) = share of problems solved within τ × the best solver's time; x axis log₂ τ from 1 to tauMax. */
+export function profileChart(series, opts = {}) {
+  const W = 640, H = opts.height || 260, L = 46, R = 14, T = 10, B = 30;
+  const tauMax = opts.tauMax || 2 ** 10;
+  const svg = s("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none", role: "img" });
+  const lx = (t) => L + (Math.log2(Math.max(1, Math.min(t, tauMax))) / Math.log2(tauMax)) * (W - L - R);
+  const ly = (v) => T + (1 - v) * (H - T - B);
+  const g = s("g", { class: "axis" });
+  for (const v of [0, 0.25, 0.5, 0.75, 1]) {
+    g.append(s("line", { x1: L, x2: W - R, y1: ly(v), y2: ly(v), class: "gridl" }));
+    g.append(s("text", { x: L - 6, y: ly(v) + 3, "text-anchor": "end" }, `${Math.round(v * 100)}%`));
+  }
+  for (let e = 0; 2 ** e <= tauMax; e += Math.log2(tauMax) > 8 ? 2 : 1)
+    g.append(s("text", { x: lx(2 ** e), y: H - 11, "text-anchor": "middle" }, 2 ** e >= 1024 ? `2^${e}` : String(2 ** e)));
+  g.append(s("text", { x: W - R, y: H - 1, "text-anchor": "end" }, opts.xLabel || "τ — within this factor of the fastest"));
+  g.append(s("line", { x1: L, x2: W - R, y1: H - B, y2: H - B }));
+  svg.append(g);
+  for (const se of series) {
+    const n = se.ratios.length;
+    if (!n) continue;
+    const fin = se.ratios.filter((r) => Number.isFinite(r) && r <= tauMax).sort((a, b) => a - b);
+    let d = `M${lx(1).toFixed(1)},${ly(0).toFixed(1)}`, k = 0;
+    for (const r of fin) { k++; d += `H${lx(r).toFixed(1)}V${ly(k / n).toFixed(1)}`; }
+    d += `H${(W - R).toFixed(1)}`;
+    svg.append(s("path", { d, fill: "none", stroke: se.color, "stroke-width": 2, "stroke-dasharray": se.dash, "vector-effect": "non-scaling-stroke" }));
+  }
+  return svg;
+}
+
+/** Scatter on log–log axes with the y = x diagonal. points: [{x, y, color, title}]. */
+export function scatterChart(points, opts = {}) {
+  const W = 640, H = opts.height || 300, L = 56, R = 14, T = 10, B = 32;
+  const svg = s("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none", role: "img" });
+  const ok = points.filter((p) => p.x > 0 && p.y > 0 && Number.isFinite(p.x) && Number.isFinite(p.y));
+  if (!ok.length) { svg.append(s("text", { x: W / 2, y: H / 2, "text-anchor": "middle" }, opts.empty || "no data")); return svg; }
+  const lo = Math.floor(Math.log10(Math.min(...ok.flatMap((p) => [p.x, p.y])))), hi = Math.ceil(Math.log10(Math.max(...ok.flatMap((p) => [p.x, p.y]))));
+  const X = (v) => L + ((Math.log10(v) - lo) / Math.max(1, hi - lo)) * (W - L - R);
+  const Y = (v) => T + (1 - (Math.log10(v) - lo) / Math.max(1, hi - lo)) * (H - T - B);
+  const g = s("g", { class: "axis" });
+  for (let e = lo; e <= hi; e++) {
+    g.append(s("line", { x1: L, x2: W - R, y1: Y(10 ** e), y2: Y(10 ** e), class: "gridl" }));
+    g.append(s("line", { x1: X(10 ** e), x2: X(10 ** e), y1: T, y2: H - B, class: "gridl" }));
+    g.append(s("text", { x: L - 6, y: Y(10 ** e) + 3, "text-anchor": "end" }, `1e${e}`));
+    g.append(s("text", { x: X(10 ** e), y: H - 13, "text-anchor": "middle" }, `1e${e}`));
+  }
+  g.append(s("text", { x: W - R, y: H - 1, "text-anchor": "end" }, opts.xLabel || "x"));
+  g.append(s("text", { x: L + 4, y: T + 10 }, opts.yLabel || "y"));
+  svg.append(g);
+  svg.append(s("line", { x1: X(10 ** lo), y1: Y(10 ** lo), x2: X(10 ** hi), y2: Y(10 ** hi), stroke: "#5f6d7c", "stroke-dasharray": "5 4", "vector-effect": "non-scaling-stroke" }));
+  if (opts.diagLabel) svg.append(s("text", { x: X(10 ** hi) - 4, y: Y(10 ** hi) + 14, "text-anchor": "end", fill: "#93a1b0", "font-size": 10 }, opts.diagLabel));
+  for (const p of ok) {
+    const c = s("circle", { cx: X(p.x), cy: Y(p.y), r: 3.6, fill: p.color || "#5ce1e6", "fill-opacity": 0.8 });
+    if (p.title) c.append(s("title", {}, p.title));
+    svg.append(c);
+  }
+  return svg;
+}

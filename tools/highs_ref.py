@@ -13,7 +13,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lpm import fingerprint, read_lpm, read_mps_highspy  # noqa: E402
 
 
-def solve_with_highs(model_path: str, out_path: str, time_limit: float = 0.0) -> dict:
+def solve_with_highs(model_path: str, out_path: str, time_limit: float = 0.0, options: dict | None = None) -> dict:
+    """options: HiGHS option name -> value (e.g. {"solver": "pdlp", "pdlp_optimality_tolerance": 1e-8}).
+    'seconds' is the wall time of Highs.run() (model reading and passing excluded)."""
     import highspy
     import numpy as np
 
@@ -22,6 +24,9 @@ def solve_with_highs(model_path: str, out_path: str, time_limit: float = 0.0) ->
     h.setOptionValue("output_flag", False)
     if time_limit > 0:
         h.setOptionValue("time_limit", float(time_limit))
+    for k, v in (options or {}).items():
+        if h.setOptionValue(k, v) != highspy.HighsStatus.kOk:
+            raise ValueError(f"HiGHS rejected option {k}={v!r}")
     lp = highspy.HighsLp()
     lp.num_col_, lp.num_row_ = m.num_cols, m.num_rows
     lp.col_cost_ = np.asarray(m.obj, float)
@@ -36,7 +41,7 @@ def solve_with_highs(model_path: str, out_path: str, time_limit: float = 0.0) ->
     h.passModel(lp)
     t0 = time.perf_counter()
     h.run()
-    secs = time.perf_counter() - t0
+    secs = time.perf_counter() - t0  # wall time of the solve call only (presolve included, like ours)
     status = h.getModelStatus()
     st = {
         highspy.HighsModelStatus.kOptimal: "Optimal",
@@ -44,14 +49,19 @@ def solve_with_highs(model_path: str, out_path: str, time_limit: float = 0.0) ->
         highspy.HighsModelStatus.kUnbounded: "Unbounded",
         highspy.HighsModelStatus.kUnboundedOrInfeasible: "Infeasible",
         highspy.HighsModelStatus.kTimeLimit: "TimeLimit",
+        highspy.HighsModelStatus.kIterationLimit: "IterationLimit",
     }.get(status, "NotSolved")
+    raw_status = str(status).split(".")[-1]  # HiGHS's own status name, e.g. kUnknown
     sol = h.getSolution()
     info = h.getInfo()
+    # iterations of the engine that ran (simplex, interior point, or PDLP)
+    iters = max(int(getattr(info, k, 0) or 0) for k in ("simplex_iteration_count", "ipm_iteration_count", "pdlp_iteration_count"))
+    engine = "highs-" + str((options or {}).get("solver", "choose"))
     with open(out_path, "w") as f:
         f.write("PS26119-SOLUTION 1\n")
-        f.write(f"model {fingerprint(m)}\nname {m.name}\nstatus {st}\nengine highs\nprecision fp64\n")
+        f.write(f"model {fingerprint(m)}\nname {m.name}\nstatus {st}\nengine {engine}\nprecision fp64\n")
         f.write(f"objective {info.objective_function_value!r}\n")
-        f.write(f"iterations {info.simplex_iteration_count}\nseconds {secs:.6f}\n")
+        f.write(f"iterations {iters}\nseconds {secs:.6f}\n")
         if st == "Optimal":
             f.write(f"COLUMNS {m.num_cols}\n")
             for j in range(m.num_cols):
@@ -62,8 +72,23 @@ def solve_with_highs(model_path: str, out_path: str, time_limit: float = 0.0) ->
                 name = m.row_names[i] if m.row_names else ""
                 f.write(f"{i} {sol.row_value[i]!r} {sol.row_dual[i]!r} {name}\n")
         f.write("END\n")
-    return {"status": st, "objective": info.objective_function_value, "seconds": secs,
-            "iterations": info.simplex_iteration_count}
+    return {"status": st, "objective": info.objective_function_value, "seconds": secs, "iterations": iters,
+            "engine": engine, "highs_version": highs_version(h), "highs_status": raw_status}
+
+
+def highs_version(h=None) -> str:
+    import highspy
+    h = h or highspy.Highs()
+    for f in ("version", "versionMajor"):
+        if hasattr(h, f) and f == "version":
+            try:
+                return str(h.version())
+            except Exception:  # noqa: BLE001
+                pass
+    try:
+        return f"{h.versionMajor()}.{h.versionMinor()}.{h.versionPatch()}"
+    except Exception:  # noqa: BLE001
+        return "unknown"
 
 
 if __name__ == "__main__":

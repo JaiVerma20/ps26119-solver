@@ -14,6 +14,7 @@ export const api = {
   evidence: () => get("/api/evidence"),
   scenarios: () => get("/api/scenarios"),
   gpu: () => get("/api/gpu"),
+  compare: () => get("/api/compare"),
   preflight: () => get("/api/preflight"),
   async prepare() {
     const r = await fetch("/api/preflight/prepare", { method: "POST" });
