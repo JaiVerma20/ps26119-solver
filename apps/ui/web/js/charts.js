@@ -131,21 +131,33 @@ export function scatterChart(points, opts = {}) {
   const svg = s("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none", role: "img" });
   const ok = points.filter((p) => p.x > 0 && p.y > 0 && Number.isFinite(p.x) && Number.isFinite(p.y));
   if (!ok.length) { svg.append(s("text", { x: W / 2, y: H / 2, "text-anchor": "middle" }, opts.empty || "no data")); return svg; }
-  const lo = Math.floor(Math.log10(Math.min(...ok.flatMap((p) => [p.x, p.y])))), hi = Math.ceil(Math.log10(Math.max(...ok.flatMap((p) => [p.x, p.y]))));
-  const X = (v) => L + ((Math.log10(v) - lo) / Math.max(1, hi - lo)) * (W - L - R);
-  const Y = (v) => T + (1 - (Math.log10(v) - lo) / Math.max(1, hi - lo)) * (H - T - B);
+  // one shared decade range (diagonal mode) or independent x / y ranges (opts.diag === false)
+  const rng = (vals) => [Math.floor(Math.log10(Math.min(...vals))), Math.ceil(Math.log10(Math.max(...vals)))];
+  const both = rng(ok.flatMap((p) => [p.x, p.y]));
+  const [xlo, xhi] = opts.diag === false ? rng(ok.map((p) => p.x)) : both, [ylo, yhi] = opts.diag === false ? rng(ok.map((p) => p.y)) : both;
+  const lo = both[0], hi = both[1];
+  const X = (v) => L + ((Math.log10(v) - xlo) / Math.max(1, xhi - xlo)) * (W - L - R);
+  const Y = (v) => T + (1 - (Math.log10(v) - ylo) / Math.max(1, yhi - ylo)) * (H - T - B);
+  const fmtE = (e) => (opts.decadeLabel ? opts.decadeLabel(e) : `1e${e}`);
   const g = s("g", { class: "axis" });
-  for (let e = lo; e <= hi; e++) {
+  for (let e = ylo; e <= yhi; e++) {
     g.append(s("line", { x1: L, x2: W - R, y1: Y(10 ** e), y2: Y(10 ** e), class: "gridl" }));
+    g.append(s("text", { x: L - 6, y: Y(10 ** e) + 3, "text-anchor": "end" }, opts.yDecadeLabel ? opts.yDecadeLabel(e) : `1e${e}`));
+  }
+  for (let e = xlo; e <= xhi; e++) {
     g.append(s("line", { x1: X(10 ** e), x2: X(10 ** e), y1: T, y2: H - B, class: "gridl" }));
-    g.append(s("text", { x: L - 6, y: Y(10 ** e) + 3, "text-anchor": "end" }, `1e${e}`));
-    g.append(s("text", { x: X(10 ** e), y: H - 13, "text-anchor": "middle" }, `1e${e}`));
+    g.append(s("text", { x: X(10 ** e), y: H - 13, "text-anchor": "middle" }, fmtE(e)));
   }
   g.append(s("text", { x: W - R, y: H - 1, "text-anchor": "end" }, opts.xLabel || "x"));
   g.append(s("text", { x: L + 4, y: T + 10 }, opts.yLabel || "y"));
   svg.append(g);
-  svg.append(s("line", { x1: X(10 ** lo), y1: Y(10 ** lo), x2: X(10 ** hi), y2: Y(10 ** hi), stroke: "#5f6d7c", "stroke-dasharray": "5 4", "vector-effect": "non-scaling-stroke" }));
-  if (opts.diagLabel) svg.append(s("text", { x: X(10 ** hi) - 4, y: Y(10 ** hi) + 14, "text-anchor": "end", fill: "#93a1b0", "font-size": 10 }, opts.diagLabel));
+  if (opts.diag !== false) svg.append(s("line", { x1: X(10 ** lo), y1: Y(10 ** lo), x2: X(10 ** hi), y2: Y(10 ** hi), stroke: "#5f6d7c", "stroke-dasharray": "5 4", "vector-effect": "non-scaling-stroke" }));
+  // optional connecting lines per series (points sorted by x)
+  for (const [color, grp] of Object.entries(opts.connect ? ok.reduce((m, p) => ((m[p.color] ||= []).push(p), m), {}) : {})) {
+    const d = grp.sort((a, b) => a.x - b.x).map((p, i) => `${i ? "L" : "M"}${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join("");
+    svg.append(s("path", { d, fill: "none", stroke: color, "stroke-opacity": 0.45, "stroke-width": 1.5, "vector-effect": "non-scaling-stroke" }));
+  }
+  if (opts.diagLabel && opts.diag !== false) svg.append(s("text", { x: X(10 ** hi) - 4, y: Y(10 ** hi) + 14, "text-anchor": "end", fill: "#93a1b0", "font-size": 10 }, opts.diagLabel));
   for (const p of ok) {
     const c = s("circle", { cx: X(p.x), cy: Y(p.y), r: 3.6, fill: p.color || "#5ce1e6", "fill-opacity": 0.8 });
     if (p.title) c.append(s("title", {}, p.title));

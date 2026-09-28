@@ -5,6 +5,7 @@ Run by ctest (ui.backend) with the built binary as argv[1]."""
 import json
 import os
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -14,6 +15,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 if len(sys.argv) > 1 and os.path.exists(sys.argv[1]):
     os.environ["PS26119_BIN"] = os.path.abspath(sys.argv.pop(1))
 os.environ.setdefault("PS26119_PYTHON", sys.executable)
+# keep test runs out of the user's run history (apps/ui/.runs/jobs)
+os.environ["PS26119_UI_RUNS"] = tempfile.mkdtemp(prefix="ps26119-ui-test-")
 sys.path.insert(0, HERE)
 
 import server  # noqa: E402
@@ -329,9 +332,14 @@ class Endpoints(unittest.TestCase):
         web = os.path.join(HERE, "web", "js")
         files = [os.path.join(d, f) for d, _, fs in os.walk(web) for f in fs if f.endswith(".js")]
         self.assertGreater(len(files), 10)
-        for f in files:
-            p = subprocess.run([node, "--check", f], capture_output=True, text=True)
-            self.assertEqual(p.returncode, 0, f + ": " + p.stderr)
+        # a .js file may be parsed as CommonJS or ES module by `node --check` (Node's syntax
+        # detection); a copy named .mjs forces strict ES-module parsing — how the browser loads them
+        with tempfile.TemporaryDirectory() as tmp:
+            for f in files:
+                m = os.path.join(tmp, os.path.basename(f)[:-3] + ".mjs")
+                shutil.copyfile(f, m)
+                p = subprocess.run([node, "--check", m], capture_output=True, text=True)
+                self.assertEqual(p.returncode, 0, f + ": " + p.stderr)
 
     def test_evidence_matches_the_committed_csvs(self):
         e = self.get("/api/evidence")

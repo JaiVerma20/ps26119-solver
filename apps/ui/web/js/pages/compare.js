@@ -111,7 +111,7 @@ export function mount(root) {
     const table = h("details.panel", { style: { gridColumn: "1 / -1" } }, h("summary.panel-h", `Every run (${all.length} rows)`),
       h("div", { style: { overflowX: "auto", maxHeight: "480px" } }, h("table.t", h("thead", h("tr", ...["model", "engine", "status", "time", "iterations", "objective", "err vs ref", "verify", "solved"].map((x) => h("th", x)))),
         h("tbody", all.map((r) => h("tr", h("td.mono", r.instance), h("td.mono", LABEL[keyOf(r)] || keyOf(r)), h("td", statusBadge(r.status)), h("td.num", fsec(r.seconds)), h("td.num", fint(r.iterations)),
-          h("td.num", fnum(r.objective, 11)), h("td.num", fexp(r.rel_err_ref)), h("td.mono", r.verify), h("td", { class: r.solved === "yes" ? "ok" : "dim" }, r.solved))))))));
+          h("td.num", fnum(r.objective, 11)), h("td.num", fexp(r.rel_err_ref)), h("td.mono", r.verify), h("td", { class: r.solved === "yes" ? "ok" : "dim" }, r.solved)))))));
 
     body.replaceChildren(...[
       h("div.panel", h("div.panel-b", { style: { display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" } }, setSeg,
