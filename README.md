@@ -1,5 +1,25 @@
 # ps26119 — a from-scratch LP / MILP solver (SIH 2026, PS 26119, MRPL)
 
+> **Smart India Hackathon 2026 submission: NIRNAY** (working name in code: `ps26119`)
+>
+> | | |
+> |---|---|
+> | Problem Statement ID | **SIH26119** |
+> | Problem Statement Title | Indigenous GPU-Accelerated Optimization Solver (Sovereign Alternative to Xpress / CPLEX) |
+> | Organization | Mangalore Refinery and Petrochemicals Limited (MRPL) |
+> | Category | Software |
+> | Team | **OUTLIERS 1**, Team ID **145498** |
+> | Demo video | https://youtu.be/6635Wv0M1jo |
+> | Evidence | every figure traces to a commit-named CSV: [`docs/EVIDENCE.md`](docs/EVIDENCE.md), status against the PS: [`docs/SIH_STATUS.md`](docs/SIH_STATUS.md) |
+>
+> **Try it in three commands** (macOS or Linux, CPU only):
+> `cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release` ·
+> `cmake --build build -j && ctest --test-dir build` ·
+> `python3 apps/ui/server.py` → open http://127.0.0.1:8765 (Command Center, offline).
+> One-command jury demo: `scripts/demo.sh` ([`apps/ui/DEMO.md`](apps/ui/DEMO.md)).
+>
+> Source visible for evaluation; all rights reserved — see [`LICENSE`](LICENSE).
+
 One library, several engines, one verification system:
 
 - **r²HPDHG** (restarted Halpern PDHG with reflection, the cuPDLPx family) and PDLP-style
