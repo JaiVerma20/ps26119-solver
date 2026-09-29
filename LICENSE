@@ -1,0 +1,28 @@
+NIRNAY (ps26119) — Copyright (c) 2026 Jai Verma and Shivanshu Vats (Team OUTLIERS 1,
+Smart India Hackathon 2026, PS SIH26119). All rights reserved.
+
+This repository is public so that the Smart India Hackathon 2026 evaluators, the problem
+statement owner (Mangalore Refinery and Petrochemicals Limited) and other interested readers
+can inspect and reproduce the work.
+
+You may:
+  * view the source code and documentation;
+  * build and run it on your own machines to evaluate it and to reproduce the published
+    results;
+  * use the GitHub features that GitHub's Terms of Service grant to every user of a public
+    repository (viewing and forking on GitHub).
+
+You may not, without prior written permission from the copyright holders:
+  * copy, modify, merge, publish, distribute, sublicense or sell the code or any substantial
+    part of it, or build other software on it;
+  * submit it, or work derived from it, to any hackathon, competition or evaluation.
+
+No licence to any patent or trademark is granted. The software is provided "as is", without
+warranty of any kind; in no event shall the copyright holders be liable for any claim, damages
+or other liability arising from its use.
+
+Third-party material keeps its own licence and is NOT covered by this notice: the tools,
+data and approaches listed in docs/THIRD_PARTY.md (e.g. GoogleTest, highspy, OR-Tools,
+PySCIPOpt, NumPy, SciPy, matplotlib) and the benchmark instances listed in data/SOURCES.md.
+
+Permissions: contact the repository owner through https://github.com/JaiVerma20.
