@@ -67,8 +67,28 @@ refinery year 1 thread 25.8 s fp64 / 22.6 s mixed, 4 threads 8.9 s fp64.
 Peak RSS refinery year fp64: 397 -> 324 MB (d081992).
 Sanitizers (CI flags): asan+ubsan 197/197, tsan 198/198; CUDA front-end check OK; no foreign solver linked.
 
+HiGHS 1.15.1 on the same machine, `compare-highs-cloud-x86-4c-1dcd40e.csv` (bench/compare_highs.py,
+Kennington 16 + refinery T12..T8760; run stopped before the two random LPs; "solved" = Optimal +
+verify.py PASS + objective within 1e-6 of the reference; r2hpdhg* = 4 threads):
+
+| model | ps r2hpdhg 1 thr | ps r2hpdhg* 4 thr | HiGHS simplex | HiGHS IPM | HiGHS PDLP |
+|---|---|---|---|---|---|
+| refinery-T365 | 0.55 s | 0.57 s | 8.51 s | 2.66 s | not solved |
+| refinery-T2190 | 4.91 s | 2.0 s | 127 s | 70.2 s | not solved |
+| refinery-T8760 | 20.8 s | 8.6 s | time limit 300 s | time limit 300 s | not solved |
+| osa-14 | 9.0 s | 4.0 s | 1.08 s | 1.13 s | 5.21 s |
+| osa-60 | 71.1 s | 25.2 s | 20.2 s | 6.92 s | 53.9 s |
+| ken-18 | 43.3 s | 17.3 s | 4.15 s | 7.56 s | not solved |
+| cre-b | 104 s | 39.9 s | 1.61 s | 2.85 s | not solved |
+
+Reading: on the refinery family r2HPDHG is far ahead of every HiGHS engine (T8760: HiGHS simplex
+and IPM do not finish in 300 s); on Kennington HiGHS's simplex/IPM are 3-25x faster than us, and
+our 4-thread r2HPDHG beats HiGHS PDLP where both verify (osa family). No "faster than HiGHS" claim
+beyond the refinery family.
+
 ## Current / next
-- Pipeline still running: rand-1e6 (4 thr), infeasible-cut (base, new), HiGHS comparison.
+- Evidence pipeline complete (HiGHS run stopped before rand-1e4/1e5 at the user's checkpoint request).
+- tools/highs_ref.py fixed: O(m^2) solution writing (hours on ken-18) -> O(n) (a725006).
 - R6 (implied-bound redundant rows, sources kept) implemented and REJECTED: osa-07 71 rows /
   79,408 nnz removed (= HiGHS first pass) but 7,360 -> 11,392 iterations; Netlib geomean +7.5%
   (agg 217k -> 10.7M, sierra 65k -> 351k). Redundant rows change the scaling/conditioning.
