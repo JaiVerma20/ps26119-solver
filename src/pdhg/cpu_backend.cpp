@@ -43,7 +43,13 @@ class CpuBackend final : public Backend {
 
   void setup(const ScaledProblem& sp) override {
     sp_ = &sp;
-    load(d_, sp);  // the fp32 store is loaded on the first switch to mixed precision
+    load(d_, sp);
+    // fp32 store: built on the first switch to mixed precision; a re-setup (new problem) drops
+    // any copy of the previous one, and reloads at once if the backend is already in fp32.
+    f_.loaded = false;
+    f_.A_own = {};
+    f_.At_own = {};
+    if (prec_ == Precision::Mixed) load(f_, sp);
   }
 
   void set_precision(Precision p) override {

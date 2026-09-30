@@ -601,3 +601,31 @@ TEST(PdhgPrimalWeight, NoFloorWhileAnIterateDiverges) {
   pid.update(opt, 1e-14, 1.0, 1.0, yn / 15, 1e-2, 1e-9);
   EXPECT_EQ(pid.omega, pid.best_omega);
 }
+
+TEST(PdhgBackend, ResetupWithAnotherProblemInMixedPrecision) {
+  // The fp32 matrices are built lazily; a backend set up again for a DIFFERENT problem while in
+  // mixed precision must not keep using the previous problem's fp32 copies.
+  const Model m1 = mixed_rows(), m2 = wyndor();
+  const auto sp1 = pdhg::make_scaled_problem(m1, pdhg::ScalingOptions{});
+  const auto sp2 = pdhg::make_scaled_problem(m2, pdhg::ScalingOptions{});
+  auto product = [](pdhg::Backend& b, const pdhg::ScaledProblem& sp) {
+    int x = b.create(pdhg::Space::Primal), ax = b.create(pdhg::Space::Dual);
+    b.upload(x, std::vector<double>(sp.n, 1.5));
+    b.spmv(x, ax);
+    std::vector<double> out;
+    b.download(ax, out);
+    return out;
+  };
+  auto reused = pdhg::make_cpu_backend();
+  reused->setup(sp1);
+  reused->set_precision(Precision::Mixed);
+  const auto first = product(*reused, sp1);
+  reused->setup(sp2);  // still in mixed precision
+  const auto second = product(*reused, sp2);
+  auto fresh = pdhg::make_cpu_backend();
+  fresh->setup(sp2);
+  fresh->set_precision(Precision::Mixed);
+  EXPECT_EQ(second, product(*fresh, sp2));
+  EXPECT_EQ(second.size(), static_cast<std::size_t>(sp2.m));
+  EXPECT_EQ(first.size(), static_cast<std::size_t>(sp1.m));
+}
