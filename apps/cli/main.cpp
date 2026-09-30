@@ -6,7 +6,7 @@
 //   ps26119 lu-bench <file> [--trials n] [--updates n]  sparse LU on bases of A (from gpuopt)
 //   ps26119 solve <file.lpm|file.mps> [--algorithm auto|oracle|pdlp|r2hpdhg|simplex]
 //           [--precision fp64|mixed] [--gpu] [--tol 1e-8] [--time-limit s]
-//           [--iteration-limit n] [--out solution.sol] [-v|-vv]
+//           [--iteration-limit n] [--out solution.sol] [-v|-vv|-vvv]
 //
 // Exit codes (CLAUDE.md §7): 0 optimal, 1 limit/infeasible/unbounded, 2 usage,
 // 3 read error, 4 cannot write the output, 5 numerical error / not solved.
@@ -68,7 +68,7 @@ void usage(std::FILE* f) {
                "  --warm-weight                          with --warm: also reuse its primal weight (faster on some\n"
                "                                         re-solves, slower on others; see bench/warm_start.py)\n"
                "  --set name=value                       expert engine knob (see Options::engine_params), repeatable\n"
-               "  -v | -vv                               verbosity\n"
+               "  -v | -vv | -vvv                        verbosity (-vvv: r2hpdhg per-check TRACE lines)\n"
                "exit codes: 0 optimal, 1 infeasible/unbounded/limit, 2 usage, 3 read error,\n"
                "            4 cannot write output, 5 numerical error / not solved\n",
                kProductName, kVersion, kProductName, kProductName, kProductName, kProductName, kProductName,
@@ -237,6 +237,8 @@ int cmd_solve(int argc, char** argv) {
       opt.verbosity = 1;
     } else if (a == "-vv") {
       opt.verbosity = 2;
+    } else if (a == "-vvv") {  // -vv plus a per-check TRACE line (r²HPDHG diagnostics)
+      opt.verbosity = 3;
     } else if (!a.empty() && a[0] == '-') {
       std::fprintf(stderr, "unknown option %s\n", a.c_str());
       return 2;
@@ -383,6 +385,7 @@ int cmd_batch(int argc, char** argv) {
       opt.iteration_limit = static_cast<std::int64_t>(parse_number("--iteration-limit", next(), true));
     else if (a == "-v") opt.verbosity = 1;
     else if (a == "-vv") opt.verbosity = 2;
+    else if (a == "-vvv") opt.verbosity = 3;
     else if (a == "--threads") opt.threads = parse_threads(next());
     else if (a == "--set") opt.engine_params.push_back(parse_set(next()));
     else if (!a.empty() && a[0] == '-') {

@@ -86,6 +86,18 @@ and IPM do not finish in 300 s); on Kennington HiGHS's simplex/IPM are 3-25x fas
 our 4-thread r2HPDHG beats HiGHS PDLP where both verify (osa family). No "faster than HiGHS" claim
 beyond the refinery family.
 
+## Controller investigation (follow-up request): no fix adopted — docs/DECISIONS.md #38
+GPU check first: this VM has no NVIDIA GPU (no nvidia-smi, no /dev/nvidia*, no driver, no CUDA
+toolkit, no NVIDIA PCI device) — no GPU step was run; use scripts/gpu_check.sh on the RTX 4050 laptop.
+- New `-vvv` (TRACE line per check: it, inner, omega, r, r0, rel primal/dual/gap, |x|, |y|): bit-identical.
+- cre-b reversal = PID steps /10 after the dual converged + stalled epochs (r/r0 ~0.9 for 17-19k it)
+  ended only by the artificial restart; the endgame needs omega ~1e-4 (vs 0.15 at the plateau).
+- rand-1e6 has no reversal: monotone, every epoch ends by sufficient decay after ~2.9k it; the
+  omega oscillation costs ~16% (frozen-omega diagnostic 14,592 vs 17,408).
+- Tested and rejected (cre-b baseline 122,368): A revert 695,936; A' damp 139,456; B KKT rollback
+  time limit; C early stall restart time limit; D reversal damping cre-b -3%, rand-1e6 -8%, but Netlib
+  +1.2% geomean with 1.4-1.7x per-model regressions.
+
 ## Current / next
 - Evidence pipeline complete (HiGHS run stopped before rand-1e4/1e5 at the user's checkpoint request).
 - tools/highs_ref.py fixed: O(m^2) solution writing (hours on ken-18) -> O(n) (a725006).

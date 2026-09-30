@@ -83,6 +83,10 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
 
     const double r = fixed_point_residual();
     const KktStats k = ctx.kkt(xh, yh);
+    if (opt.verbosity >= 3)  // -vvv diagnostics: reads the iterate, changes nothing
+      std::fprintf(stderr, "TRACE %lld %lld %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e\n", static_cast<long long>(it),
+                   static_cast<long long>(inner), omega, r, r0, k.rel_primal(), k.rel_dual(), k.rel_gap(), b.norm2(xh),
+                   b.norm2(yh));
     if (!k.finite() || !std::isfinite(r)) return ctx.finish(Status::NumericalError, xh, yh, it, "non-finite iterate");
     if (ctx.record(k, it)) return ctx.finish(Status::Optimal, xh, yh, it, msg);
     if (it >= opt.iteration_limit) return ctx.finish(Status::IterationLimit, xh, yh, it, msg);

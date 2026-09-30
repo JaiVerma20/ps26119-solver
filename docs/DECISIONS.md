@@ -268,3 +268,37 @@ Newest last. Each entry: what, why, evidence, how to undo.
     sierra 65k → 351k iterations. Redundant rows are not free to remove for a first-order method:
     their y is 0 but they change the diagonal scaling and the conditioning of the iteration.
 
+
+38. **Late-convergence "reversal" on cre-b / slow tail on rand-1e6: investigated, no change adopted**
+    (2026-09-30, cloud x86 VM, HEAD 9702583; traces with the new `-vvv`, which prints r, r⁰, ω,
+    relative residuals and ‖x̂‖, ‖ŷ‖ at every check and changes nothing else — bit-identical).
+    *cre-b* (122,368 iterations): relative KKT ≈ 3e-7 at 21–30k with ω ≈ 0.15. At 32,576 a
+    necessary-decay restart applies the PID step ω ÷10 (Δy/Δx = 6.7e-3 ≪ ω: the dual has
+    converged, the primal moves); later steps ÷4, ÷10, ÷10 down to 3.8e-5. Epochs at ω ≤ 3.8e-3 make
+    no progress on the fixed-point residual (r/r⁰ 0.89–0.99 for 19k and 17k iterations, ended only
+    by the artificial restart); the primal drifts (‖x̂‖ 11.88 → 15.3, Δx 0.1 → 8.2) and the primal
+    residual rises to 1e-3 before the method recovers with ω ≈ 1e-4…2e-3 and converges. The endgame
+    needs ω ~100–1000× smaller than the plateau's, so the ÷10 moves point the right way; the cost is
+    overshoot plus stalled epochs whose length grows with the total iteration count. Healthy runs
+    (rand-1e5, ken-18, pds-20) never exceed 15× their best KKT at a restart (cre-b: 400–1650×) and
+    almost never end an epoch with r/r⁰ > 0.8.
+    *rand-1e6* (17,408 iterations): no reversal — KKT decreases monotonically and every late epoch
+    ends by sufficient decay (r/r⁰ ≈ 0.19) after ~2,900 iterations (~320 at 1e5 rows): the
+    size-dependent linear rate of restarted Halpern. ω oscillates 3–7× between restarts; with ω
+    frozen at 1 (diagnostic only) 14,592 iterations (−16%).
+    Candidates, all tested on cre-b first (baseline 122,368):
+    - A stall rejection (epoch ends artificially with r/r⁰ > 0.8 ⇒ revert ω, halve the trust region):
+      695,936 — it reverts UP, away from the endgame ω.
+    - A′ stall damping (keep the PID direction, halve the trust region): 139,456 (+14%).
+    - B KKT rollback (KKT > 100× best ⇒ restart from the best iterate with its ω): time limit at
+      806,800 — the best-KKT point lies inside a stalled epoch.
+    - C early stall restart (residual fell < δ since half the epoch): time limit at ~800k for
+      δ = 0.05 and 0.1 — the slow epochs do necessary work; frequent restarts destabilise ω.
+    - Elasticity guard (earlier, #37 notes): time limit at 346k.
+    - D reversal damping (a PID step opposite to the previous one is halved): cre-b 118,848 (−3%),
+      rand-1e6 16,000 (−8%), Netlib 85/85 but shifted geomean +1.2% with 80bau3b ×1.58, beaconfd ×1.72,
+      bore3d ×1.48 (bnl2 ×0.58, pilotnov ×0.45): gains on the hard cases too small for the scatter.
+    None adopted (rule: improve the hard cases without materially degrading the rest). Open: a
+    primal-weight estimate that is not a displacement ratio (displacements along a degenerate optimal
+    face overstate the distance to the solution set), or a restart criterion that notices a stalled
+    epoch without restarting healthy slow ones.
