@@ -42,9 +42,9 @@ struct EngineOptions {
   double pid_kp = 0.99, pid_ki = 0.01, pid_kd = 0.0, pid_integral_decay = 0.3;
   // Safeguard (ours): |Δ log ω| per restart ≤ this. log(10) ⇒ at most ×10 / ÷10 per restart.
   double pid_max_log_step = 2.302585092994046;
-  double pid_noise_rel = 0.0;    // experimental
-  int pid_noise_action = 0;      // experimental
-  double pid_log10_range = 0.0;  // experimental
+  // Safeguard (ours): PID displacements below pid_noise_rel·(1 + ‖iterate‖) count as degenerate
+  // (rounding noise); see r2hpdhg.h. 0 = cuPDLPx behaviour (absolute 1e-16 guard only).
+  double pid_noise_rel = 1e-10;
   // PDLP-style (defaults: cuPDLP.jl / PDLP)
   double pdlp_restart_necessary = 0.8;
   double pdlp_primal_weight_smoothing = 0.5;  // θ

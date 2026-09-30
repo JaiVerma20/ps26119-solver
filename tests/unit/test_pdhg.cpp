@@ -14,6 +14,7 @@
 #include "model_builder.h"
 #include "pdhg/backend.h"
 #include "pdhg/engine.h"
+#include "pdhg/r2hpdhg.h"
 #include "pdhg/scaling.h"
 #include "ps26119/solve.h"
 
@@ -539,4 +540,64 @@ TEST(PdhgBackend, FusedStepsEqualProductThenStep) {
     }
   }
   la::ThreadPool::instance().set_threads(1);
+}
+
+TEST(PdhgPrimalWeight, PidFollowsDisplacementRatioAboveTheNoiseFloor) {
+  pdhg::EngineOptions opt;
+  pdhg::PrimalWeightPid pid(1.0);
+  // Δy/Δx = 2 ⇒ e = log 2 > 0 ⇒ ω grows (K_P e + K_I e = log 2 exactly, no clamp)
+  pid.update(opt, 1e-2, 2e-2, 1.0, 1.0, 1e-3, 1e-3);
+  EXPECT_NEAR(pid.omega, 2.0, 1e-12);
+  // a huge ratio is clamped to one decade per restart
+  pdhg::PrimalWeightPid big(1.0);
+  big.update(opt, 1e-6, 1.0, 1.0, 1.0, 1e-3, 1e-3);
+  EXPECT_NEAR(big.omega, 10.0, 1e-9);
+}
+
+TEST(PdhgPrimalWeight, DisplacementAtRoundingLevelFallsBackToBestWeight) {
+  // Seen on Netlib sierra: the dual has converged, Δy ≈ 7e-14 while ‖ŷ‖ ≈ 1 — rounding noise. The
+  // cuPDLPx guard (absolute 1e-16) accepts it and ω collapsed 1 → 2.5e-7. With the relative floor
+  // the controller falls back to the best weight seen (most balanced residuals) and resets.
+  pdhg::EngineOptions opt;
+  ASSERT_GT(opt.pid_noise_rel, 0.0);
+  pdhg::PrimalWeightPid pid(1.0);
+  pid.update(opt, 1e-2, 1e-2, 1.0, 1.0, 1e-3, 1e-3);  // balanced residuals: best ω = 1
+  EXPECT_NEAR(pid.best_omega, 1.0, 1e-12);
+  pid.update(opt, 1e-2, 1e-3, 1.0, 1.0, 1e-3, 1e-1);  // unbalanced: ω moves, best stays 1
+  const double moved = pid.omega;
+  EXPECT_LT(moved, 0.5);
+  pid.update(opt, 7e-2, 7e-14, 1.0, 1.0, 1e-3, 1e-1);  // Δy at rounding level relative to ‖ŷ‖ = 1
+  EXPECT_EQ(pid.omega, 1.0);
+  EXPECT_EQ(pid.integral, 0.0);
+  EXPECT_EQ(pid.last_error, 0.0);
+  // the floor is relative to the iterate: Δy = 50·ε_ω is information when ‖ŷ‖ = 1 ...
+  const double eps = opt.pid_noise_rel;
+  pdhg::PrimalWeightPid small(1.0);
+  small.update(opt, 7e-2, 50 * eps, 1.0, 1.0, 1e-3, 1e-1);
+  EXPECT_LT(small.omega, 0.2);
+  // ... but rounding noise when ‖ŷ‖ = 1e3 (floor ε_ω · (1 + 1e3))
+  pdhg::PrimalWeightPid large(1.0);
+  large.update(opt, 7e-2, 50 * eps, 1.0, 1e3, 1e-3, 1e-1);  // first restart: norm 0 → 1e3 is "diverging"
+  large.update(opt, 7e-2, 50 * eps, 1.0, 1e3, 1e-3, 1e-1);  // steady norm: the floor applies
+  EXPECT_EQ(large.omega, large.best_omega);
+  // pid_noise_rel = 0 restores the cuPDLPx rule (the step is taken)
+  pdhg::EngineOptions raw;
+  raw.pid_noise_rel = 0;
+  pdhg::PrimalWeightPid cu(1.0);
+  cu.update(raw, 7e-2, 7e-14, 1.0, 1.0, 1e-3, 1e-1);
+  EXPECT_NEAR(cu.omega, 0.1, 1e-12);
+}
+
+TEST(PdhgPrimalWeight, NoFloorWhileAnIterateDiverges) {
+  // Infeasible LP: the primal converges (Δx at rounding level) while the dual drifts along the
+  // Farkas ray, its norm growing by ~15× per restart (objective-cut scsd8). The ω runaway is what
+  // speeds up the ray there, so the floor must not reset ω.
+  pdhg::EngineOptions opt;
+  pdhg::PrimalWeightPid pid(1.0);
+  double yn = 10.0;
+  for (int k = 0; k < 5; ++k, yn *= 15) pid.update(opt, 1e-14, 0.5 * yn, 1.0, yn, 1e-2, 1e-9);
+  EXPECT_GT(pid.omega, 1e4);  // grew by (at most) a decade per restart
+  // once the norm stops growing the floor applies again
+  pid.update(opt, 1e-14, 1.0, 1.0, yn / 15, 1e-2, 1e-9);
+  EXPECT_EQ(pid.omega, pid.best_omega);
 }

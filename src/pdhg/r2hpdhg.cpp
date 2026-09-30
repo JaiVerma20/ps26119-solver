@@ -21,7 +21,6 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
   PrecisionPolicy policy(b, opt);
   const double eta = ctx.eta(), rho = opt.reflection;
   double omega = ctx.initial_primal_weight();
-  const double omega_init = omega;
 
   // Halpern iterate z, anchor z0, PDHG output ẑ = T(z), reflections z̄ = 2ẑ − z, work.
   int x = b.create(Space::Primal), x0 = b.create(Space::Primal), xh = b.create(Space::Primal);
@@ -44,8 +43,7 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
   b.copy(xh, x);
   b.copy(yh, y);
 
-  // PID controller state
-  double pid_integral = 0.0, pid_last = 0.0, best_omega = omega, best_balance = 1e300;
+  PrimalWeightPid pid(omega);
 
   // Fixed-point residual r(z) from the last step's x̄, x̂, ȳ, ŷ (Δ = x̄ − x̂ = x̂ − z).
   auto fixed_point_residual = [&]() {
@@ -124,42 +122,14 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
 
     // ---- PID primal weight
     const double dxn = b.diff_norm2(xh, x0), dyn = b.diff_norm2(yh, y0);
-    // The residual-ratio guard only applies when both residuals are positive: a residual
-    // that is exactly 0 (e.g. every column boxed ⇒ dual residual ≡ 0, as on recipe) is
-    // not a sign of trouble, and treating it as one freezes ω forever.
-    const bool both_pos = k.rel_dual() > 0 && k.rel_primal() > 0;
-    const double ratio = both_pos ? k.rel_dual() / k.rel_primal() : 1.0;
-    bool above_noise = true;
-    if (opt.pid_noise_rel > 0) {
-      const double xn = b.norm2(xh), yn = b.norm2(yh);
-      above_noise = dxn > opt.pid_noise_rel * (1.0 + xn) && dyn > opt.pid_noise_rel * (1.0 + yn);
-    }
-    if (!above_noise && opt.pid_noise_action == 1) {
-      // keep ω: no information
-    } else if (above_noise && dxn > 1e-16 && dyn > 1e-16 && dxn < 1e12 && dyn < 1e12 && ratio > 1e-8 && ratio < 1e8) {
-      const double e = std::log(dyn) - std::log(dxn) - std::log(omega);
-      pid_integral = opt.pid_integral_decay * pid_integral + e;
-      // damped: log ω moves by at most pid_max_log_step per restart
-      const double step = opt.pid_kp * e + opt.pid_ki * pid_integral + opt.pid_kd * (e - pid_last);
-      omega *= std::exp(std::clamp(step, -opt.pid_max_log_step, opt.pid_max_log_step));
-      if (opt.pid_log10_range > 0)
-        omega = std::clamp(omega, omega_init * std::pow(10.0, -opt.pid_log10_range),
-                           omega_init * std::pow(10.0, opt.pid_log10_range));
-      pid_last = e;
-    } else {
-      omega = best_omega;
-      pid_integral = pid_last = 0.0;
-    }
-    const double balance = std::fabs(std::log10(ratio));
-    if (both_pos && balance < best_balance) {
-      best_balance = balance;
-      best_omega = omega;
-    }
+    const double xn = opt.pid_noise_rel > 0 ? b.norm2(xh) : 0.0, yn = opt.pid_noise_rel > 0 ? b.norm2(yh) : 0.0;
+    pid.update(opt, dxn, dyn, xn, yn, k.rel_primal(), k.rel_dual());
+    omega = pid.omega;
 
     ctx.note_primal_weight(omega);
     if (opt.verbosity >= 2)
-      std::fprintf(stderr, "  restart at %lld (inner %lld): r/r0 %.3f  omega %.4e  dx %.3e dy %.3e\n",
-                   static_cast<long long>(it), static_cast<long long>(inner), r / r0, omega, dxn, dyn);
+      std::fprintf(stderr, "  restart at %lld (inner %lld): r/r0 %.3f  omega %.4e  dx %.3e dy %.3e  |x| %.3e |y| %.3e\n",
+                   static_cast<long long>(it), static_cast<long long>(inner), r / r0, omega, dxn, dyn, xn, yn);
     // ---- restart at T(z)
     b.copy(x, xh);
     b.copy(x0, xh);
@@ -167,6 +137,41 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
     b.copy(y0, yh);
     inner = 0;
     r_last = std::numeric_limits<double>::infinity();
+  }
+}
+
+void PrimalWeightPid::update(const EngineOptions& opt, double dxn, double dyn, double xn, double yn,
+                             double rel_primal, double rel_dual) {
+  // The residual-ratio guard only applies when both residuals are positive: a residual
+  // that is exactly 0 (e.g. every column boxed ⇒ dual residual ≡ 0, as on recipe) is
+  // not a sign of trouble, and treating it as one freezes ω forever.
+  const bool both_pos = rel_dual > 0 && rel_primal > 0;
+  const double ratio = both_pos ? rel_dual / rel_primal : 1.0;
+  // Rounding-noise floor (r2hpdhg.h): a displacement this small carries no information about
+  // the distance to the solution.
+  // Not applied while an iterate is diverging (its norm more than doubles between restarts):
+  // on an infeasible or unbounded LP one side drifts along a ray while the other converges,
+  // and there the ω runaway is what speeds up the ray (and hence the certificate).
+  const bool diverging = xn > 2.0 * (1.0 + last_xn) || yn > 2.0 * (1.0 + last_yn);
+  last_xn = xn;
+  last_yn = yn;
+  const bool above_noise =
+      diverging || (dxn > opt.pid_noise_rel * (1.0 + xn) && dyn > opt.pid_noise_rel * (1.0 + yn));
+  if (above_noise && dxn > 1e-16 && dyn > 1e-16 && dxn < 1e12 && dyn < 1e12 && ratio > 1e-8 && ratio < 1e8) {
+    const double e = std::log(dyn) - std::log(dxn) - std::log(omega);
+    integral = opt.pid_integral_decay * integral + e;
+    // damped: log ω moves by at most pid_max_log_step per restart
+    const double step = opt.pid_kp * e + opt.pid_ki * integral + opt.pid_kd * (e - last_error);
+    omega *= std::exp(std::clamp(step, -opt.pid_max_log_step, opt.pid_max_log_step));
+    last_error = e;
+  } else {
+    omega = best_omega;
+    integral = last_error = 0.0;
+  }
+  const double balance = std::fabs(std::log10(ratio));
+  if (both_pos && balance < best_balance) {
+    best_balance = balance;
+    best_omega = omega;
   }
 }
 

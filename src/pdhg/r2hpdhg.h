@@ -40,7 +40,25 @@
 //   extreme (outside [1e-8, 1e8]; checked only when both residuals are > 0) we fall
 //   back to the best ω seen so far (the one with the most balanced relative primal and
 //   dual residuals) and reset the controller.
-//
+//   Rounding-noise floor (ours): a distance is ALSO treated as degenerate when it is below
+//   ε_ω·(1 + ‖x̂‖) resp. ε_ω·(1 + ‖ŷ‖), ε_ω = pid_noise_rel = 1e-10 — unless an iterate is
+//   diverging (its norm more than doubled since the previous restart). Why: Δy/Δx estimates
+//   ‖y⁰ − y*‖/‖x⁰ − x*‖ only while the displacements are set by the distance to the solution.
+//   Once one side has converged, its displacement is set by the STEP instead (Δy ∝ σ = ηω),
+//   so e ≈ log ω + const and the update becomes ω_new ∝ ω^(1+K_P): an unstable fixed point
+//   that drives ω to 0 or ∞, ending with a controller that chases rounding noise (the
+//   absolute 1e-16 guard of cuPDLPx is not scale-aware). Seen on sierra: ω fell 1 → 2.5e-7
+//   as Δy fell to 7e-14. The divergence exception: PDHG iterates stay bounded iff the LP is
+//   primal-dual feasible (Applegate, Lubin, Hinder 2024); on an infeasible LP one side drifts
+//   along the ray while the other converges, and there the ω runaway accelerates the ray and
+//   hence the certificate (without the exception: blend, share2b, scsd8 + objective cut lost).
+//   Evidence (x86 VM, 60 s, docs/AGENT_PROGRESS.md): 93 Netlib at 1e-8 — 85 solved either way,
+//   sierra 961k → 64.7k iterations, perold 241k → 172k, nothing else moves by more than 30%;
+//   93 objective-cut infeasible Netlib — 71 certified either way, agg3 178k → 351k iterations,
+//   nothing else moves by more than 25%; Kennington (16), refinery T365/T2190/T8760: unchanged.
+//   Rejected: ε_ω = 1e-8 (agg lost); holding ω below the floor (sierra fails); bounding ω to
+//   10^±4 × its start (grow7/15/22: 8–11× more iterations); recording the best ω before the
+//   update (+1% geomean).
 //   Termination: relative KKT (termination.h) of T(z) = (x̂, ŷ) ≤ ε, evaluated every K
 //   iterations in fp64 on the original problem.
 // Invariants: x̂ ∈ X always; ŷ sign-feasible; x, y (Halpern iterates) may leave X, which
@@ -53,5 +71,19 @@
 namespace ps26119::pdhg {
 
 Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt);
+
+// The PID primal-weight controller with the safeguards above (pure host logic, unit-tested).
+struct PrimalWeightPid {
+  double omega = 1.0;
+  double integral = 0.0, last_error = 0.0;
+  double best_omega = 1.0, best_balance = 1e300;
+  double last_xn = 0.0, last_yn = 0.0;  // iterate norms at the previous restart
+
+  explicit PrimalWeightPid(double omega0) : omega(omega0), best_omega(omega0) {}
+  // One restart: dxn = ‖x̂ − x⁰‖, dyn = ‖ŷ − y⁰‖, xn = ‖x̂‖, yn = ‖ŷ‖ (scaled space), and the
+  // relative primal / dual residuals of the current KKT check. Updates omega.
+  void update(const EngineOptions& opt, double dxn, double dyn, double xn, double yn, double rel_primal,
+              double rel_dual);
+};
 
 }  // namespace ps26119::pdhg

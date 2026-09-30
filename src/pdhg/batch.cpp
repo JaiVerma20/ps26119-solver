@@ -27,6 +27,7 @@
 
 #include "pdhg/backend.h"
 #include "pdhg/engine.h"
+#include "pdhg/r2hpdhg.h"
 #include "la/parallel.h"
 #include "pdhg/scaling.h"
 #include "ps26119/tolerances.h"
@@ -243,7 +244,8 @@ std::vector<Solution> solve_batch(const Model& base, const std::vector<Scenario>
   YH = Y;
 
   // per-scenario state (indexed by scenario id)
-  std::vector<double> omega(K, 1.0), best_omega(K, 1.0), best_balance(K, 1e300), pid_int(K, 0.0), pid_last(K, 0.0);
+  std::vector<double> omega(K, 1.0);
+  std::vector<pdhg::PrimalWeightPid> pid(K, pdhg::PrimalWeightPid(1.0));  // same controller as r2hpdhg.cpp
   std::vector<double> r0(K, -1.0), r_last(K, std::numeric_limits<double>::infinity());
   std::vector<std::int64_t> inner(K, 0), fast_it(K, -1);
   std::vector<double> fast_s(K, -1.0);
@@ -387,34 +389,20 @@ std::vector<Solution> solve_batch(const Model& base, const std::vector<Scenario>
                            static_cast<double>(inner[k]) >= eo.restart_artificial * static_cast<double>(it);
       r_last[k] = r;
       if (!restart) continue;
-      // PID primal weight (same rule as r2hpdhg.cpp)
-      double dxn = 0, dyn = 0;
+      // PID primal weight (the shared controller of r2hpdhg.h)
+      double dxn = 0, dyn = 0, xn = 0, yn = 0;
       for (int j = 0; j < n; ++j) {
         const std::size_t q = static_cast<std::size_t>(j) * W + t;
         dxn += (XH[q] - X0[q]) * (XH[q] - X0[q]);
+        xn += XH[q] * XH[q];
       }
       for (int i = 0; i < m; ++i) {
         const std::size_t q = static_cast<std::size_t>(i) * W + t;
         dyn += (YH[q] - Y0[q]) * (YH[q] - Y0[q]);
+        yn += YH[q] * YH[q];
       }
-      dxn = std::sqrt(dxn);
-      dyn = std::sqrt(dyn);
-      const bool both_pos = kk.rel_dual() > 0 && kk.rel_primal() > 0;
-      const double ratio = both_pos ? kk.rel_dual() / kk.rel_primal() : 1.0;
-      if (dxn > 1e-16 && dyn > 1e-16 && dxn < 1e12 && dyn < 1e12 && ratio > 1e-8 && ratio < 1e8) {
-        const double e = std::log(dyn) - std::log(dxn) - std::log(omega[k]);
-        pid_int[k] = eo.pid_integral_decay * pid_int[k] + e;
-        const double stp = eo.pid_kp * e + eo.pid_ki * pid_int[k] + eo.pid_kd * (e - pid_last[k]);
-        omega[k] *= std::exp(std::clamp(stp, -eo.pid_max_log_step, eo.pid_max_log_step));
-        pid_last[k] = e;
-      } else {
-        omega[k] = best_omega[k];
-        pid_int[k] = pid_last[k] = 0.0;
-      }
-      if (both_pos && std::fabs(std::log10(ratio)) < best_balance[k]) {
-        best_balance[k] = std::fabs(std::log10(ratio));
-        best_omega[k] = omega[k];
-      }
+      pid[k].update(eo, std::sqrt(dxn), std::sqrt(dyn), std::sqrt(xn), std::sqrt(yn), kk.rel_primal(), kk.rel_dual());
+      omega[k] = pid[k].omega;
       for (int j = 0; j < n; ++j) {
         const std::size_t q = static_cast<std::size_t>(j) * W + t;
         X[q] = X0[q] = XH[q];

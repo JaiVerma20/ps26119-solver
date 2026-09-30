@@ -229,3 +229,25 @@ Newest last. Each entry: what, why, evidence, how to undo.
     the 23 objective-cut models whose certificates were tolerance-only: simplex 23/23, r²HPDHG
     15/15 still certified (`Certificates.ZeroMeasureFarkasVectorIsRejected`,
     `CertificateVerifier.test_zero_measure_farkas_vector_is_rejected`).
+
+35. **CPU first-order kernels: branch-free projections, parallel checks, nnz-balanced SpMV, fused
+    steps** (2026-09-30, profiling on a 4-core x86 VM; docs/AGENT_PROGRESS.md). (a) `clamp` as
+    `min(max(v, lo), hi)`: the nested ternary compiled to data-dependent branches and `r2h_dual`
+    ran ~3× its branch-free time on real iterates; bit-identical results. (b) `kkt_general` and
+    `ray_test` (every termination check) are fixed-chunk parallel reductions
+    (`la::parallel_reduce`) with reused buffers; they were serial and allocating (22% of the
+    iteration time at 4 threads). Thread-count invariant; Netlib iteration counts identical.
+    (c) `Csr::multiply` chunks by nnz + rows instead of by ≥ 4096 rows: wide matrices (osa-*,
+    fit2d) never ran A x in parallel. (d) `Backend::r2h_{primal,dual}_fused` compute each row's
+    product and use it at once (no `aty` / `ax` round trip; CUDA keeps the default = unfused pair).
+    All bit-identical across thread counts (`PdhgThreads.*`, `PdhgBackend.FusedStepsEqualProductThenStep`).
+
+36. **r²HPDHG primal weight: rounding-noise floor on the PID displacements** (`pid_noise_rel`
+    = 1e-10, `pdhg::PrimalWeightPid`, rationale and evidence in `pdhg/r2hpdhg.h`). Once one side
+    has converged its displacement is proportional to its step, the PID loop is then unstable
+    (ω_new ∝ ω^1.99) and ends up chasing rounding noise (sierra: ω 1 → 2.5e-7, 961k iterations).
+    Displacements below 1e-10·(1 + ‖iterate‖) now count as degenerate (cuPDLPx: absolute 1e-16),
+    i.e. fall back to the best ω — except while an iterate is diverging (norm more than doubles
+    between restarts), which is the infeasible/unbounded case where the ω runaway helps the ray.
+    Netlib: sierra 961k → 64.7k, perold 241k → 172k iterations, all 85 kept; objective-cut
+    infeasible Netlib: 71 certified before and after. The batched engine uses the same controller.

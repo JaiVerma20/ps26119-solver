@@ -43,8 +43,6 @@ std::string apply_engine_params(const Options& o, EngineOptions& e) {
     else if (name == "pid_integral_decay") e.pid_integral_decay = v;
     else if (name == "pid_max_log_step") e.pid_max_log_step = v;
     else if (name == "pid_noise_rel") e.pid_noise_rel = v;
-    else if (name == "pid_noise_action") e.pid_noise_action = static_cast<int>(v);
-    else if (name == "pid_log10_range") e.pid_log10_range = v;
     else if (name == "bound_objective_rescaling") e.scaling.bound_objective_rescaling = v != 0;
     else if (name == "geometric_mean_iterations") e.scaling.geometric_mean_iterations = static_cast<int>(v);
     else if (name == "geometric_mean_min_log10_range") e.scaling.geometric_mean_min_log10_range = v;
