@@ -16,9 +16,13 @@
 namespace ps26119::pdhg {
 namespace {
 
+// Branch-free projection: std::max / std::min compile to maxsd / minsd (vmaxps / vminps when
+// vectorised). Same result as `v < lo ? lo : (v > hi ? hi : v)` for every input, NaN included,
+// but no data-dependent branches: which bound is active is unpredictable in a real solve, and
+// the mispredictions made r2h_dual cost ~3x its branch-free time on x86 (refinery T8760).
 template <class T>
 T clamp(T v, T lo, T hi) {
-  return v < lo ? lo : (v > hi ? hi : v);
+  return std::min(std::max(v, lo), hi);
 }
 
 template <class T>

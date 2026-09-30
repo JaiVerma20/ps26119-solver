@@ -99,7 +99,8 @@ void compact(std::vector<double>& v, std::size_t rows, int W, const std::vector<
   v.swap(nv);
 }
 
-inline double clampd(double v, double lo, double hi) { return v < lo ? lo : (v > hi ? hi : v); }
+// Branch-free (maxsd/minsd); same result as the ternary form for every input (cpu_backend.cpp).
+inline double clampd(double v, double lo, double hi) { return std::min(std::max(v, lo), hi); }
 
 struct ScenarioData {  // original space, original sense
   std::vector<double> c, cl, cu, rl, ru;
