@@ -47,6 +47,20 @@ failures stay in the tables. Numbers from different machines are never mixed in 
   statuses instead of a ratio. GPU and CPU iteration counts differ slightly (reduction order), so
   both wall time and iterations are in the CSV.
 
+## Before / after a change (bench/compare_binaries.py)
+
+- Two builds (the commit before the change, and the change) on the SAME machine, same models,
+  same options; runs interleaved base, new, base, new, … and repeated (default 3); the table keeps
+  the fastest run of each — a virtualised machine varies by ±5–30% between runs (seen on the
+  cloud VM of 2026-09-30: base refinery year 30.3 s and 39.7 s an hour apart).
+- The iteration count is deterministic and must be identical across repetitions (the script
+  stops otherwise); the last solutions go through tools/verify.py.
+- Output `bench/results/…/before-after-<machine>-<new hash>.csv` with both commits
+  (`git_hash`, `base_git_hash`); speedup = base seconds / new seconds.
+- Runs from a machine other than the reference MacBook Air M4 live in a folder named after the
+  machine (e.g. `bench/results/cloud-x86-4c/`), so `bench/make_evidence.py` keeps taking its
+  headline numbers from the reference machine; `bench/validate_results.py <folder>` checks them.
+
 ## Definitions
 - **Relative KKT** (first-order engines): see `src/pdhg/termination.h` — L2 primal residual
   / (1+‖b‖), L2 dual residual / (1+‖c‖), relative gap; both 1e-4 and 1e-8 are reported

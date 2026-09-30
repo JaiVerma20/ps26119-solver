@@ -18,7 +18,7 @@ engines. The CLI, the C API and the Python binding are thin layers over `ps26119
             │                         warm start / first-order knob → r²HPDHG)
             ▼
          presolve (core/presolve: empty rows, fixed/empty cols, singleton rows,
-            │       integer bounds rounded inward)
+            │       rows redundant by activity bounds, integer bounds rounded inward)
             ▼
    ┌────────────────────┬──────────────────────────┬──────────────────────┬─────────────────┐
    │ integer columns?   │ LP                                                                │
@@ -98,6 +98,11 @@ the first-order code uses `la::Csr<T>`; neither is a second model representation
 `src/gpu/cuda_backend.cu` implements it (own CSR SpMV kernels, fused update + projection,
 deterministic fixed-grid reductions). The CPU backend implements the same math, so the Mac
 unit-tests the algorithm and the GPU machines test the kernels (`docs/GPU_VERIFICATION.md`).
+On the CPU the SpMV is fused into the step (`Backend::r2h_{primal,dual}_fused`: each row's
+product is consumed at once, no `Aᵀy` / `Ax̄` vectors), work is split by nonzeros, not rows,
+and the termination / infeasibility checks are fixed-chunk parallel reductions — all
+bit-identical for any thread count (DECISIONS #35). The CUDA backend uses the interface's
+default (unfused) pair for now.
 The CUDA backend passes all correctness tests on an NVIDIA laptop GPU (RTX 4050, commit `183c59c`),
 follows the CPU's fp64 iteration counts exactly, is compute-sanitizer clean (memcheck, racecheck on
 the `Gpu.*` tests) and is 3.0–4.2× faster than the fastest CPU configuration of that laptop on

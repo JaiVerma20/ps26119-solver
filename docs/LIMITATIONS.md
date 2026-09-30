@@ -42,7 +42,9 @@ Status words: **VERIFIED** (tested + benchmarked with a committed CSV), **IMPLEM
   to about that level: in the unscaled-simplex ablation, pilot87 passed every check with an
   objective 1.1e-6 (relative) away from HiGHS. Default runs agree with HiGHS far more tightly
   (EVIDENCE §1b).
-- Presolve is basic (empty rows, fixed/empty columns, singleton rows, integer bound rounding).
+- Presolve is basic (empty rows, fixed/empty columns, singleton rows, rows redundant by activity
+  bounds, integer bound rounding); no doubleton/dominated-column/duplicate-row reductions (HiGHS
+  removes 57% of the nonzeros of Kennington osa-07, we remove 39%).
 - No interior-point method, no QP, no MIQP/NLP.
 - Time limits: engines check the clock every iteration, but first-order setup (scaling; ~5 s
   at 6M nonzeros on the M4) and the final verification are not interruptible, and the

@@ -11,7 +11,8 @@ generated LPs, data/*/optima.csv otherwise).
 
 usage: bench/compare_binaries.py --base <old ps26119> [--new build/ps26119] [--reps 3]
           [--threads 1,4] [--algorithm r2hpdhg] [--time-limit 1200] model [model ...]
-Writes bench/results/compare-binaries-<machine>-<new githash>.csv; the base binary's hash is in
+Writes bench/results/before-after-<machine>-<new githash>.csv (not "compare-": that prefix is
+bench/compare_highs.py's); the base binary's hash is in
 column base_git_hash. Set PS26119_MACHINE to label the machine.
 """
 import argparse
@@ -141,7 +142,7 @@ def main():
                     rows.append(r)
                 for r in rows[-2:]:
                     r["speedup_vs_base"] = f"{best['base'] / best['new']:.3f}" if r["binary"] == "new" else "1.000"
-    out = a.out or os.path.join(HERE, "results", f"compare-binaries-{info['machine']}-{hashes['new']}.csv")
+    out = a.out or os.path.join(HERE, "results", f"before-after-{info['machine']}-{hashes['new']}.csv")
     with open(out, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=FIELDS)
         w.writeheader()

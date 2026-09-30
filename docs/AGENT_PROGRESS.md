@@ -42,11 +42,53 @@ before/after on THIS machine only.
   model's own bounds only. PID floor "reset once" variant did not fix agg-with-chained-R5 (omega
   oscillates best <-> 10x best) -> reverted.
 
+## Final evidence (all CSVs in bench/results/cloud-x86-4c/, machine cloud-x86-4c, HEAD 1dcd40e, base a239f97)
+Before/after, `before-after-cloud-x86-4c-1dcd40e.csv` (bench/compare_binaries.py, interleaved, min of 3,
+every run Optimal + verify PASS, iteration counts deterministic):
+
+| model | 1 thread base -> new | 4 threads base -> new | iterations |
+|---|---|---|---|
+| refinery-T8760-s1 (429k x 517k, 1.5M nnz) | 38.9 -> 23.1 s (1.68x) | 13.0 -> 8.7 s (1.49x) | 2880 = |
+| rand-100000-s1 | 13.5 -> 10.8 s (1.25x) | 5.8 -> 4.5 s (1.28x) | 2496 -> 2624 |
+| sierra (Netlib) | 23.0 -> 1.50 s (15.3x) | 23.5 -> 1.51 s (15.6x) | 961216 -> 64704 |
+| osa-07 | 3.72 -> 1.90 s (1.96x) | 3.34 -> 1.22 s (2.74x) | 10368 -> 7360 |
+| osa-14 | 15.6 -> 8.6 s (1.81x) | 11.6 -> 3.8 s (3.04x) | 18368 -> 12928 |
+| osa-30 | 33.7 -> 25.4 s (1.32x) | 23.7 -> 9.7 s (2.45x) | 20672 -> 17216 |
+| osa-60 (1.4M nnz) | 85.1 -> 76.1 s (1.12x) | 52.8 -> 24.6 s (2.14x) | 18176 -> 20160 |
+| ken-18 | 59.6 -> 43.7 s (1.36x) | 26.6 -> 17.5 s (1.52x) | 24576 = |
+| pds-20 | 30.9 -> 31.1 s (0.99x) | 15.6 -> 14.0 s (1.11x) | 26368 = |
+| cre-d | 22.5 -> 21.8 s (1.03x) | 15.7 -> 8.7 s (1.80x) | 27968 = |
+
+Netlib 93, r2hpdhg, official harness (sequential, 60 s, verify.py):
+`netlib-full-r2hpdhg-fp64-cloud-x86-4c-{a239f97,1dcd40e}.csv`: 85/93 -> 85/93 (all = HiGHS to 1e-6);
+shifted geomean iterations 20666 -> 20004 (-3.1%), time -5.3%, total 226.5 -> 182.4 s on the 85.
+Scale (`scale-cloud-x86-4c-1dcd40e.csv`): all Optimal + verify PASS, error vs known optimum <= 3.7e-10;
+refinery year 1 thread 25.8 s fp64 / 22.6 s mixed, 4 threads 8.9 s fp64.
+Peak RSS refinery year fp64: 397 -> 324 MB (d081992).
+Sanitizers (CI flags): asan+ubsan 197/197, tsan 198/198; CUDA front-end check OK; no foreign solver linked.
+
 ## Current / next
-- Timing benchmark running (scratchpad timing.py): base a239f97 vs new, min of 3, 1 and 4 threads.
-- Then: sanitizer builds (asan/ubsan, tsan), check_no_solver_linked, CUDA syntax check, evidence
-  CSVs (netlib_full r2hpdhg, scale) at the final commit.
-- Open: rand-1e6 needs 17.4k iterations vs 2.5k at 1e5 (same as older M4 runs: not a regression).
+- Pipeline still running: rand-1e6 (4 thr), infeasible-cut (base, new), HiGHS comparison.
+- R6 (implied-bound redundant rows, sources kept) implemented and REJECTED: osa-07 71 rows /
+  79,408 nnz removed (= HiGHS first pass) but 7,360 -> 11,392 iterations; Netlib geomean +7.5%
+  (agg 217k -> 10.7M, sierra 65k -> 351k). Redundant rows change the scaling/conditioning.
+- cre-b (122k it, the slowest Kennington model) reaches rel-KKT ~3e-7 at 23k iterations and then
+  goes BACKWARDS (primal residual up to 9e-4 at 69k, plateau until ~100k): omega collapses
+  0.149 -> 3.8e-5 in four restarts while the primal displacement GROWS (0.04 -> 8.2), i.e. the
+  displacements measure the steps, not the distance to the solution. Analysis: with R = dy/dx and
+  elasticity eps = dlogR/dlogomega, the PID update has local multiplier 1 + K_P(eps - 1): stable
+  only for eps < 1 (distance-limited eps ~ 0, step-limited eps ~ 2); cre-b's first collapse step
+  measures eps ~ 1.35. Tried (knob, reverted): on eps > 1 fall back to the best omega — cre-b
+  worse (time limit at 346k it), also when restricted to same-direction runaways: the early
+  "best" omega is wrong for the late phase and the collapse restarts from it. The diagnosis
+  stands; the remedy is open (candidates: hold omega instead of resetting only while eps > 1;
+  estimate eps from a deliberate probe; restart criterion on KKT error as PDLP).
+- NEXT ACTION: the 1e-6 -> 1e-8 tail on the largest/hardest LPs (rand-1e6 17.4k it, cre-b 122k):
+  restart epochs stop reaching sufficient decay and omega swings ~7x between restarts. Candidates:
+  KKT-error-based restart as in PDLP alongside the fixed-point one; omega smoothing in the tail.
+  (Global K_P 0.5 was tested and is worse: Netlib +21% geomean, 4 models lost.)
+- Open: rand-1e6 needs 17.4k iterations vs 2.6k at 1e5 (same on older M4 runs, not a regression):
+  after ~1.9k iterations restarts stop reaching the 0.2 sufficient decay and omega swings 0.5 <-> 3.9.
 
 ## Reproduce
 Netlib: `python3 tools/fetch_netlib.py`; Kennington MPS from the mirror in tools/fetch_kennington.py

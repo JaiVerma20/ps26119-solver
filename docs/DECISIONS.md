@@ -261,3 +261,10 @@ Newest last. Each entry: what, why, evidence, how to undo.
     +0.6%), `auto` 93/93, objective-cut infeasible 71 certified before and after (verify.py exact
     rational PASS on the affected ones). Using bounds tightened by R4 instead removed more rows
     and lost agg (and, without the PID floor, bnl2): not done.
+    Tried and rejected (same session): R6, rows redundant under bounds implied by single other
+    rows (sources kept, so sound). On osa-07 it removes 71 rows / 79,408 nonzeros — the same as
+    HiGHS's first presolve pass — but r²HPDHG gets worse where it matters: osa-07 7,360 → 11,392
+    iterations (osa-14 −8%, osa-30 −12%), Netlib shifted geomean +7.5% with agg 217k → 10.7M and
+    sierra 65k → 351k iterations. Redundant rows are not free to remove for a first-order method:
+    their y is 0 but they change the diagonal scaling and the conditioning of the iteration.
+
