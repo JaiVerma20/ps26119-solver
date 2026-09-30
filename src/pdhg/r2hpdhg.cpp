@@ -21,6 +21,7 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
   PrecisionPolicy policy(b, opt);
   const double eta = ctx.eta(), rho = opt.reflection;
   double omega = ctx.initial_primal_weight();
+  const double omega_init = omega;
 
   // Halpern iterate z, anchor z0, PDHG output ẑ = T(z), reflections z̄ = 2ẑ − z, work.
   int x = b.create(Space::Primal), x0 = b.create(Space::Primal), xh = b.create(Space::Primal);
@@ -68,10 +69,8 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
     for (int s = 0; s < K; ++s) {
       const double w = static_cast<double>(inner + 1) / static_cast<double>(inner + 2);
       const bool need_residual = (s == K - 1) || inner == 0;
-      b.spmv_t(y, aty);
-      b.r2h_primal(x, x0, aty, tau, w, rho, xh, xb);
-      b.spmv(xb, ax);
-      b.r2h_dual(y, y0, ax, sigma, w, rho, yh, need_residual ? yb : -1);
+      b.r2h_primal_fused(y, aty, x, x0, tau, w, rho, xh, xb);
+      b.r2h_dual_fused(xb, ax, y, y0, sigma, w, rho, yh, need_residual ? yb : -1);
       if (inner == 0) r0 = fixed_point_residual();  // residual at the epoch's anchor
       ++inner;
       ++it;
@@ -130,12 +129,22 @@ Solution solve_r2hpdhg(const Model& model, const EngineOptions& opt) {
     // not a sign of trouble, and treating it as one freezes ω forever.
     const bool both_pos = k.rel_dual() > 0 && k.rel_primal() > 0;
     const double ratio = both_pos ? k.rel_dual() / k.rel_primal() : 1.0;
-    if (dxn > 1e-16 && dyn > 1e-16 && dxn < 1e12 && dyn < 1e12 && ratio > 1e-8 && ratio < 1e8) {
+    bool above_noise = true;
+    if (opt.pid_noise_rel > 0) {
+      const double xn = b.norm2(xh), yn = b.norm2(yh);
+      above_noise = dxn > opt.pid_noise_rel * (1.0 + xn) && dyn > opt.pid_noise_rel * (1.0 + yn);
+    }
+    if (!above_noise && opt.pid_noise_action == 1) {
+      // keep ω: no information
+    } else if (above_noise && dxn > 1e-16 && dyn > 1e-16 && dxn < 1e12 && dyn < 1e12 && ratio > 1e-8 && ratio < 1e8) {
       const double e = std::log(dyn) - std::log(dxn) - std::log(omega);
       pid_integral = opt.pid_integral_decay * pid_integral + e;
       // damped: log ω moves by at most pid_max_log_step per restart
       const double step = opt.pid_kp * e + opt.pid_ki * pid_integral + opt.pid_kd * (e - pid_last);
       omega *= std::exp(std::clamp(step, -opt.pid_max_log_step, opt.pid_max_log_step));
+      if (opt.pid_log10_range > 0)
+        omega = std::clamp(omega, omega_init * std::pow(10.0, -opt.pid_log10_range),
+                           omega_init * std::pow(10.0, opt.pid_log10_range));
       pid_last = e;
     } else {
       omega = best_omega;

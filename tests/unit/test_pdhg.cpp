@@ -495,3 +495,48 @@ TEST(PdhgThreads, KktAndRayTestAreThreadInvariantAndMatchSerialDefinition) {
   EXPECT_TRUE(near(k1.primal_obj, p)) << k1.primal_obj << " vs " << p;
   EXPECT_TRUE(near(k1.dual_obj, d)) << k1.dual_obj << " vs " << d;
 }
+
+TEST(PdhgBackend, FusedStepsEqualProductThenStep) {
+  // r2h_primal_fused / r2h_dual_fused consume each row's product at once (no aty / ax vector);
+  // they must be bit-identical to spmv_t + r2h_primal and spmv + r2h_dual in both precisions and
+  // for any thread count (the model is large enough for the parallel path).
+  BigPoint bp = big_random_point(70000, 90000, 11);
+  pdhg::ScaledProblem sp = pdhg::make_scaled_problem(bp.m, pdhg::ScalingOptions{});
+  for (int threads : {1, 4}) {
+    la::ThreadPool::instance().set_threads(threads);
+    for (Precision prec : {Precision::Fp64, Precision::Mixed}) {
+      std::vector<std::vector<double>> out[2];
+      for (int fused = 0; fused < 2; ++fused) {
+        auto b = pdhg::make_cpu_backend();
+        b->setup(sp);
+        b->set_precision(prec);
+        int x = b->create(pdhg::Space::Primal), x0 = b->create(pdhg::Space::Primal);
+        int xh = b->create(pdhg::Space::Primal), xb = b->create(pdhg::Space::Primal), aty = b->create(pdhg::Space::Primal);
+        int y = b->create(pdhg::Space::Dual), y0 = b->create(pdhg::Space::Dual), yh = b->create(pdhg::Space::Dual);
+        int yb = b->create(pdhg::Space::Dual), ax = b->create(pdhg::Space::Dual);
+        b->upload(x, bp.x);
+        b->upload(y, bp.y);
+        b->copy(x0, x);
+        b->copy(y0, y);
+        for (int it = 0; it < 3; ++it) {
+          const double w = (it + 1.0) / (it + 2.0);
+          if (fused) {
+            b->r2h_primal_fused(y, aty, x, x0, 0.3, w, 1.0, xh, xb);
+            b->r2h_dual_fused(xb, ax, y, y0, 0.2, w, 1.0, yh, it == 2 ? yb : -1);
+          } else {
+            b->spmv_t(y, aty);
+            b->r2h_primal(x, x0, aty, 0.3, w, 1.0, xh, xb);
+            b->spmv(xb, ax);
+            b->r2h_dual(y, y0, ax, 0.2, w, 1.0, yh, it == 2 ? yb : -1);
+          }
+        }
+        for (int v : {x, xh, xb, y, yh, yb}) {
+          out[fused].emplace_back();
+          b->download(v, out[fused].back());
+        }
+      }
+      for (std::size_t k = 0; k < out[0].size(); ++k) EXPECT_EQ(out[0][k], out[1][k]) << "vector " << k;
+    }
+  }
+  la::ThreadPool::instance().set_threads(1);
+}

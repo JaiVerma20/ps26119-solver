@@ -40,12 +40,20 @@ struct Csr {
         out[i] = static_cast<Out>(s);
       }
     };
+    for_rows(body);
+  }
+
+  // Runs body(b, e) over row ranges covering [0, rows), balanced by nnz + rows over the thread
+  // pool (one range per chunk; each row in exactly one range). Used by multiply() and by fused
+  // kernels that consume a row's product immediately (pdhg/cpu_backend.cpp).
+  template <class Body>
+  void for_rows(Body&& body) const {
     ThreadPool& pool = ThreadPool::instance();
     const std::int64_t work = nnz() + rows;  // cost model: one unit per entry and per row
     constexpr std::int64_t kGrain = 32768;   // minimum work per chunk
     const int t = pool.threads();
     if (t <= 1 || work < 2 * kGrain || rows < 2) {
-      body(0, rows);
+      body(std::int64_t{0}, static_cast<std::int64_t>(rows));
       return;
     }
     const int chunks = static_cast<int>(std::min<std::int64_t>({4 * t, work / kGrain, rows}));

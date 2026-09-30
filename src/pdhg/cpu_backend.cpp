@@ -181,6 +181,60 @@ class CpuBackend final : public Backend {
     });
   }
 
+  // Fused versions: row j of Ãᵀ gives (Ãᵀy)_j, which is cast to the working type exactly as
+  // spmv_t stores it and used at once — bit-identical to spmv_t + r2h_primal.
+  void r2h_primal_fused(int y, int /*aty*/, int x, int x0, double tau, double w, double rho, int xhat,
+                        int xbar) override {
+    with([&](auto& S) {
+      using T = typename std::decay_t<decltype(S.c)>::value_type;
+      const T t = static_cast<T>(tau), tw = static_cast<T>(w), a = static_cast<T>(2 * rho),
+              b = static_cast<T>(1 - 2 * rho);
+      auto& X = S.vecs[x];
+      const auto &X0 = S.vecs[x0], &Y = S.vecs[y];
+      auto &H = S.vecs[xhat], &B = S.vecs[xbar];
+      const auto& At = S.At;
+      At.for_rows([&](std::int64_t lo, std::int64_t hi) {
+        for (std::int64_t j = lo; j < hi; ++j) {
+          double acc = 0;
+          for (std::int64_t k = At.row_ptr[j]; k < At.row_ptr[j + 1]; ++k)
+            acc += static_cast<double>(At.val[k]) * static_cast<double>(Y[At.col[k]]);
+          const T g = static_cast<T>(acc);
+          const T h = clamp<T>(X[j] - t * (S.c[j] - g), S.l[j], S.u[j]);
+          H[j] = h;
+          B[j] = 2 * h - X[j];
+          X[j] = tw * (a * h + b * X[j]) + (1 - tw) * X0[j];
+        }
+      });
+    });
+  }
+
+  void r2h_dual_fused(int xbar, int /*ax*/, int y, int y0, double sigma, double w, double rho, int yhat,
+                      int ybar) override {
+    with([&](auto& S) {
+      using T = typename std::decay_t<decltype(S.c)>::value_type;
+      const T s = static_cast<T>(sigma), tw = static_cast<T>(w), a = static_cast<T>(2 * rho),
+              b = static_cast<T>(1 - 2 * rho);
+      auto& Y = S.vecs[y];
+      const auto &Y0 = S.vecs[y0], &XB = S.vecs[xbar];
+      auto& H = S.vecs[yhat];
+      T* B = ybar >= 0 ? S.vecs[ybar].data() : nullptr;
+      const auto& A = S.A;
+      A.for_rows([&](std::int64_t lo, std::int64_t hi) {
+        for (std::int64_t i = lo; i < hi; ++i) {
+          double acc = 0;
+          for (std::int64_t k = A.row_ptr[i]; k < A.row_ptr[i + 1]; ++k)
+            acc += static_cast<double>(A.val[k]) * static_cast<double>(XB[A.col[k]]);
+          const T ax = static_cast<T>(acc);
+          const T v = ax - Y[i] / s;
+          const T h = Y[i] - s * ax + s * clamp<T>(v, S.rl[i], S.ru[i]);
+          H[i] = h;
+          if (B) B[i] = 2 * h - Y[i];
+          Y[i] = tw * (a * h + b * Y[i]) + (1 - tw) * Y0[i];
+        }
+      });
+    });
+  }
+
   KktStats kkt(int xs, int ys) override {
     // member buffers: called at every termination check, so no per-call O(m + n) allocations
     download(xs, kx_scaled_);

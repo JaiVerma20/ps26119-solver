@@ -59,6 +59,20 @@ class Backend {
   virtual void dual_step(int y, int ax, double sigma, int yhat_out) = 0;
   virtual void r2h_primal(int x, int x0, int aty, double tau, double w, double rho, int xhat_out, int xbar_out) = 0;
   virtual void r2h_dual(int y, int y0, int ax, double sigma, double w, double rho, int yhat_out, int ybar_out) = 0;
+  // Fused products + steps: exactly spmv_t(y, aty) then r2h_primal(…), and spmv(xbar, ax) then
+  // r2h_dual(…). aty / ax are scratch whose content is unspecified afterwards: a backend may
+  // consume each row's product immediately and never store it (CPU: saves writing and re-reading
+  // two vectors and two thread-pool barriers per iteration). Results are identical to the pair.
+  virtual void r2h_primal_fused(int y, int aty, int x, int x0, double tau, double w, double rho, int xhat_out,
+                                int xbar_out) {
+    spmv_t(y, aty);
+    r2h_primal(x, x0, aty, tau, w, rho, xhat_out, xbar_out);
+  }
+  virtual void r2h_dual_fused(int xbar, int ax, int y, int y0, double sigma, double w, double rho, int yhat_out,
+                              int ybar_out) {
+    spmv(xbar, ax);
+    r2h_dual(y, y0, ax, sigma, w, rho, yhat_out, ybar_out);
+  }
 
   // KKT statistics of the scaled iterate (x̃, ỹ) mapped back to the ORIGINAL problem,
   // computed in fp64 (see termination.h).
