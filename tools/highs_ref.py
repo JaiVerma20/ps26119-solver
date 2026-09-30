@@ -66,14 +66,20 @@ def solve_with_highs(model_path: str, out_path: str, time_limit: float = 0.0, op
         f.write(f"objective {info.objective_function_value!r}\n")
         f.write(f"iterations {iters}\nseconds {secs:.6f}\n")
         if st == "Optimal":
+            # One copy of each vector: in recent highspy every attribute access (sol.row_value, …)
+            # converts the WHOLE C++ vector to a new Python list, so indexing it inside the loop made
+            # writing the file O(m²) — hours for Kennington ken-18 (105k rows).
+            col_value, col_dual = list(sol.col_value), list(sol.col_dual)
+            row_value, row_dual = list(sol.row_value), list(sol.row_dual)
+            col_names, row_names = list(m.col_names or []), list(m.row_names or [])
             f.write(f"COLUMNS {m.num_cols}\n")
             for j in range(m.num_cols):
-                name = m.col_names[j] if m.col_names else ""
-                f.write(f"{j} {sol.col_value[j]!r} {sol.col_dual[j]!r} {name}\n")
+                name = col_names[j] if col_names else ""
+                f.write(f"{j} {col_value[j]!r} {col_dual[j]!r} {name}\n")
             f.write(f"ROWS {m.num_rows}\n")
             for i in range(m.num_rows):
-                name = m.row_names[i] if m.row_names else ""
-                f.write(f"{i} {sol.row_value[i]!r} {sol.row_dual[i]!r} {name}\n")
+                name = row_names[i] if row_names else ""
+                f.write(f"{i} {row_value[i]!r} {row_dual[i]!r} {name}\n")
         f.write("END\n")
     return {"status": st, "objective": info.objective_function_value, "seconds": secs, "iterations": iters,
             "engine": engine, "highs_version": highs_version(h), "highs_status": raw_status}
