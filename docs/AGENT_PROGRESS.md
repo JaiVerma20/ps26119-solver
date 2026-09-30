@@ -21,11 +21,11 @@ before/after on THIS machine only.
 |---|---|---|
 | 43cd3d8 | branch-free projections | refinery 1 thr 34.4 -> 25.8 s, 4 thr 14.3 -> 10.5 s; bit-identical |
 | 49716c1 | parallel allocation-free KKT + ray test | refinery 4 thr 10.5 -> 7.7 s; Netlib iterations identical |
-| (next) | nnz-balanced SpMV + grain 8192 | osa-30 4 thr 0.85 -> 0.49 ms/it; ken-13 0.33 -> 0.24 ms/it; bit-identical |
+| b9205a4 | nnz-balanced SpMV + grain 8192 | osa-30 4 thr 0.85 -> 0.49 ms/it; ken-13 0.33 -> 0.24 ms/it; bit-identical |
 | b9ecd66 | fused SpMV + step kernels | bit-identical; ~17% per iteration in isolation, <=5% in full solves (VM noise +-5%) |
 | d081992 | backend references scaled matrices, lazy fp32 | refinery peak RSS 397 -> 324 MB |
-| pending | PID rounding-noise floor + divergence guard | sierra 961k -> 65k it; infeasible-cut detection unchanged |
-| pending | presolve R5 redundant rows | osa-07 10368 -> 7360 it (3.6 -> 1.8 s), osa-14 18368 -> 12928 it |
+| 698a72a | PID rounding-noise floor (1e-10) + divergence guard | Netlib 85/85, sierra 961k -> 64.7k, perold 241k -> 172k it; cut set 71/71 certified |
+| b19a2c9 | presolve R5 redundant rows (model's own bounds) | osa-07 10368 -> 7360 it, osa-14 18368 -> 12928; Kennington time -13%; Netlib 85/85 (+0.6%); auto 93/93 |
 
 ## Experiments (convergence)
 - PID primal weight collapses when one side converged (step-limited displacement => unstable
@@ -38,9 +38,15 @@ before/after on THIS machine only.
   not fixed (auto mode sends small models to simplex anyway).
 - HiGHS presolve removes 57% of osa-07 nnz; activity-redundant rows alone give 39%.
 
+- R5 with bounds tightened by R4 (chained): Netlib agg lost / bnl2 lost / agg3 x58 -> use the
+  model's own bounds only. PID floor "reset once" variant did not fix agg-with-chained-R5 (omega
+  oscillates best <-> 10x best) -> reverted.
+
 ## Current / next
-- Sweep 2 running: A (floor+guard) 1e-10/1e-12 on Netlib + cut set; B (A + R5) Netlib/Kennington/cut.
-- Then: final timing benchmarks (min of 3, idle machine) and evidence CSVs via bench/ scripts.
+- Timing benchmark running (scratchpad timing.py): base a239f97 vs new, min of 3, 1 and 4 threads.
+- Then: sanitizer builds (asan/ubsan, tsan), check_no_solver_linked, CUDA syntax check, evidence
+  CSVs (netlib_full r2hpdhg, scale) at the final commit.
+- Open: rand-1e6 needs 17.4k iterations vs 2.5k at 1e5 (same as older M4 runs: not a regression).
 
 ## Reproduce
 Netlib: `python3 tools/fetch_netlib.py`; Kennington MPS from the mirror in tools/fetch_kennington.py
