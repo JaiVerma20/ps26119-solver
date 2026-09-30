@@ -217,3 +217,47 @@ TEST(Presolve, UnboundedRayAndPointArePostsolved) {
     EXPECT_NE(s.message.find("ray and point postsolved"), std::string::npos) << s.message;
   }
 }
+
+TEST(Presolve, RedundantRowsByActivityBounds) {
+  // cols: x0, x1 ∈ [0, 10], x2 free.  min −x0 − 2 x1 + x2
+  //   r0: x0 + x1 ≥ 0          L = 0 ≥ 0 exactly            → redundant (every term is 0)
+  //   r1: x0 + x1 ≤ 30         U = 20 ≤ 30                  → redundant
+  //   r2: x0 + x1 ≤ 20         U = 20 = 20: kept (the rounding margin is conservative)
+  //   r3: x0 − x1 ≥ −5         L = −10 < −5                 → kept (binds at the optimum)
+  //   r4: x1 + x2 ≥ 1          x2 free ⇒ L = −∞             → kept
+  const Model m = make_model({-1, -2, 1}, {{1, 1, 0}, {1, 1, 0}, {1, 1, 0}, {1, -1, 0}, {0, 1, 1}},
+                             {0, -kInf, -kInf, -5, 1}, {kInf, 30, 20, kInf, kInf}, {0, 0, -kInf},
+                             {10, 10, kInf});
+  const PresolveResult r = presolve(m);
+  ASSERT_EQ(r.outcome, PresolveResult::Outcome::Reduced);
+  EXPECT_EQ(r.redundant_rows, 2);
+  EXPECT_EQ(r.row_map, (std::vector<int>{2, 3, 4}));
+  const Solution ref = run(m, Algorithm::Oracle, false);
+  ASSERT_EQ(ref.status, Status::Optimal);
+  for (Algorithm a : {Algorithm::Oracle, Algorithm::Simplex, Algorithm::R2hpdhg}) {
+    const Solution s = run(m, a, true);
+    ASSERT_EQ(s.status, Status::Optimal) << s.message;
+    EXPECT_NEAR(s.objective, ref.objective, 1e-7 * (1 + std::fabs(ref.objective)));
+    EXPECT_EQ(s.y[0], 0.0);  // removed rows: y = 0
+    EXPECT_EQ(s.y[1], 0.0);
+    const auto k = test::kkt(m, s);
+    EXPECT_LE(k.primal, 1e-6);
+    EXPECT_LE(k.dual, 1e-6);
+    EXPECT_LE(k.gap, 1e-6);
+  }
+}
+
+TEST(Presolve, RedundantRowTestIsSafeAgainstRounding) {
+  // x0 ≥ 0.1, x1 ≥ 0.2 (as doubles). fl(0.1 + 0.2) = 0.30000000000000004 = rl, but the exact sum of
+  // the two doubles is 0.3000000000000000166…, BELOW rl: the point x = (0.1, 0.2) violates the row,
+  // so the row is not redundant and must be kept.
+  const double rl = 0.1 + 0.2;
+  ASSERT_EQ(rl, 0.30000000000000004);
+  const Model m = make_model({1, 1}, {{1, 1}}, {rl}, {kInf}, {0.1, 0.2}, {kInf, kInf});
+  const PresolveResult r = presolve(m);
+  EXPECT_EQ(r.redundant_rows, 0);
+  EXPECT_NE(r.outcome, PresolveResult::Outcome::Reduced);
+  // 2 ulps of slack is not enough either (margin ≈ (k+1)·2⁻⁵²·Σ|terms|); 1e-15 is
+  const Model loose = make_model({1, 1}, {{1, 1}}, {0.3 - 1e-15}, {kInf}, {0.1, 0.2}, {kInf, kInf});
+  EXPECT_EQ(presolve(loose).redundant_rows, 1);
+}

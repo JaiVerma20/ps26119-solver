@@ -6,6 +6,14 @@
 //   R3 empty column     — set to its best finite bound for sense·c_j (removed only if that
 //                         bound is finite, or c_j = 0); z_j = c_j.
 //   R4 singleton row    — rl ≤ a·x_j ≤ ru becomes a bound on x_j; the row is removed.
+//   R5 redundant row    — the row's activity range over the model's OWN column bounds lies
+//                         inside [rl, ru] even after the worst-case rounding of the range:
+//                         removed, y_i = 0 (a Farkas ray gets 0 there too). Kennington osa-*:
+//                         37 rows Σ a_j x_j ≥ 0 with a, x ≥ 0 carry ~39% of all nonzeros
+//                         (osa-07/14: 30% fewer r²HPDHG iterations, ~2× faster). Bounds
+//                         tightened by R4 are deliberately NOT used: chaining them removed rows
+//                         whose loss slowed r²HPDHG badly (Netlib agg lost at 60 s, bnl2, agg3
+//                         ×58); with the model's own bounds Netlib stays 85/85 (geomean +0.6%).
 // After postsolve the caller (solve()) re-checks optimality on the ORIGINAL model; a
 // first-order answer that narrowly misses is re-solved tighter in the reduced space, and
 // failing that the original is solved without presolve.
@@ -34,6 +42,7 @@ struct PresolveResult {
   Model reduced;
   std::string message;  // reason for Infeasible
   int removed_rows = 0, removed_cols = 0, tightened_bounds = 0;
+  int redundant_rows = 0;  // of removed_rows: by R5
 
   // ---- postsolve data
   std::vector<int> row_map;  // reduced row → original row

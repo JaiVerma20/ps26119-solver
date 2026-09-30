@@ -88,6 +88,41 @@ PresolveResult presolve(const Model& M) {
         changed = true;
       }
     }
+    // ---- rows: redundant by activity bounds (R5). With the model's own column bounds the row's
+    // activity lies in [L, U] (L = Σ min(a l, a u), U = Σ max(a l, a u)); if [L, U] ⊆ [rl, ru]
+    // the row can never be violated, so removing it leaves the feasible set unchanged. The test
+    // must hold after rounding: L and U are float sums of k terms, off by at most
+    // γ = (k + 1)·u·Σ|terms| (u = 2⁻⁵³, doubled for safety), so we require L − γ ≥ rl and
+    // U + γ ≤ ru. Exact cases (e.g. Σ a_j x_j ≥ 0 with a ≥ 0, x ≥ 0: every term is 0) pass.
+    for (int i = 0; i < m; ++i) {
+      if (!row_alive[i] || row_cnt[i] == 0) continue;
+      double lo = 0, hi = 0, mag_lo = 0, mag_hi = 0;
+      int k = 0;
+      bool lo_finite = true, hi_finite = true;
+      for (std::int64_t p = A.row_ptr[i]; p < A.row_ptr[i + 1]; ++p) {
+        const int j = A.col[p];
+        if (!col_alive[j]) continue;
+        const double a = A.val[p];
+        // the model's OWN bounds (a subset of the tightened ones' consequences, so still sound)
+        const double bl = a > 0 ? M.col_lower[j] : M.col_upper[j], bu = a > 0 ? M.col_upper[j] : M.col_lower[j];
+        if (std::isfinite(bl)) lo += a * bl, mag_lo += std::fabs(a * bl);
+        else lo_finite = false;
+        if (std::isfinite(bu)) hi += a * bu, mag_hi += std::fabs(a * bu);
+        else hi_finite = false;
+        ++k;
+        if (!lo_finite && !hi_finite) break;
+      }
+      const double u2 = (k + 1) * std::ldexp(1.0, -52);  // γ per unit of Σ|terms| (each side its own)
+      const bool lower_ok = !std::isfinite(rl[i]) || (lo_finite && lo - u2 * mag_lo >= rl[i]);
+      const bool upper_ok = !std::isfinite(ru[i]) || (hi_finite && hi + u2 * mag_hi <= ru[i]);
+      if (!lower_ok || !upper_ok) continue;
+      row_alive[i] = 0;
+      for (std::int64_t p = A.row_ptr[i]; p < A.row_ptr[i + 1]; ++p)
+        if (col_alive[A.col[p]]) --col_cnt[A.col[p]];
+      ++r.removed_rows;
+      ++r.redundant_rows;
+      changed = true;
+    }
     // ---- columns: fixed (R2) and empty (R3)
     for (int j = 0; j < n; ++j) {
       if (!col_alive[j]) continue;

@@ -251,3 +251,13 @@ Newest last. Each entry: what, why, evidence, how to undo.
     between restarts), which is the infeasible/unbounded case where the ω runaway helps the ray.
     Netlib: sierra 961k → 64.7k, perold 241k → 172k iterations, all 85 kept; objective-cut
     infeasible Netlib: 71 certified before and after. The batched engine uses the same controller.
+
+37. **Presolve R5: rows redundant by activity bounds** (`core/presolve.*`). A row whose activity
+    range over the model's own column bounds lies inside [rl, ru] — after a worst-case rounding
+    margin, so a row that is redundant only in floating point is kept
+    (`Presolve.RedundantRowTestIsSafeAgainstRounding`) — is removed with y = 0. Kennington osa-*:
+    37 such rows carry ~39% of the nonzeros; osa-07 10,368 → 7,360 and osa-14 18,368 → 12,928
+    r²HPDHG iterations (≈2× faster), Kennington total time −13%. Netlib r²HPDHG 85/85 (geomean
+    +0.6%), `auto` 93/93, objective-cut infeasible 71 certified before and after (verify.py exact
+    rational PASS on the affected ones). Using bounds tightened by R4 instead removed more rows
+    and lost agg (and, without the PID floor, bnl2): not done.
