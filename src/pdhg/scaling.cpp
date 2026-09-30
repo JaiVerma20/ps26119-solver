@@ -145,13 +145,17 @@ void ScaledProblem::unscale_primal(const std::vector<double>& xs, std::vector<do
   // Clip into the original bounds: the scaled x̂ is a projection, but unscaling can leave
   // a last-ulp excursion.
   x.resize(n);
-  for (int j = 0; j < n; ++j)
-    x[j] = std::min(std::max(col_scale[j] * xs[j] / bound_scale, original->col_lower[j]), original->col_upper[j]);
+  la::parallel_for(n, [&](std::int64_t b, std::int64_t e) {
+    for (std::int64_t j = b; j < e; ++j)
+      x[j] = std::min(std::max(col_scale[j] * xs[j] / bound_scale, original->col_lower[j]), original->col_upper[j]);
+  });
 }
 
 void ScaledProblem::unscale_dual(const std::vector<double>& ys, std::vector<double>& y) const {
   y.resize(m);
-  for (int i = 0; i < m; ++i) y[i] = row_scale[i] * ys[i] / obj_scale;
+  la::parallel_for(m, [&](std::int64_t b, std::int64_t e) {
+    for (std::int64_t i = b; i < e; ++i) y[i] = row_scale[i] * ys[i] / obj_scale;
+  });
 }
 
 }  // namespace ps26119::pdhg

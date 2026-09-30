@@ -93,7 +93,12 @@ struct RayTest {
   std::vector<double> dual_ray;    // r (min form, original rows): returned as Solution::dual_ray
   std::vector<double> primal_ray;  // d (original columns): returned as Solution::primal_ray
 };
-RayTest ray_test(const ScaledProblem& sp, const std::vector<double>& dx_scaled, const std::vector<double>& dy_scaled);
+// Scratch vectors reused across ray tests (they run at every termination check).
+struct RayWorkspace {
+  std::vector<double> dx, dy, r, g, d, ad;
+};
+RayTest ray_test(const ScaledProblem& sp, const std::vector<double>& dx_scaled, const std::vector<double>& dy_scaled,
+                 RayWorkspace* ws = nullptr);
 
 class EngineContext {
  public:
@@ -141,6 +146,7 @@ class EngineContext {
   const char* name_;
   ScaledProblem sp_;
   std::vector<double> dual_ray_, primal_ray_;  // certificate of the last Infeasible / Unbounded verdict
+  RayWorkspace ray_ws_;
   std::unique_ptr<Backend> backend_;
   std::string error_;
   double eta_ = 1.0;

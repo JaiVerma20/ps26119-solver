@@ -4,12 +4,16 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <algorithm>
+#include <random>
 #include <tuple>
 
 #include "io/lpm_reader.h"
 #include "kkt_check.h"
+#include "la/parallel.h"
 #include "model_builder.h"
 #include "pdhg/backend.h"
+#include "pdhg/engine.h"
 #include "pdhg/scaling.h"
 #include "ps26119/solve.h"
 
@@ -379,4 +383,115 @@ TEST(PdhgThreads, BitIdenticalForAnyThreadCount) {
   EXPECT_EQ(a.x, b.x);
   EXPECT_EQ(a.y, b.y);
   EXPECT_EQ(a.objective, b.objective);
+}
+
+namespace {
+// A large LP with every row and bound kind (sizes above the parallel thresholds of la/parallel.h)
+// and a point (x, y) that is neither feasible nor optimal, so every KKT term is non-trivial.
+struct BigPoint {
+  Model m;
+  std::vector<double> x, y;
+};
+BigPoint big_random_point(int m, int n, unsigned seed) {
+  std::mt19937 rng(seed);
+  std::uniform_real_distribution<double> u(-1.0, 1.0);
+  std::uniform_int_distribution<int> row(0, m - 1), kind(0, 4);
+  BigPoint b;
+  Model& M = b.m;
+  M.num_rows = m;
+  M.num_cols = n;
+  M.col_start = {0};
+  for (int j = 0; j < n; ++j) {
+    M.obj.push_back(u(rng) * 10);
+    const int k = kind(rng);
+    M.col_lower.push_back(k == 0 || k == 3 ? -kInf : u(rng) - 1);
+    M.col_upper.push_back(k == 1 || k == 3 ? kInf : u(rng) + 1);
+    for (int e = 0; e < 3; ++e) {
+      M.row_index.push_back(row(rng));
+      M.value.push_back(u(rng) * 100);
+    }
+    std::sort(M.row_index.end() - 3, M.row_index.end());
+    if (M.row_index.end()[-1] == M.row_index.end()[-2] || M.row_index.end()[-2] == M.row_index.end()[-3]) {
+      M.row_index.resize(M.row_index.size() - 3);  // keep the column simple: one entry
+      M.value.resize(M.value.size() - 3);
+      M.row_index.push_back(row(rng));
+      M.value.push_back(u(rng) * 100);
+    }
+    M.col_start.push_back(static_cast<int>(M.value.size()));
+  }
+  for (int i = 0; i < m; ++i) {
+    const int k = kind(rng);
+    const double r = u(rng) * 50;
+    M.row_lower.push_back(k == 0 ? -kInf : r);
+    M.row_upper.push_back(k == 1 ? kInf : (k == 2 ? r : r + 5));
+  }
+  for (int j = 0; j < n; ++j) b.x.push_back(std::clamp(u(rng) * 3, M.col_lower[j], M.col_upper[j]));
+  for (int i = 0; i < m; ++i) b.y.push_back(u(rng));
+  return b;
+}
+}  // namespace
+
+TEST(PdhgThreads, KktAndRayTestAreThreadInvariantAndMatchSerialDefinition) {
+  // kkt_general and ray_test run at every termination check; they are parallel reductions over
+  // a FIXED chunking (la::parallel_reduce), so any thread count must give bit-identical stats.
+  BigPoint b = big_random_point(90000, 120000, 7);
+  ASSERT_EQ(b.m.validate(), "");
+  pdhg::ScaledProblem sp = pdhg::make_scaled_problem(b.m, pdhg::ScalingOptions{});
+  // y_min sign-feasible, as for a PDHG output
+  for (int i = 0; i < b.m.num_rows; ++i) {
+    if (!std::isfinite(b.m.row_lower[i])) b.y[i] = std::min(b.y[i], 0.0);
+    if (!std::isfinite(b.m.row_upper[i])) b.y[i] = std::max(b.y[i], 0.0);
+  }
+  la::ThreadPool::instance().set_threads(1);
+  const pdhg::KktStats k1 = pdhg::kkt_on_original(sp, b.x, b.y);
+  const pdhg::RayTest r1 = pdhg::ray_test(sp, b.x, b.y);
+  la::ThreadPool::instance().set_threads(4);
+  pdhg::KktWorkspace ws;
+  const pdhg::KktStats k4 = pdhg::kkt_on_original(sp, b.x, b.y, &ws);
+  const pdhg::KktStats k4b = pdhg::kkt_on_original(sp, b.x, b.y, &ws);  // reused workspace
+  const pdhg::RayTest r4 = pdhg::ray_test(sp, b.x, b.y);
+  la::ThreadPool::instance().set_threads(1);
+  for (const pdhg::KktStats* k : {&k4, &k4b}) {
+    EXPECT_EQ(k1.primal_residual, k->primal_residual);
+    EXPECT_EQ(k1.dual_residual, k->dual_residual);
+    EXPECT_EQ(k1.primal_obj, k->primal_obj);
+    EXPECT_EQ(k1.dual_obj, k->dual_obj);
+    EXPECT_EQ(k1.b_norm, k->b_norm);
+    EXPECT_EQ(k1.c_norm, k->c_norm);
+    EXPECT_EQ(k1.primal_max_rel, k->primal_max_rel);
+    EXPECT_EQ(k1.dual_max_rel, k->dual_max_rel);
+  }
+  EXPECT_EQ(r1.dual_ray_objective, r4.dual_ray_objective);
+  EXPECT_EQ(r1.dual_ray_violation, r4.dual_ray_violation);
+  EXPECT_EQ(r1.primal_ray_objective, r4.primal_ray_objective);
+  EXPECT_EQ(r1.primal_ray_violation, r4.primal_ray_violation);
+
+  // Serial textbook evaluation of termination.h (only rounding may differ).
+  const Model& M = b.m;
+  std::vector<double> ax = M.row_activity(b.x), aty(M.num_cols, 0.0);
+  for (int j = 0; j < M.num_cols; ++j)
+    for (int p = M.col_start[j]; p < M.col_start[j + 1]; ++p) aty[j] += M.value[p] * b.y[M.row_index[p]];
+  double rp2 = 0, rd2 = 0, p = 0, d = 0;
+  for (int i = 0; i < M.num_rows; ++i) {
+    const double v = std::max(M.row_lower[i] - ax[i], 0.0) + std::max(ax[i] - M.row_upper[i], 0.0);
+    rp2 += v * v;
+    if (b.y[i] > 0) d += b.y[i] * M.row_lower[i];
+    if (b.y[i] < 0) d += b.y[i] * M.row_upper[i];
+  }
+  for (int j = 0; j < M.num_cols; ++j) {
+    const double lam = M.obj[j] - aty[j], lo = M.col_lower[j], up = M.col_upper[j];
+    const double z = std::isfinite(lo) && std::isfinite(up) ? lam
+                     : std::isfinite(lo)                    ? std::max(lam, 0.0)
+                     : std::isfinite(up)                    ? std::min(lam, 0.0)
+                                                            : 0.0;
+    rd2 += (lam - z) * (lam - z);
+    p += M.obj[j] * b.x[j];
+    if (z > 0) d += z * lo;
+    if (z < 0) d += z * up;
+  }
+  auto near = [](double a, double e) { return std::fabs(a - e) <= 1e-11 * (1 + std::fabs(e)); };
+  EXPECT_TRUE(near(k1.primal_residual, std::sqrt(rp2))) << k1.primal_residual << " vs " << std::sqrt(rp2);
+  EXPECT_TRUE(near(k1.dual_residual, std::sqrt(rd2))) << k1.dual_residual << " vs " << std::sqrt(rd2);
+  EXPECT_TRUE(near(k1.primal_obj, p)) << k1.primal_obj << " vs " << p;
+  EXPECT_TRUE(near(k1.dual_obj, d)) << k1.dual_obj << " vs " << d;
 }

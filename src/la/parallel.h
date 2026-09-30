@@ -187,4 +187,24 @@ double parallel_sum(std::int64_t n, G&& g) {
   return s;
 }
 
+// Deterministic reduction of several quantities at once (e.g. the sums AND maxima of a KKT
+// evaluation in one pass over the data). body(b, e, acc) folds the index range [b, e) into a
+// value-initialised accumulator; the partial accumulators of a FIXED number of chunks (as in
+// parallel_sum) are then merged in chunk order by merge(into, from). So the result depends on n
+// only, never on the thread count or timing. Acc{} must be the identity of merge.
+template <class Acc, class Body, class Merge>
+Acc parallel_reduce(std::int64_t n, Body&& body, Merge&& merge) {
+  Acc part[kReduceChunks] = {};
+  const int chunks = static_cast<int>(std::min<std::int64_t>(kReduceChunks, std::max<std::int64_t>(1, n)));
+  auto run = [&](int c) { body(n * c / chunks, n * (c + 1) / chunks, part[c]); };
+  ThreadPool& pool = ThreadPool::instance();
+  if (pool.threads() <= 1 || n < 65536) {
+    for (int c = 0; c < chunks; ++c) run(c);
+  } else {
+    pool.run(chunks, run);
+  }
+  for (int c = 1; c < chunks; ++c) merge(part[0], part[c]);
+  return part[0];
+}
+
 }  // namespace ps26119::la

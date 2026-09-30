@@ -75,11 +75,19 @@ struct LpView {
   int m, n, sense;
   const double *c, *col_lower, *col_upper, *row_lower, *row_upper;
 };
-// fp64 KKT statistics (termination.h) of (x, y_min) for the LP (A, lp); At = Aᵀ.
+// Scratch vectors for kkt_general (A x and Aᵀ y); reusing one across calls avoids allocating
+// (and page-faulting) two O(m + n) vectors at every termination check.
+struct KktWorkspace {
+  std::vector<double> ax, aty;
+};
+// fp64 KKT statistics (termination.h) of (x, y_min) for the LP (A, lp); At = Aᵀ. Runs on the
+// thread pool; the reductions use fixed chunks (la::parallel_reduce), so the result does not
+// depend on the thread count.
 KktStats kkt_general(const la::Csr<double>& A, const la::Csr<double>& At, const LpView& lp, const std::vector<double>& x,
-                     const std::vector<double>& y_min);
+                     const std::vector<double>& y_min, KktWorkspace* ws = nullptr);
 // fp64 KKT statistics of an ORIGINAL-space point (x, y in min form); see termination.h.
-KktStats kkt_on_original(const ScaledProblem& sp, const std::vector<double>& x, const std::vector<double>& y_min);
+KktStats kkt_on_original(const ScaledProblem& sp, const std::vector<double>& x, const std::vector<double>& y_min,
+                         KktWorkspace* ws = nullptr);
 #if defined(PS26119_HAVE_CUDA)
 std::unique_ptr<Backend> make_cuda_backend();  // src/gpu/cuda_backend.cu
 #endif

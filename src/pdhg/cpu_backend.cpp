@@ -182,16 +182,17 @@ class CpuBackend final : public Backend {
   }
 
   KktStats kkt(int xs, int ys) override {
-    std::vector<double> xsd, ysd, x, y;
-    download(xs, xsd);
-    download(ys, ysd);
-    sp_->unscale_primal(xsd, x);
-    sp_->unscale_dual(ysd, y);
-    return kkt_original(*sp_, x, y);
+    // member buffers: called at every termination check, so no per-call O(m + n) allocations
+    download(xs, kx_scaled_);
+    download(ys, ky_scaled_);
+    sp_->unscale_primal(kx_scaled_, kx_);
+    sp_->unscale_dual(ky_scaled_, ky_);
+    return kkt_original(*sp_, kx_, ky_, &kws_);
   }
 
   // Shared with tests and the engines' final report.
-  static KktStats kkt_original(const ScaledProblem& sp, const std::vector<double>& x, const std::vector<double>& y);
+  static KktStats kkt_original(const ScaledProblem& sp, const std::vector<double>& x, const std::vector<double>& y,
+                               KktWorkspace* ws = nullptr);
 
  private:
   template <class T>
@@ -216,82 +217,108 @@ class CpuBackend final : public Backend {
   Store<double> d_;
   Store<float> f_;
   std::vector<std::size_t> sizes_;
+  std::vector<double> kx_scaled_, ky_scaled_, kx_, ky_;  // kkt() buffers
+  KktWorkspace kws_;
 };
 
-KktStats CpuBackend::kkt_original(const ScaledProblem& sp, const std::vector<double>& x, const std::vector<double>& y) {
+KktStats CpuBackend::kkt_original(const ScaledProblem& sp, const std::vector<double>& x, const std::vector<double>& y,
+                                  KktWorkspace* ws) {
   const Model& M = *sp.original;
   const LpView lp{sp.m, sp.n, M.sense, M.obj.data(), M.col_lower.data(), M.col_upper.data(), M.row_lower.data(),
                   M.row_upper.data()};
-  return kkt_general(sp.A_orig, sp.At_orig, lp, x, y);
+  return kkt_general(sp.A_orig, sp.At_orig, lp, x, y, ws);
 }
 
 }  // namespace
 
 KktStats kkt_general(const la::Csr<double>& A, const la::Csr<double>& At, const LpView& M, const std::vector<double>& x,
-                     const std::vector<double>& y) {
+                     const std::vector<double>& y, KktWorkspace* ws) {
   const double sense = M.sense;
   const int m = M.m, n = M.n;
-  KktStats k;
-  std::vector<double> ax(m), aty(n);
-  A.multiply<double>(x.data(), ax.data());
-  At.multiply<double>(y.data(), aty.data());
-  double rp2 = 0, rd2 = 0, b2 = 0, c2 = 0, p = 0, d = 0, cinf = 0, pmax = 0, dmax = 0;
+  KktWorkspace local;
+  KktWorkspace& w = ws ? *ws : local;
+  w.ax.resize(m);
+  w.aty.resize(n);
+  const double* ax = w.ax.data();
+  const double* aty = w.aty.data();
+  A.multiply<double>(x.data(), w.ax.data());
+  At.multiply<double>(y.data(), w.aty.data());
+  // One pass over the rows and one over the columns, each a deterministic parallel reduction.
+  struct Acc {
+    double rp2 = 0, rd2 = 0, b2 = 0, c2 = 0, p = 0, d = 0, cinf = 0, pmax = 0, dmax = 0;
+  };
+  auto merge = [](Acc& a, const Acc& b) {
+    a.rp2 += b.rp2, a.rd2 += b.rd2, a.b2 += b.b2, a.c2 += b.c2, a.p += b.p, a.d += b.d;
+    a.cinf = std::max(a.cinf, b.cinf), a.pmax = std::max(a.pmax, b.pmax), a.dmax = std::max(a.dmax, b.dmax);
+  };
   auto elem_viol = [](double v, double lo, double up) {
     if (v < lo) return (lo - v) / (1.0 + std::fabs(lo));
     if (v > up) return (v - up) / (1.0 + std::fabs(up));
     return 0.0;
   };
-  for (int i = 0; i < m; ++i) {
-    const double lo = M.row_lower[i], up = M.row_upper[i];
-    const double viol = ax[i] < lo ? lo - ax[i] : (ax[i] > up ? ax[i] - up : 0.0);
-    rp2 += viol * viol;
-    pmax = std::max(pmax, elem_viol(ax[i], lo, up));
-    const double bl = std::isfinite(lo) ? std::fabs(lo) : 0.0, bu = std::isfinite(up) ? std::fabs(up) : 0.0;
-    b2 += std::max(bl, bu) * std::max(bl, bu);
-    // y is sign-feasible for PDHG outputs; any sign violation (infinite bound with the
-    // "wrong" multiplier) is charged to the dual residual rather than the objective.
-    if (y[i] > 0) {
-      if (std::isfinite(lo)) d += y[i] * lo;
-      else rd2 += y[i] * y[i], dmax = std::max(dmax, y[i]);
-    } else if (y[i] < 0) {
-      if (std::isfinite(up)) d += y[i] * up;
-      else rd2 += y[i] * y[i], dmax = std::max(dmax, -y[i]);
-    }
-  }
-  for (int j = 0; j < n; ++j) {
-    const double cj = sense * M.c[j];
-    c2 += cj * cj;
-    cinf = std::max(cinf, std::fabs(cj));
-    p += cj * x[j];
-    pmax = std::max(pmax, elem_viol(x[j], M.col_lower[j], M.col_upper[j]));
-    const double lam = cj - aty[j];
-    const double lo = M.col_lower[j], up = M.col_upper[j];
-    double z;
-    if (std::isfinite(lo) && std::isfinite(up)) z = lam;
-    else if (std::isfinite(lo)) z = std::max(lam, 0.0);
-    else if (std::isfinite(up)) z = std::min(lam, 0.0);
-    else z = 0.0;
-    rd2 += (lam - z) * (lam - z);
-    dmax = std::max(dmax, std::fabs(lam - z));
-    if (z > 0) d += z * lo;
-    else if (z < 0) d += z * up;
-  }
-  k.primal_residual = std::sqrt(rp2);
-  k.dual_residual = std::sqrt(rd2);
-  k.primal_obj = p;
-  k.dual_obj = d;
-  k.b_norm = std::sqrt(b2);
-  k.c_norm = std::sqrt(c2);
-  k.primal_max_rel = pmax;
-  k.dual_max_rel = dmax / (1.0 + cinf);
+  const Acc r = la::parallel_reduce<Acc>(
+      m,
+      [&](std::int64_t b, std::int64_t e, Acc& a) {
+        for (std::int64_t i = b; i < e; ++i) {
+          const double lo = M.row_lower[i], up = M.row_upper[i];
+          const double viol = ax[i] < lo ? lo - ax[i] : (ax[i] > up ? ax[i] - up : 0.0);
+          a.rp2 += viol * viol;
+          a.pmax = std::max(a.pmax, elem_viol(ax[i], lo, up));
+          const double bl = std::isfinite(lo) ? std::fabs(lo) : 0.0, bu = std::isfinite(up) ? std::fabs(up) : 0.0;
+          a.b2 += std::max(bl, bu) * std::max(bl, bu);
+          // y is sign-feasible for PDHG outputs; any sign violation (infinite bound with the
+          // "wrong" multiplier) is charged to the dual residual rather than the objective.
+          if (y[i] > 0) {
+            if (std::isfinite(lo)) a.d += y[i] * lo;
+            else a.rd2 += y[i] * y[i], a.dmax = std::max(a.dmax, y[i]);
+          } else if (y[i] < 0) {
+            if (std::isfinite(up)) a.d += y[i] * up;
+            else a.rd2 += y[i] * y[i], a.dmax = std::max(a.dmax, -y[i]);
+          }
+        }
+      },
+      merge);
+  const Acc c = la::parallel_reduce<Acc>(
+      n,
+      [&](std::int64_t b, std::int64_t e, Acc& a) {
+        for (std::int64_t j = b; j < e; ++j) {
+          const double cj = sense * M.c[j];
+          a.c2 += cj * cj;
+          a.cinf = std::max(a.cinf, std::fabs(cj));
+          a.p += cj * x[j];
+          a.pmax = std::max(a.pmax, elem_viol(x[j], M.col_lower[j], M.col_upper[j]));
+          const double lam = cj - aty[j];
+          const double lo = M.col_lower[j], up = M.col_upper[j];
+          double z;
+          if (std::isfinite(lo) && std::isfinite(up)) z = lam;
+          else if (std::isfinite(lo)) z = std::max(lam, 0.0);
+          else if (std::isfinite(up)) z = std::min(lam, 0.0);
+          else z = 0.0;
+          a.rd2 += (lam - z) * (lam - z);
+          a.dmax = std::max(a.dmax, std::fabs(lam - z));
+          if (z > 0) a.d += z * lo;
+          else if (z < 0) a.d += z * up;
+        }
+      },
+      merge);
+  KktStats k;
+  k.primal_residual = std::sqrt(r.rp2);
+  k.dual_residual = std::sqrt(r.rd2 + c.rd2);
+  k.primal_obj = c.p;
+  k.dual_obj = r.d + c.d;
+  k.b_norm = std::sqrt(r.b2);
+  k.c_norm = std::sqrt(c.c2);
+  k.primal_max_rel = std::max(r.pmax, c.pmax);
+  k.dual_max_rel = std::max(r.dmax, c.dmax) / (1.0 + c.cinf);
   return k;
 }
 
 
 std::unique_ptr<Backend> make_cpu_backend() { return std::make_unique<CpuBackend>(); }
 
-KktStats kkt_on_original(const ScaledProblem& sp, const std::vector<double>& x, const std::vector<double>& y_min) {
-  return CpuBackend::kkt_original(sp, x, y_min);
+KktStats kkt_on_original(const ScaledProblem& sp, const std::vector<double>& x, const std::vector<double>& y_min,
+                         KktWorkspace* ws) {
+  return CpuBackend::kkt_original(sp, x, y_min, ws);
 }
 
 std::unique_ptr<Backend> make_backend(bool use_gpu, std::string& error) {

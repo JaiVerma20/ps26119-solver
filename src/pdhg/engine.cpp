@@ -79,68 +79,111 @@ bool PrecisionPolicy::on_check(double rel_kkt, std::int64_t iteration) {
 }
 
 // ------------------------------------------------------------------ infeasibility
-RayTest ray_test(const ScaledProblem& sp, const std::vector<double>& dxs, const std::vector<double>& dys) {
+RayTest ray_test(const ScaledProblem& sp, const std::vector<double>& dxs, const std::vector<double>& dys,
+                 RayWorkspace* ws) {
   const Model& M = *sp.original;
   RayTest t;
+  RayWorkspace local;
+  RayWorkspace& w = ws ? *ws : local;
+  // All loops run on the thread pool; every sum is a fixed-chunk la::parallel_reduce, so the
+  // verdict does not depend on the thread count (this test runs at every termination check,
+  // and serial it cost as much as ~20 iterations on the refinery year at 4 threads).
+  struct Acc {
+    double obj = 0, mag = 0, viol = 0, rmax = 0;
+  };
+  auto merge = [](Acc& a, const Acc& b) {
+    a.obj += b.obj, a.mag += b.mag, a.viol = std::max(a.viol, b.viol), a.rmax = std::max(a.rmax, b.rmax);
+  };
   // ---- dual ray (certifies primal infeasibility)
-  std::vector<double> r(sp.m), g(sp.n);
-  double rmax = 0;
-  for (int i = 0; i < sp.m; ++i) {
-    double v = sp.row_scale[i] * dys[i] / sp.obj_scale;
-    if (!std::isfinite(M.row_lower[i])) v = std::min(v, 0.0);
-    if (!std::isfinite(M.row_upper[i])) v = std::max(v, 0.0);
-    r[i] = v;
-    rmax = std::max(rmax, std::fabs(v));
-  }
+  std::vector<double>& r = w.r;
+  r.resize(sp.m);
+  const double rmax = la::parallel_reduce<Acc>(
+                          sp.m,
+                          [&](std::int64_t b, std::int64_t e, Acc& a) {
+                            for (std::int64_t i = b; i < e; ++i) {
+                              double v = sp.row_scale[i] * dys[i] / sp.obj_scale;
+                              if (!std::isfinite(M.row_lower[i])) v = std::min(v, 0.0);
+                              if (!std::isfinite(M.row_upper[i])) v = std::max(v, 0.0);
+                              r[i] = v;
+                              a.rmax = std::max(a.rmax, std::fabs(v));
+                            }
+                          },
+                          merge)
+                          .rmax;
   if (rmax > 0) {
-    sp.At_orig.multiply<double>(r.data(), g.data());
+    w.g.resize(sp.n);
+    sp.At_orig.multiply<double>(r.data(), w.g.data());
     // `mag`: magnitude of the summands of the objective (|λ_j| bounded above by Σ|a_ij r_i|);
     // the objective must be a meaningful fraction of it, not rounding noise (a zero-cost dual
     // direction otherwise stopped the engine with a bogus "infeasible", see certificates.cpp).
-    std::vector<double> gabs(sp.n, 0.0);
-    for (int j = 0; j < sp.n; ++j)
-      for (int k = M.col_start[j]; k < M.col_start[j + 1]; ++k) gabs[j] += std::fabs(M.value[k] * r[M.row_index[k]]);
-    double obj = 0, viol = 0, mag = 0;
-    for (int i = 0; i < sp.m; ++i) {
-      const double term = r[i] > 0 ? M.row_lower[i] * r[i] : (r[i] < 0 ? M.row_upper[i] * r[i] : 0.0);
-      obj += term;
-      mag += std::fabs(term);
-    }
-    for (int j = 0; j < sp.n; ++j) {
-      const double lam = -g[j], lo = M.col_lower[j], up = M.col_upper[j];
-      if (lam > 0) {
-        if (std::isfinite(lo)) obj += lo * lam, mag += gabs[j] * std::fabs(lo);
-        else viol = std::max(viol, lam);
-      } else if (lam < 0) {
-        if (std::isfinite(up)) obj += up * lam, mag += gabs[j] * std::fabs(up);
-        else viol = std::max(viol, -lam);
-      }
-    }
+    const Acc rows = la::parallel_reduce<Acc>(
+        sp.m,
+        [&](std::int64_t b, std::int64_t e, Acc& a) {
+          for (std::int64_t i = b; i < e; ++i) {
+            const double term = r[i] > 0 ? M.row_lower[i] * r[i] : (r[i] < 0 ? M.row_upper[i] * r[i] : 0.0);
+            a.obj += term;
+            a.mag += std::fabs(term);
+          }
+        },
+        merge);
+    const Acc cols = la::parallel_reduce<Acc>(
+        sp.n,
+        [&](std::int64_t b, std::int64_t e, Acc& a) {
+          for (std::int64_t j = b; j < e; ++j) {
+            const double lam = -w.g[j], lo = M.col_lower[j], up = M.col_upper[j];
+            if (lam == 0) continue;
+            const double bound = lam > 0 ? lo : up;
+            if (!std::isfinite(bound)) {
+              a.viol = std::max(a.viol, std::fabs(lam));
+              continue;
+            }
+            double gabs = 0;  // Σ_i |a_ij r_i|
+            for (int k = M.col_start[j]; k < M.col_start[j + 1]; ++k) gabs += std::fabs(M.value[k] * r[M.row_index[k]]);
+            a.obj += bound * lam;
+            a.mag += gabs * std::fabs(bound);
+          }
+        },
+        merge);
+    const double obj = rows.obj + cols.obj, mag = rows.mag + cols.mag, viol = cols.viol;
     const double scale = std::max(rmax, viol);
     t.dual_ray_objective = obj / scale;
     t.dual_ray_violation = viol / scale;
     t.primal_infeasible = t.dual_ray_objective > 0 && obj > tol::kFirstOrderInfeasible * mag &&
                           t.dual_ray_violation <= tol::kFirstOrderInfeasible * t.dual_ray_objective;
-    t.dual_ray = r;
+    if (t.primal_infeasible) t.dual_ray = r;
   }
   // ---- primal ray (certifies dual infeasibility)
-  std::vector<double> d(sp.n), ad(sp.m);
-  double dmax = 0;
-  for (int j = 0; j < sp.n; ++j) {
-    double v = sp.col_scale[j] * dxs[j] / sp.bound_scale;
-    if (std::isfinite(M.col_lower[j])) v = std::max(v, 0.0);
-    if (std::isfinite(M.col_upper[j])) v = std::min(v, 0.0);
-    d[j] = v;
-    dmax = std::max(dmax, std::fabs(v));
-  }
+  std::vector<double>& d = w.d;
+  d.resize(sp.n);
+  const Acc dcol = la::parallel_reduce<Acc>(
+      sp.n,
+      [&](std::int64_t b, std::int64_t e, Acc& a) {
+        for (std::int64_t j = b; j < e; ++j) {
+          double v = sp.col_scale[j] * dxs[j] / sp.bound_scale;
+          if (std::isfinite(M.col_lower[j])) v = std::max(v, 0.0);
+          if (std::isfinite(M.col_upper[j])) v = std::min(v, 0.0);
+          d[j] = v;
+          a.rmax = std::max(a.rmax, std::fabs(v));
+          a.obj += M.sense * M.obj[j] * v;    // cᵀd
+          a.mag += std::fabs(M.obj[j] * v);  // Σ|c_j d_j|
+        }
+      },
+      merge);
+  const double dmax = dcol.rmax;
   if (dmax > 0) {
-    sp.A_orig.multiply<double>(d.data(), ad.data());
-    double cd = 0, viol = 0, cmag = 0;
-    for (int j = 0; j < sp.n; ++j) cd += M.sense * M.obj[j] * d[j], cmag += std::fabs(M.obj[j] * d[j]);
-    for (int i = 0; i < sp.m; ++i) {
-      if (std::isfinite(M.row_lower[i])) viol = std::max(viol, -ad[i]);
-      if (std::isfinite(M.row_upper[i])) viol = std::max(viol, ad[i]);
-    }
+    w.ad.resize(sp.m);
+    sp.A_orig.multiply<double>(d.data(), w.ad.data());
+    const double cd = dcol.obj, cmag = dcol.mag;
+    const double viol = la::parallel_reduce<Acc>(
+                            sp.m,
+                            [&](std::int64_t b, std::int64_t e, Acc& a) {
+                              for (std::int64_t i = b; i < e; ++i) {
+                                if (std::isfinite(M.row_lower[i])) a.viol = std::max(a.viol, -w.ad[i]);
+                                if (std::isfinite(M.row_upper[i])) a.viol = std::max(a.viol, w.ad[i]);
+                              }
+                            },
+                            merge)
+                            .viol;
     const double scale = std::max(dmax, viol);
     t.primal_ray_objective = cd / scale;
     t.primal_ray_violation = viol / scale;
@@ -149,16 +192,17 @@ RayTest ray_test(const ScaledProblem& sp, const std::vector<double>& dxs, const 
     // direction of a BOUNDED LP would otherwise end the solve (the gate would then refuse it).
     t.dual_infeasible = t.primal_ray_objective < 0 && -cd > tol::kFirstOrderInfeasible * cmag &&
                         t.primal_ray_violation <= tol::kFirstOrderInfeasible * -t.primal_ray_objective;
-    t.primal_ray = d;
+    if (t.dual_infeasible) t.primal_ray = d;
   }
   return t;
 }
 
 Status EngineContext::check_infeasibility(int dx, int dy, const KktStats& current, std::string& message) {
-  std::vector<double> dxs, dys;
+  std::vector<double>& dxs = ray_ws_.dx;
+  std::vector<double>& dys = ray_ws_.dy;
   backend_->download(dx, dxs);
   backend_->download(dy, dys);
-  RayTest t = ray_test(sp_, dxs, dys);
+  RayTest t = ray_test(sp_, dxs, dys, &ray_ws_);
   if (t.primal_infeasible) {
     dual_ray_ = std::move(t.dual_ray);
     message = "primal infeasible: dual ray certificate (objective " + std::to_string(t.dual_ray_objective) +
