@@ -27,9 +27,14 @@ T clamp(T v, T lo, T hi) {
 
 template <class T>
 struct Store {
-  la::Csr<T> A, At;
+  // fp64: A / At point at the ScaledProblem's own Ã, Ãᵀ (no copy; the problem outlives the
+  // backend). fp32: they point at the cast copies below, built only when mixed precision is used.
+  const la::Csr<T>* A = nullptr;
+  const la::Csr<T>* At = nullptr;
+  la::Csr<T> A_own, At_own;
   std::vector<T> c, l, u, rl, ru;
   std::vector<std::vector<T>> vecs;
+  bool loaded = false;
 };
 
 class CpuBackend final : public Backend {
@@ -38,14 +43,14 @@ class CpuBackend final : public Backend {
 
   void setup(const ScaledProblem& sp) override {
     sp_ = &sp;
-    load(d_, sp);
-    load(f_, sp);
+    load(d_, sp);  // the fp32 store is loaded on the first switch to mixed precision
   }
 
   void set_precision(Precision p) override {
     if (p == prec_) return;
     // convert every vector to the new working type
     if (p == Precision::Mixed) {
+      if (!f_.loaded) load(f_, *sp_);
       for (std::size_t k = 0; k < d_.vecs.size(); ++k) f_.vecs[k].assign(d_.vecs[k].begin(), d_.vecs[k].end());
     } else {
       for (std::size_t k = 0; k < f_.vecs.size(); ++k) d_.vecs[k].assign(f_.vecs[k].begin(), f_.vecs[k].end());
@@ -87,10 +92,10 @@ class CpuBackend final : public Backend {
     });
   }
   void spmv(int x, int out) override {
-    with([&](auto& S) { S.A.template multiply<double>(S.vecs[x].data(), S.vecs[out].data()); });
+    with([&](auto& S) { S.A->template multiply<double>(S.vecs[x].data(), S.vecs[out].data()); });
   }
   void spmv_t(int y, int out) override {
-    with([&](auto& S) { S.At.template multiply<double>(S.vecs[y].data(), S.vecs[out].data()); });
+    with([&](auto& S) { S.At->template multiply<double>(S.vecs[y].data(), S.vecs[out].data()); });
   }
   double dot(int a, int b) override {
     double s = 0;
@@ -192,7 +197,7 @@ class CpuBackend final : public Backend {
       auto& X = S.vecs[x];
       const auto &X0 = S.vecs[x0], &Y = S.vecs[y];
       auto &H = S.vecs[xhat], &B = S.vecs[xbar];
-      const auto& At = S.At;
+      const auto& At = *S.At;
       At.for_rows([&](std::int64_t lo, std::int64_t hi) {
         for (std::int64_t j = lo; j < hi; ++j) {
           double acc = 0;
@@ -218,7 +223,7 @@ class CpuBackend final : public Backend {
       const auto &Y0 = S.vecs[y0], &XB = S.vecs[xbar];
       auto& H = S.vecs[yhat];
       T* B = ybar >= 0 ? S.vecs[ybar].data() : nullptr;
-      const auto& A = S.A;
+      const auto& A = *S.A;
       A.for_rows([&](std::int64_t lo, std::int64_t hi) {
         for (std::int64_t i = lo; i < hi; ++i) {
           double acc = 0;
@@ -251,8 +256,16 @@ class CpuBackend final : public Backend {
  private:
   template <class T>
   static void load(Store<T>& S, const ScaledProblem& sp) {
-    S.A = sp.A.cast<T>();
-    S.At = sp.At.cast<T>();
+    if constexpr (std::is_same_v<T, double>) {
+      S.A = &sp.A;
+      S.At = &sp.At;
+    } else {
+      S.A_own = sp.A.cast<T>();
+      S.At_own = sp.At.cast<T>();
+      S.A = &S.A_own;
+      S.At = &S.At_own;
+    }
+    S.loaded = true;
     S.c.assign(sp.c.begin(), sp.c.end());
     S.l.assign(sp.col_lower.begin(), sp.col_lower.end());
     S.u.assign(sp.col_upper.begin(), sp.col_upper.end());
