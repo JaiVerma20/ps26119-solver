@@ -27,19 +27,40 @@ struct Csr {
   // out = this · x   (row-parallel; accumulates in Acc)
   // Row-parallel over the shared thread pool (la/parallel.h); each out[i] is computed by one
   // thread in a fixed order, so the result does not depend on the thread count.
+  // Work is split by nnz + rows, not by rows: a wide matrix with few long rows (Kennington
+  // osa-*: 1–10k rows of ~130 entries; fit2d: 25 rows of ~5000) used to get one or two chunks
+  // and ran A x on a single thread whatever the thread count.
   template <class Acc = T, class X, class Out>
   void multiply(const X* x, Out* out) const {
-    parallel_for(
-        rows,
-        [&](std::int64_t b, std::int64_t e) {
-          for (std::int64_t i = b; i < e; ++i) {
-            Acc s = 0;
-            for (std::int64_t k = row_ptr[i]; k < row_ptr[i + 1]; ++k)
-              s += static_cast<Acc>(val[k]) * static_cast<Acc>(x[col[k]]);
-            out[i] = static_cast<Out>(s);
-          }
-        },
-        4096);
+    auto body = [&](std::int64_t b, std::int64_t e) {
+      for (std::int64_t i = b; i < e; ++i) {
+        Acc s = 0;
+        for (std::int64_t k = row_ptr[i]; k < row_ptr[i + 1]; ++k)
+          s += static_cast<Acc>(val[k]) * static_cast<Acc>(x[col[k]]);
+        out[i] = static_cast<Out>(s);
+      }
+    };
+    ThreadPool& pool = ThreadPool::instance();
+    const std::int64_t work = nnz() + rows;  // cost model: one unit per entry and per row
+    constexpr std::int64_t kGrain = 32768;   // minimum work per chunk
+    const int t = pool.threads();
+    if (t <= 1 || work < 2 * kGrain || rows < 2) {
+      body(0, rows);
+      return;
+    }
+    const int chunks = static_cast<int>(std::min<std::int64_t>({4 * t, work / kGrain, rows}));
+    pool.run(chunks, [&](int c) { body(balanced_row(work * c / chunks), balanced_row(work * (c + 1) / chunks)); });
+  }
+
+  // First row i with row_ptr[i] + i >= target (row_ptr[i] + i is strictly increasing).
+  std::int64_t balanced_row(std::int64_t target) const {
+    std::int64_t lo = 0, hi = rows;
+    while (lo < hi) {
+      const std::int64_t mid = lo + (hi - lo) / 2;
+      if (row_ptr[mid] + mid < target) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
   }
 
   template <class U>

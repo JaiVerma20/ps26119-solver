@@ -151,7 +151,7 @@ inline constexpr int kReduceChunks = 64;
 
 // Parallel loop over [0, n) in contiguous chunks; small n runs inline.
 template <class F>
-void parallel_for(std::int64_t n, F&& f, std::int64_t min_per_chunk = 16384) {
+void parallel_for(std::int64_t n, F&& f, std::int64_t min_per_chunk = 8192) {
   ThreadPool& pool = ThreadPool::instance();
   const int t = pool.threads();
   if (t <= 1 || n < 2 * min_per_chunk) {
